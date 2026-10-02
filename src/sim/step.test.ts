@@ -25,6 +25,14 @@ describe('step', () => {
 })
 
 describe('placement and demolition rules', () => {
+  it('refuses a placement that seals the owner\'s goal', () => {
+    const row = (gx: number) => ({ kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx, gy: 40 } }) as const
+    let s = initialState()
+    for (const gx of [0, 4, 8, 12]) s = step(s, { placeWall: row(gx) }, defaultConfig).state
+    const r = step(s, { placeWall: row(16) }, defaultConfig)
+    expect(r.state.objects).toHaveLength(4)
+    expect(r.events).toEqual([{ type: 'refused' }])
+  })
   const legal = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 2, gy: 40 } } as const
   const illegal = { ...legal, at: { gx: 2, gy: 10 } }
   const placed = { ...legal, id: 1, hp: 3 }

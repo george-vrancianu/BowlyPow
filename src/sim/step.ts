@@ -1,6 +1,6 @@
 import type { PlayerId, Point } from './pitch'
 import { initialPlayers, type Player } from './player'
-import { isLegal, WALL_HP, type Wall, type WallSpec } from './wall'
+import { canPlace, WALL_HP, type Wall, type WallSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
 export type SimObject = Wall
@@ -46,7 +46,7 @@ export function step(
   let { objects, points, nextId } = state
   const events: SimEvent[] = []
   if (input.placeWall) {
-    if (isLegal(input.placeWall)) objects = [...objects, { ...input.placeWall, id: nextId++, hp: WALL_HP }]
+    if (canPlace(objects, input.placeWall)) objects = [...objects, { ...input.placeWall, id: nextId++, hp: WALL_HP }]
     else events.push({ type: 'refused' })
   }
   const { demolish } = input

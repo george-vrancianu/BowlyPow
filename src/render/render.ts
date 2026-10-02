@@ -3,7 +3,7 @@ import { PLAYER_COLORS } from '../sim/player'
 import { GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 import type { SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
-import { crackLines, isLegal, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
+import { canPlace, crackLines, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
 
 const BOARD = 1
 const NET_DEPTH = 3
@@ -132,7 +132,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: W
   for (const f of fragments) drawFragment(ctx, f, now)
   if (ghost) {
     ctx.globalAlpha = 0.5
-    drawWall(ctx, ghost, isLegal(ghost) ? undefined : COLORS.illegal)
+    drawWall(ctx, ghost, canPlace(state.objects, ghost) ? undefined : COLORS.illegal)
   }
   ctx.restore()
 }

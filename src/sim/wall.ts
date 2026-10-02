@@ -1,4 +1,4 @@
-import { CELL_SIZE, halfOf, inNoBuildZone, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { CELL_SIZE, cellToWorld, GOAL_LEFT, GOAL_RIGHT, halfOf, inNoBuildZone, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 
 /** A grid vertex: world position is (gx, gy) * CELL_SIZE. */
 export type Vertex = { gx: number; gy: number }
@@ -51,6 +51,45 @@ export function isLegal(w: WallSpec): boolean {
     const nearestToGoal = { x: Math.min(Math.max(PITCH_WIDTH / 2, x0), x1), y: Math.min(Math.max(goalY, y0), y1) }
     return halfOf((y0 + y1) / 2) === w.owner && !inNoBuildZone(nearestToGoal)
   })
+}
+
+/**
+ * Whether a ball-sized disc (one cell wide) can still go from the halfway line to the owner's goal mouth.
+ * Flood fill over the owner's half in cells; a wall cell blocks the step across its edge, so a gap must be a full cell wide.
+ */
+function goalReachable(walls: WallSpec[], owner: PlayerId): boolean {
+  const [cols, rows] = [PITCH_WIDTH / CELL_SIZE, PITCH_HEIGHT / CELL_SIZE]
+  const edge = (ax: number, ay: number, bx: number, by: number) => `${ax},${ay},${bx},${by}`
+  const blocked = new Set(walls.flatMap(wallCells).map(({ a, b }) => (a.gx + a.gy < b.gx + b.gy ? edge(a.gx, a.gy, b.gx, b.gy) : edge(b.gx, b.gy, a.gx, a.gy))))
+  const [first, last] = owner === 1 ? [rows / 2, rows - 1] : [rows / 2 - 1, 0]
+  const goalMouth = (cx: number) => { const { x } = cellToWorld({ cx, cy: 0 }); return x >= GOAL_LEFT && x <= GOAL_RIGHT }
+  const key = (cx: number, cy: number) => cx * rows + cy
+  const seen = new Set<number>()
+  const stack: [number, number][] = Array.from({ length: cols }, (_, cx) => [cx, first])
+  stack.forEach(([cx, cy]) => seen.add(key(cx, cy)))
+  for (let c = stack.pop(); c; c = stack.pop()) {
+    const [cx, cy] = c
+    if (cy === last && goalMouth(cx)) return true
+    // Neighbour, and the unit edge between the two cells.
+    const steps: [number, number, string][] = [
+      [cx + 1, cy, edge(cx + 1, cy, cx + 1, cy + 1)],
+      [cx - 1, cy, edge(cx, cy, cx, cy + 1)],
+      [cx, cy + 1, edge(cx, cy + 1, cx + 1, cy + 1)],
+      [cx, cy - 1, edge(cx, cy, cx + 1, cy)],
+    ]
+    for (const [nx, ny, e] of steps) {
+      const onHalf = halfOf(cellToWorld({ cx: nx, cy: ny }).y) === owner
+      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows || !onHalf || blocked.has(e) || seen.has(key(nx, ny))) continue
+      seen.add(key(nx, ny))
+      stack.push([nx, ny])
+    }
+  }
+  return false
+}
+
+/** Legal, and the owner's goal stays reachable with it in place. Runs on placement only; destroying a wall only opens paths. */
+export function canPlace(existing: WallSpec[], w: WallSpec): boolean {
+  return isLegal(w) && goalReachable([...existing, w], w.owner)
 }
 
 /** Zero-thickness collision segments in world units, one per arm. */
