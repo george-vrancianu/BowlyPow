@@ -22,6 +22,7 @@ export type SimEvent =
   /** `scorer` null = the shot cap ended the round. */
   | { type: 'round-ended'; round: number; scorer: PlayerId | null }
   | { type: 'match-ended'; winner: PlayerId }
+  | { type: 'shot-clock-expired'; player: PlayerId }
 
 export type SimState = {
   tick: number
@@ -33,6 +34,8 @@ export type SimState = {
   ball: Ball
   possession: Possession
   match: Match
+  /** Shot clock: ticks left (frozen while a shot is live) and consecutive expiries in this possession. */
+  clock: { left: number; expiries: number }
 }
 
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
@@ -42,6 +45,8 @@ export type SimInput = {
   demolish?: { player: PlayerId; wall: number }
   damage?: { wall: number; at: Point }
   kick?: Point
+  /** The shooter's blast charge in progress; fires at this power when the shot clock runs out. */
+  charging?: { origin: Point; power: number }
   /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   placeBall?: { player: PlayerId; at: Point }
 }
@@ -63,6 +68,8 @@ export type SimConfig = {
   rounds: number
   /** Shots in a round before it ends scoreless (not in sudden death). */
   shotCap: number
+  /** Seconds per shot. */
+  shotClock: number
 }
 
 export const defaultConfig: SimConfig = {
@@ -77,10 +84,11 @@ export const defaultConfig: SimConfig = {
   shots: 3,
   rounds: 5,
   shotCap: 30,
+  shotClock: 15,
 }
 
 export function initialState(seed = 1): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), defaultConfig), match: newMatch(seed) }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), defaultConfig), match: newMatch(seed), clock: { left: defaultConfig.shotClock * defaultConfig.tickHz, expiries: 0 } }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
@@ -123,7 +131,11 @@ export function step(
       possession = { ...possession, inHand: false }
     } else events.push({ type: 'refused' })
   }
-  const { blast } = input
+  let { clock } = state
+  const expired = !possession.live && clock.left <= 1
+  if (!possession.live) clock = { ...clock, left: clock.left - 1 }
+  const { charging } = input
+  const blast = input.blast ?? (expired && charging && canBlastFrom(possession.shooter, charging.origin, { objects, ball }, config) ? { player: possession.shooter, ...charging } : undefined)
   if (blast) {
     if (blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config)) {
       events.push({ type: 'blast-fired', ...blast })
@@ -140,6 +152,26 @@ export function step(
       }
     } else events.push({ type: 'refused' })
   }
+  const fired = possession.live && !state.possession.live
+  if (expired) {
+    const shooter = possession.shooter
+    events.push({ type: 'shot-clock-expired', player: shooter })
+    if (!possession.live) {
+      if (clock.expiries >= 1) {
+        possession = { shooter: opponent(shooter), shots: config.shots, inHand: true, live: false }
+        events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
+      } else {
+        if (possession.inHand) {
+          ball = { ...ball, pos: { x: PITCH_WIDTH / 2, y: shooter === 1 ? 1.5 * HALF_HEIGHT : HALF_HEIGHT / 2 }, vel: { x: 0, y: 0 } }
+          possession = { ...possession, inHand: false }
+        }
+        const r = resolveRest(possession, ball.pos.y, config)
+        possession = r.possession
+        events.push(...r.events)
+        clock = { ...clock, expiries: clock.expiries + 1 }
+      }
+    }
+  }
   const rolled = rollBall(ball, objects, config)
   events.push(...rolled.events)
   let out = rolled.ball
@@ -152,12 +184,15 @@ export function step(
     possession = r.possession
     events.push(...r.events)
   }
-  if (conceder || (rested && match.roundShots >= config.shotCap && match.round <= config.rounds)) {
+  const ended = conceder || (rested && match.roundShots >= config.shotCap && match.round <= config.rounds)
+  if (ended) {
     const e = endRound(match, conceder && opponent(conceder), config)
     match = e.match
     possession = e.possession
     out = { ...out, pos: e.ball, vel: { x: 0, y: 0 } }
     events.push(...e.events)
   }
-  return { state: { ...state, possession, match, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: out }, events }
+  if (possession.shooter !== state.possession.shooter || fired || ended) clock = { ...clock, expiries: 0 }
+  if (expired || fired || ended || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
+  return { state: { ...state, possession, match, clock, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: out }, events }
 }

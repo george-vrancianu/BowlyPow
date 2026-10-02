@@ -149,7 +149,8 @@ function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
   for (; acc >= TICK; acc -= TICK) {
-    const r = step(state, pending, defaultConfig)
+    const power = charge?.gesture.mode === 'charge' ? gesturePower(charge.gesture, now) : 0
+    const r = step(state, power > 0 && charge ? { charging: { origin: charge.origin, power }, ...pending } : pending, defaultConfig)
     state = r.state
     if (!state.possession.inHand) ballGhost = undefined
     if (pending.placeWall || r.events.length) recenter(camera)
@@ -169,7 +170,7 @@ function frame(now: number) {
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
   hud.update(
-    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: null, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
+    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: { seconds: state.clock.left / defaultConfig.tickHz, fraction: state.clock.left / (defaultConfig.shotClock * defaultConfig.tickHz) }, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
     { width: canvas.clientWidth, height: canvas.clientHeight },
   )
   waves = waves.filter((w) => waveAlive(w, now))

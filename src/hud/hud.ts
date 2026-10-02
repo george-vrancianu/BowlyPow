@@ -52,7 +52,7 @@ export function buttonRow(specs: ButtonSpec[]): HTMLElement {
   return row
 }
 
-const ring = (f: number) => `conic-gradient(#e8eaf0 ${f * 360}deg,#3b4256 0)`
+const ring = (f: number, color = '#e8eaf0') => `conic-gradient(${color} ${f * 360}deg,#3b4256 0)`
 
 /** DOM overlay mounted over the canvas; call `update` every frame with the current model and canvas size. */
 export function createHud(root: HTMLElement, actions: HudActions) {
@@ -105,7 +105,9 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     }
     round.textContent = `Round ${m.round} / ${m.rounds}`
     clockNum.textContent = m.clock ? String(Math.ceil(m.clock.seconds)) : '-'
-    clockNum.style.background = ring(m.clock?.fraction ?? 0)
+    const urgent = !!m.clock && m.clock.seconds <= 5
+    clockNum.style.background = ring(m.clock?.fraction ?? 0, urgent ? '#ff4d4d' : undefined)
+    clockNum.style.transform = urgent ? `scale(${1 + 0.15 * Math.abs(Math.sin(Math.PI * m.clock!.seconds))})` : ''
     dots.replaceChildren(...Array.from({ length: m.shotsMax }, (_, i) => el('span', `width:12px;height:12px;border-radius:50%;border:2px solid #e8eaf0;background:${i < m.shotsLeft ? '#e8eaf0' : 'none'};`)))
     phase.textContent = m.phase
   }
