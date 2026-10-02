@@ -1,6 +1,9 @@
 import { showConnectScreen } from './net/connectScreen'
-import { applyEvents, newFx } from './render/feedback'
+import { applyEvents, newFx, reducedMotion } from './render/feedback'
 import { createHud } from './hud/hud'
+import { createOverlay } from './hud/overlay'
+import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
+import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
@@ -13,8 +16,15 @@ import { wallSegments, type Segment, type Wall } from './sim/wall'
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
 const TICK = 1 / defaultConfig.tickHz
+// The stage rotates as one: canvas, HUD and overlay (the 180-degree handover flip).
+const stage = document.createElement('div')
+stage.style.cssText = 'position:fixed;inset:0'
+canvas.before(stage)
+stage.append(canvas)
 
 let state = initialState()
+let trans = newTransition(state.possession.shooter)
+const overlay = createOverlay(stage, () => (trans = dismiss(trans, performance.now())))
 const camera: Camera = { y: state.ball.pos.y }
 // Map overlay: a second camera over the whole pitch; the fit/stretch choice lasts the session.
 const stored = (() => { try { return sessionStorage.getItem('mapStretch') === '1' } catch { return false } })()
@@ -69,7 +79,7 @@ ownerBtn.onclick = () => {
 const pointers = new Map<number, Point>()
 let panOnly = false
 const canvasPx = () => canvas.width / canvas.clientWidth
-const panBy = (dyPx: number) => pan(camera, -(dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight)
+const panBy = (dyPx: number) => pan(camera, (trans.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight)
 canvas.onwheel = (e) => (e.preventDefault(), panBy(-e.deltaY))
 addEventListener('keydown', (e) => e.code === 'Space' && (e.preventDefault(), recenter(camera)))
 canvas.onpointermove = (e) => {
@@ -140,7 +150,7 @@ canvas.onpointerdown = (e) => {
   pending = { placeWall: ghost }
   recenter(camera)
 }
-const hud = createHud(document.body, { onMap: () => toggleMap(), onRecenter: () => recenter(camera) })
+const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera) })
 let acc = 0
 let last = performance.now()
 let lastFrame = last
@@ -148,13 +158,21 @@ let lastFrame = last
 function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
+  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
+  const phase = 'Play'
+  const turn = (events: SimEvent[]) => (trans = advance(trans, { active: state.possession.shooter, round: state.match.round, inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
+    if (blocking(trans)) {
+      pending = {}
+      continue
+    }
     const power = charge?.gesture.mode === 'charge' ? gesturePower(charge.gesture, now) : 0
     const r = step(state, power > 0 && charge ? { charging: { origin: charge.origin, power }, ...pending } : pending, defaultConfig)
     state = r.state
     if (!state.possession.inHand) ballGhost = undefined
     if (pending.placeWall || r.events.length) recenter(camera)
     pending = {}
+    turn(r.events)
     applyEvents(fx, r.events, state.objects, now)
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
       else if (ev.type === 'blast-fired') {
@@ -162,6 +180,11 @@ function frame(now: number) {
       }
   }
 
+  turn([])
+  const flipping = !!trans.flip && now - trans.flip.at >= trans.flip.ms / 2
+  if (flipping || (trans.overlay?.kind === 'turn' && !trans.flip)) (camera.y = state.ball.pos.y), recenter(camera)
+  stage.style.transform = `rotate(${angle(trans, now)}deg)`
+  overlay.update(overlayView(trans, now))
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
   confirm.hidden = !state.possession.inHand
@@ -170,11 +193,12 @@ function frame(now: number) {
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
   hud.update(
-    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: { seconds: state.clock.left / defaultConfig.tickHz, fraction: state.clock.left / (defaultConfig.shotClock * defaultConfig.tickHz) }, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
+    { players: { 1: { score: state.match.score[1], inventory: state.players[1].inventory }, 2: { score: state.match.score[2], inventory: state.players[2].inventory } }, active: trans.shown, round: Math.min(state.match.round, defaultConfig.rounds), rounds: defaultConfig.rounds, clock: { seconds: state.clock.left / defaultConfig.tickHz, fraction: state.clock.left / (defaultConfig.shotClock * defaultConfig.tickHz) }, shotsLeft: state.possession.shots, shotsMax: defaultConfig.shots, phase },
     { width: canvas.clientWidth, height: canvas.clientHeight },
   )
   waves = waves.filter((w) => waveAlive(w, now))
-  render(ctx, state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, defaultConfig) })
+  const net = goalBall(trans)
+  render(ctx, net ? { ...state, ball: { ...state.ball, pos: net, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, defaultConfig) })
   if (mapOpen) {
     const o = viewOutline(canvas, mapCam, camera)
     ctx.strokeStyle = '#fff'
