@@ -13,4 +13,10 @@ describe('step', () => {
   it('starts with an empty object container', () => {
     expect(initialState().objects).toEqual([])
   })
+  it('adds a placed wall to the state, overlapping walls allowed', () => {
+    const wall = { kind: 'wall', owner: 2, shape: 'L', rotation: 1, at: { gx: 3, gy: 4 } } as const
+    let s = step(initialState(), { placeWall: wall }, defaultConfig).state
+    s = step(s, { placeWall: wall }, defaultConfig).state
+    expect(s.objects).toEqual([wall, wall])
+  })
 })

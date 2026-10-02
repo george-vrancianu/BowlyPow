@@ -1,15 +1,62 @@
+import type { Point } from '../sim/pitch'
 import { GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 import type { SimState } from '../sim/step'
+import { wallSegments, type Wall } from '../sim/wall'
 
 const BOARD = 1
 const NET_DEPTH = 3
 const VIEW_WIDTH = PITCH_WIDTH + 2 * BOARD
-const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: '#22d3ee', p2: '#fb923c', net: '#1d2740' }
+const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: '#22d3ee', p2: '#fb923c', net: '#1d2740', outline: '#05070d' }
 
-/** Read-only: draws the state through a fixed view that always fits the pitch width. */
-export function render(ctx: CanvasRenderingContext2D, _state: SimState): void {
-  const { width, height } = ctx.canvas
+const view = ({ width, height }: { width: number; height: number }) => {
   const scale = width / VIEW_WIDTH
+  return { scale, x0: BOARD * scale, y0: height / 2 - (PITCH_HEIGHT / 2) * scale }
+}
+
+/** Canvas pixel position to world units under the fixed view. */
+export function screenToWorld(canvas: { width: number; height: number }, px: number, py: number): Point {
+  const { scale, x0, y0 } = view(canvas)
+  return { x: (px - x0) / scale, y: (py - y0) / scale }
+}
+
+/** Player 2 walls: owner colour with diagonal stripes. */
+function hatch(ctx: CanvasRenderingContext2D): CanvasPattern {
+  const tile = document.createElement('canvas')
+  tile.width = tile.height = 8
+  const t = tile.getContext('2d')!
+  t.fillStyle = COLORS.p2
+  t.fillRect(0, 0, 8, 8)
+  t.strokeStyle = '#7c2d12'
+  t.lineWidth = 2
+  t.beginPath()
+  t.moveTo(0, 8)
+  t.lineTo(8, 0)
+  t.stroke()
+  const pattern = ctx.createPattern(tile, 'repeat')!
+  pattern.setTransform(new DOMMatrix().scale(0.25))
+  return pattern
+}
+
+function drawWall(ctx: CanvasRenderingContext2D, w: Wall): void {
+  ctx.beginPath()
+  for (const { a, b } of wallSegments(w)) {
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(b.x, b.y)
+  }
+  ctx.lineCap = 'square'
+  ctx.lineJoin = 'miter'
+  ctx.strokeStyle = COLORS.outline
+  ctx.lineWidth = 1
+  ctx.stroke()
+  ctx.strokeStyle = w.owner === 2 ? hatch(ctx) : COLORS.p1
+  ctx.lineWidth = 0.7
+  ctx.stroke()
+}
+
+/** Read-only: draws the state through a fixed view that always fits the pitch width. An optional ghost wall is drawn half-transparent. */
+export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: Wall): void {
+  const { width, height } = ctx.canvas
+  const { scale } = view(ctx.canvas)
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, width, height)
   ctx.save()
@@ -34,5 +81,11 @@ export function render(ctx: CanvasRenderingContext2D, _state: SimState): void {
 
   ctx.fillStyle = COLORS.line
   ctx.fillRect(0, HALF_HEIGHT - 0.15, PITCH_WIDTH, 0.3)
+
+  for (const o of state.objects) drawWall(ctx, o)
+  if (ghost) {
+    ctx.globalAlpha = 0.5
+    drawWall(ctx, ghost)
+  }
   ctx.restore()
 }
