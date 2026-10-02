@@ -1,6 +1,6 @@
 import { showConnectScreen } from './net/connectScreen'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
-import { follow, layout, type Camera } from './render/camera'
+import { follow, layout, pan, recenter, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
@@ -35,11 +35,27 @@ ownerBtn.onclick = () => {
   ownerBtn.textContent = `Owner: ${owner}`
   if (ghost) ghost = { ...ghost, owner }
 }
+// Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
+const pointers = new Map<number, Point>()
+let panOnly = false
+const canvasPx = () => canvas.width / canvas.clientWidth
+const panBy = (dyPx: number) => pan(camera, -(dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight)
+canvas.onwheel = (e) => (e.preventDefault(), panBy(-e.deltaY))
+addEventListener('keydown', (e) => e.code === 'Space' && (e.preventDefault(), recenter(camera)))
 canvas.onpointermove = (e) => {
+  const prev = pointers.get(e.pointerId)
+  if (prev) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const dy = e.clientY - prev.y
+    if (pointers.size > 1) panBy(dy / pointers.size)
+    else if (panOnly || (charge && gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now()).mode === 'pan')) panBy(dy)
+  }
   if (ghost) ghost = { ...ghost, at: snap(e) }
   if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
 }
-canvas.onpointerup = () => {
+canvas.onpointerup = (e) => {
+  pointers.delete(e.pointerId)
+  panOnly = false
   const power = charge ? gesturePower(charge.gesture, performance.now()) : 0
   if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power } }
   charge = undefined
@@ -51,6 +67,11 @@ const distToSegment = (p: Point, { a, b }: Segment) => {
   return Math.hypot(p.x - a.x - t * vx, p.y - a.y - t * vy)
 }
 canvas.onpointerdown = (e) => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  if (pointers.size > 1) {
+    charge = undefined
+    return
+  }
   if (!ghost) {
     // Dev page: with no ghost, tapping a wall damages it.
     const at = toWorld(e)
@@ -60,7 +81,7 @@ canvas.onpointerdown = (e) => {
     else if (player && canBlastFrom(player, at, state, defaultConfig)) {
       canvas.setPointerCapture(e.pointerId)
       charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
-    }
+    } else panOnly = true
     return
   }
   ghost = { ...ghost, at: snap(e) }
@@ -76,6 +97,7 @@ function frame(now: number) {
   for (; acc >= TICK; acc -= TICK) {
     const r = step(state, pending, defaultConfig)
     state = r.state
+    if (pending.placeWall || r.events.length) recenter(camera)
     pending = {}
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
       else if (ev.type === 'blast-fired') {
@@ -84,7 +106,7 @@ function frame(now: number) {
       }
   }
 
-  follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr

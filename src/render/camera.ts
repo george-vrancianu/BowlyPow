@@ -4,7 +4,15 @@ const MAX_VISIBLE_HEIGHT = 64
 const SMOOTHING_S = 0.15
 
 /** Renderer state: the world y at the centre of the view. The width is always the pitch width. */
-export type Camera = { y: number }
+export type Camera = { y: number; held?: boolean }
+
+/** Manual pan: moves the view and holds it off the ball until recenter() (sim events call it too). */
+export function pan(cam: Camera, dy: number, visible: number): void {
+  cam.y = clampY(cam.y + dy, visible)
+  cam.held = true
+}
+
+export const recenter = (cam: Camera): void => void (cam.held = false)
 
 /** The pane is always 40 x 64 units: screens wider than 10:16 get side bands, taller ones get top and bottom bands. */
 export function layout({ width, height }: { width: number; height: number }) {

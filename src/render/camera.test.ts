@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { follow, layout } from './camera'
+import { follow, layout, pan, recenter } from './camera'
+
+describe('manual pan', () => {
+  it('moves the view and holds it until recentered', () => {
+    const cam = { y: 54, held: false }
+    pan(cam, -10, 64)
+    expect(cam).toEqual({ y: 44, held: true })
+    recenter(cam)
+    expect(cam.held).toBe(false)
+  })
+  it('stays inside the boards', () => {
+    const cam = { y: 54, held: false }
+    pan(cam, 1000, 64)
+    expect(cam.y).toBe(77)
+  })
+})
 
 describe('layout', () => {
   it('phone portrait: 40 units across, height capped at 64, letterboxed when taller', () => {
