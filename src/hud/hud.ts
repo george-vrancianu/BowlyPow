@@ -92,15 +92,19 @@ export function createHud(root: HTMLElement, actions: HudActions) {
   function update(m: HudModel, size: { width: number; height: number }) {
     const b = bands(size)
     const put = (e: HTMLElement, r: Band) => Object.assign(e.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` })
-    put(near, b.near)
-    put(far, b.far)
+    // Player 2's view is rotated 180 degrees, so the active strip and shared band take the far geometry.
+    put(near, m.active === 2 ? b.far : b.near)
+    put(far, m.active === 2 ? b.near : b.far)
     const [own, other] = [strips[m.active], strips[m.active === 1 ? 2 : 1]]
     near.replaceChildren(shared, own.strip)
     far.replaceChildren(other.strip)
     for (const id of [1, 2] as const) {
       const s = strips[id]
       const p = m.players[id]
-      s.score.textContent = String(p.score)
+      if (s.score.textContent !== String(p.score)) {
+        if (s.score.textContent) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], 400)
+        s.score.textContent = String(p.score)
+      }
       for (const i of s.icons) {
         const n = p.inventory[i.p]
         i.badge.textContent = String(n)
