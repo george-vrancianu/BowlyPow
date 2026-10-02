@@ -1,6 +1,6 @@
-import { halfOf, type PlayerId, type Point } from './pitch'
+import { CELL_SIZE, halfOf, type PlayerId, type Point } from './pitch'
 import type { SimConfig, SimState } from './step'
-import { wallSegments, type Segment, type Wall } from './wall'
+import { wallSegments, type Segment, type Structure } from './wall'
 
 /** Half the drawn wall thickness; a blast cannot start on it. */
 export const WALL_HALF = 0.35
@@ -13,19 +13,23 @@ function nearestOn({ a, b }: Segment, p: Point): Point {
   return { x: a.x + t * vx, y: a.y + t * vy }
 }
 
-export function nearestOnWall(w: Wall, p: Point): { at: Point; dist: number } {
+export function nearestOnWall(w: Structure, p: Point): { at: Point; dist: number } {
   return wallSegments(w)
     .map((s) => nearestOn(s, p))
     .map((at) => ({ at, dist: Math.hypot(at.x - p.x, at.y - p.y) }))
     .reduce((m, h) => (h.dist < m.dist ? h : m))
 }
 
+/** A tower is solid, so its interior counts as on it too. */
+export const insideTower = (w: Structure, p: Point): boolean =>
+  w.kind === 'tower' && Math.abs(p.x - (w.at.gx + 0.5) * CELL_SIZE) < CELL_SIZE / 2 && Math.abs(p.y - (w.at.gy + 0.5) * CELL_SIZE) < CELL_SIZE / 2
+
 /** On the player's own half (not the line), not on a wall, not on the ball. */
 export function canBlastFrom(player: PlayerId, origin: Point, s: Pick<SimState, 'objects' | 'ball'>, c: SimConfig): boolean {
   return (
     halfOf(origin.y) === player &&
     Math.hypot(origin.x - s.ball.pos.x, origin.y - s.ball.pos.y) > c.ballRadius &&
-    s.objects.every((w) => nearestOnWall(w, origin).dist > WALL_HALF)
+    s.objects.every((w) => nearestOnWall(w, origin).dist > WALL_HALF && !insideTower(w, origin))
   )
 }
 
@@ -40,7 +44,7 @@ export function blastPush(ball: Point, origin: Point, power: number, player: Pla
 }
 
 /** Every wall within the radius, with the hit points it loses (possibly 0) and its nearest point to the origin. The halfway line is not considered. */
-export function blastDamage(objects: Wall[], origin: Point, power: number, player: PlayerId, c: SimConfig): { wall: Wall; loss: number; at: Point }[] {
+export function blastDamage(objects: Structure[], origin: Point, power: number, player: PlayerId, c: SimConfig): { wall: Structure; loss: number; at: Point }[] {
   const r = blastRadius(power, c)
   return objects.flatMap((wall) => {
     const { at, dist } = nearestOnWall(wall, origin)

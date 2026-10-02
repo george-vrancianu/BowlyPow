@@ -1,7 +1,7 @@
 import { BOARD, halfOf, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
-import { nearestOnWall, WALL_HALF } from './blast'
+import { insideTower, nearestOnWall, WALL_HALF } from './blast'
 import type { SimConfig, SimEvent } from './step'
-import type { Wall } from './wall'
+import type { Structure } from './wall'
 
 /** `live`: a shot has been fired and the ball has not come to rest yet. */
 export type Possession = { shooter: PlayerId; shots: number; inHand: boolean; live: boolean }
@@ -9,12 +9,12 @@ export type Possession = { shooter: PlayerId; shots: number; inHand: boolean; li
 export const opponent = (p: PlayerId): PlayerId => (p === 1 ? 2 : 1)
 
 /** Own half strictly (not the line), inside the boards, clear of every wall. The no-build zone does not apply. */
-export function canPlaceBall(player: PlayerId, at: Point, objects: Wall[], c: SimConfig): boolean {
+export function canPlaceBall(player: PlayerId, at: Point, objects: Structure[], c: SimConfig): boolean {
   const r = c.ballRadius
   return (
     halfOf(at.y) === player &&
     at.x >= r && at.x <= PITCH_WIDTH - r && at.y >= BOARD && at.y <= PITCH_HEIGHT - BOARD &&
-    objects.every((w) => nearestOnWall(w, at).dist > r + WALL_HALF)
+    objects.every((w) => nearestOnWall(w, at).dist > r + WALL_HALF && !insideTower(w, at))
   )
 }
 
