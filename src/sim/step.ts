@@ -2,7 +2,7 @@ import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { initialPlayers, type Player } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
-import { canPlaceBall, resolveRest, type Possession } from './possession'
+import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
 import { canPlace, damageWall, maxHp, type Structure, type StructureSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
@@ -17,6 +17,7 @@ export type SimEvent =
   | { type: 'refused' }
   | { type: 'blast-fired'; player: PlayerId; origin: Point; power: number }
   | { type: 'possession-changed'; shooter: PlayerId; inHand: boolean }
+  | { type: 'shot-clock-expired'; player: PlayerId }
 
 export type SimState = {
   tick: number
@@ -27,6 +28,8 @@ export type SimState = {
   nextId: number
   ball: Ball
   possession: Possession
+  /** Shot clock: ticks left (frozen while a shot is live) and consecutive expiries in this possession. */
+  clock: { left: number; expiries: number }
 }
 
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
@@ -36,6 +39,8 @@ export type SimInput = {
   demolish?: { player: PlayerId; wall: number }
   damage?: { wall: number; at: Point }
   kick?: Point
+  /** The shooter's blast charge in progress; fires at this power when the shot clock runs out. */
+  charging?: { origin: Point; power: number }
   /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   placeBall?: { player: PlayerId; at: Point }
 }
@@ -54,6 +59,8 @@ export type SimConfig = {
   destroyedSpeedFactor: number
   /** Shots per possession. */
   shots: number
+  /** Seconds per shot. */
+  shotClock: number
 }
 
 export const defaultConfig: SimConfig = {
@@ -66,10 +73,11 @@ export const defaultConfig: SimConfig = {
   damageFraction: 0.5,
   destroyedSpeedFactor: 0.5,
   shots: 3,
+  shotClock: 15,
 }
 
 export function initialState(): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: { shooter: 1, shots: defaultConfig.shots, inHand: false, live: false } }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: { shooter: 1, shots: defaultConfig.shots, inHand: false, live: false }, clock: { left: defaultConfig.shotClock * defaultConfig.tickHz, expiries: 0 } }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
@@ -110,7 +118,11 @@ export function step(
       possession = { ...possession, inHand: false }
     } else events.push({ type: 'refused' })
   }
-  const { blast } = input
+  let { clock } = state
+  const expired = !possession.live && clock.left <= 1
+  if (!possession.live) clock = { ...clock, left: clock.left - 1 }
+  const { charging } = input
+  const blast = input.blast ?? (expired && charging && canBlastFrom(possession.shooter, charging.origin, { objects, ball }, config) ? { player: possession.shooter, ...charging } : undefined)
   if (blast) {
     if (blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config)) {
       events.push({ type: 'blast-fired', ...blast })
@@ -126,6 +138,26 @@ export function step(
       }
     } else events.push({ type: 'refused' })
   }
+  const fired = possession.live && !state.possession.live
+  if (expired) {
+    const shooter = possession.shooter
+    events.push({ type: 'shot-clock-expired', player: shooter })
+    if (!possession.live) {
+      if (clock.expiries >= 1) {
+        possession = { shooter: opponent(shooter), shots: config.shots, inHand: true, live: false }
+        events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
+      } else {
+        if (possession.inHand) {
+          ball = { ...ball, pos: { x: PITCH_WIDTH / 2, y: shooter === 1 ? 1.5 * HALF_HEIGHT : HALF_HEIGHT / 2 }, vel: { x: 0, y: 0 } }
+          possession = { ...possession, inHand: false }
+        }
+        const r = resolveRest(possession, ball.pos.y, config)
+        possession = r.possession
+        events.push(...r.events)
+        clock = { ...clock, expiries: clock.expiries + 1 }
+      }
+    }
+  }
   const rolled = rollBall(ball, objects, config)
   events.push(...rolled.events)
   if (possession.live && !rolled.ball.vel.x && !rolled.ball.vel.y) {
@@ -133,5 +165,7 @@ export function step(
     possession = r.possession
     events.push(...r.events)
   }
-  return { state: { ...state, possession, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: rolled.ball }, events }
+  if (possession.shooter !== state.possession.shooter || fired) clock = { ...clock, expiries: 0 }
+  if (expired || fired || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
+  return { state: { ...state, possession, clock, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: rolled.ball }, events }
 }
