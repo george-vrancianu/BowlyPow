@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { follow, layout } from './camera'
+import { follow, layout, MAP_Y, viewOf, viewOutline } from './camera'
 
 describe('layout', () => {
   it('phone portrait: 40 units across, height capped at 64, letterboxed when taller', () => {
@@ -34,5 +34,29 @@ describe('follow', () => {
     expect(t.y).toBe(31)
     follow(t, 900, 10, 64)
     expect(t.y).toBe(77)
+  })
+})
+
+describe('map camera', () => {
+  const canvas = { width: 400, height: 1200 }
+  it('fit keeps the aspect ratio and shows the whole pitch', () => {
+    const v = viewOf(canvas, { y: MAP_Y, map: { stretch: false } })
+    expect(v.sx).toBe(v.sy)
+    expect(v.sx).toBe(10)
+    expect(v.pane.w).toBe(400)
+    expect(v.pane.h).toBeCloseTo(v.visibleHeight * 10)
+  })
+  it('stretch fills the canvas with different scales per axis', () => {
+    const v = viewOf(canvas, { y: MAP_Y, map: { stretch: true } })
+    expect(v.pane).toEqual({ x: 0, y: 0, w: 400, h: 1200 })
+    expect(v.sy).toBeCloseTo(1200 / v.visibleHeight)
+  })
+  it('outlines the game view: full width, 64 units tall, positioned by camera y', () => {
+    const map = { y: MAP_Y, map: { stretch: false } }
+    const o = viewOutline(canvas, map, { y: MAP_Y })
+    expect(o.w).toBe(400)
+    expect(o.h).toBe(640)
+    expect(o.y + o.h / 2).toBeCloseTo(600)
+    expect(viewOutline(canvas, map, { y: MAP_Y + 10 }).y - o.y).toBeCloseTo(100)
   })
 })
