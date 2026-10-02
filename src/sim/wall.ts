@@ -58,7 +58,7 @@ export function wallCells(w: StructureSpec): { a: Vertex; b: Vertex }[] {
   })
 }
 
-/** Legal when every cell lies on the owner's half (a cell on the halfway line belongs to neither) and outside the owner's no-build zone. */
+/** Legal when every cell lies inside the pitch, on the owner's half (a cell on the halfway line belongs to neither) and outside the owner's no-build zone. */
 export function isLegal(w: StructureSpec): boolean {
   const goalY = w.owner === 2 ? 0 : PITCH_HEIGHT
   // A tower is judged as the whole square (a diagonal pair spans its box), so an edge resting on the halfway line is fine.
@@ -67,7 +67,7 @@ export function isLegal(w: StructureSpec): boolean {
     const [x0, x1] = [a.gx, b.gx].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
     const [y0, y1] = [a.gy, b.gy].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
     const nearestToGoal = { x: Math.min(Math.max(PITCH_WIDTH / 2, x0), x1), y: Math.min(Math.max(goalY, y0), y1) }
-    return halfOf((y0 + y1) / 2) === w.owner && !inNoBuildZone(nearestToGoal)
+    return x0 >= 0 && x1 <= PITCH_WIDTH && y0 >= 0 && y1 <= PITCH_HEIGHT && halfOf((y0 + y1) / 2) === w.owner && !inNoBuildZone(nearestToGoal)
   })
 }
 

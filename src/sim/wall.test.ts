@@ -105,7 +105,8 @@ describe('reachability', () => {
     expect(canPlace(row, straight(16, 40))).toBe(false)
   })
   it('accepts a one-cell gap', () => {
-    expect(canPlace(staircase, straight(17, 44))).toBe(true)
+    const hung = [0, 4, 8, 12].map((gx) => straight(gx, 40)).concat(straight(15, 40, 1))
+    expect(canPlace(hung, straight(16, 44))).toBe(true)
   })
   it('refuses a gap that is only diagonal, where two walls meet at a corner', () => {
     expect(canPlace(staircase, straight(16, 44))).toBe(false)
