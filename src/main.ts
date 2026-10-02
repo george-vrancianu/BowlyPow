@@ -51,3 +51,5 @@ function frame(now: number) {
 requestAnimationFrame(frame)
 // Connect screen is gated behind #connect so it does not cover the wall dev page.
 if (location.hash === '#connect') showConnectScreen()
+document.getElementById('splash')?.remove()
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js')
