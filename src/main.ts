@@ -1,3 +1,4 @@
+import { showConnectScreen } from './net/connectScreen'
 import { render, screenToWorld } from './render/render'
 import { CELL_SIZE } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput } from './sim/step'
@@ -48,3 +49,5 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
+// Connect screen is gated behind #connect so it does not cover the wall dev page.
+if (location.hash === '#connect') showConnectScreen()
