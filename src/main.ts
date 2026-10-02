@@ -1,3 +1,4 @@
+import { showConnectScreen } from './net/connectScreen'
 import { render } from './render/render'
 import { defaultConfig, initialState, step } from './sim/step'
 
@@ -21,3 +22,4 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
+showConnectScreen()
