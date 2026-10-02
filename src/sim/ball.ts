@@ -93,7 +93,8 @@ export function rollBall(ball: Ball, objects: Structure[], c: SimConfig, breaker
         const r = damageWall(objects, best.wall.id, pos)
         objects = r.objects
         events.push(...r.events)
-        if (r.events[0].type === 'wall-destroyed') {
+        // A destroyed Repulsor still fires below, so it skips the pass-through.
+        if (r.events[0].type === 'wall-destroyed' && !(best.wall.kind === 'tower' && best.wall.power === 'repulsor')) {
           vel = { x: vel.x * c.destroyedSpeedFactor, y: vel.y * c.destroyedSpeedFactor }
           continue
         }

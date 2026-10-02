@@ -62,6 +62,25 @@ describe('repulsor firing', () => {
   })
 })
 
+describe('repulsor destroyed by its contact hit', () => {
+  it('still fires the ball away at max speed, then is gone', () => {
+    let s = shot(place(repulsor()).state)
+    s = { ...s, ball: { ...s.ball, vel: { x: 45, y: 0 } }, objects: s.objects.map((o) => ({ ...o, hp: 1 })) }
+    for (let i = 0; i < 30; i++) {
+      const r = step(s, {}, defaultConfig)
+      s = r.state
+      if (r.events.some((e) => e.type === 'repulsor-fired')) {
+        expect(r.events.map((e) => e.type)).toContain('wall-destroyed')
+        expect(s.objects).toHaveLength(0)
+        expect(s.ball.vel.x).toBeLessThan(0)
+        expect(Math.hypot(s.ball.vel.x, s.ball.vel.y)).toBeGreaterThan(defaultConfig.maxSpeed * 0.9)
+        return
+      }
+    }
+    expect.unreachable('repulsor never fired')
+  })
+})
+
 describe('repulsor vs breaker', () => {
   it('a breaker ball destroys the repulsor without firing it', () => {
     const { events, s } = run({ ...shot(place(repulsor()).state), breaker: true }, 30)
