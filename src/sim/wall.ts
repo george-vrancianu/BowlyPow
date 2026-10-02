@@ -12,7 +12,17 @@ export type WallSpec = { kind: 'wall'; owner: PlayerId; shape: WallShape; rotati
 /** A placed wall: one hit point pool (an L shares it) and a stable id assigned by the sim. */
 export type Wall = WallSpec & { id: number; hp: number }
 
+/** A one-cell obstacle; `at` is the cell's top-left grid vertex. Follows every wall rule. */
+export type TowerSpec = { kind: 'tower'; owner: PlayerId; at: Vertex }
+export type Tower = TowerSpec & { id: number; hp: number }
+/** Anything placeable, and its placed form; walls and towers share legality, reachability, collision and damage. */
+export type StructureSpec = WallSpec | TowerSpec
+export type Structure = Wall | Tower
+
 export const WALL_HP = 3
+export const TOWER_HP = 3
+export const TOWER_COST = 0
+export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? TOWER_HP : WALL_HP)
 
 /** Each arm is a run of cells from the pivot, in grid units, before rotation. */
 const ARMS: Record<WallShape, [number, number][]> = {
@@ -31,8 +41,12 @@ function arms({ shape, rotation }: WallSpec): [number, number][] {
 }
 
 /** The wall as unit cells (one cell = one grid edge), in grid vertices. */
-export function wallCells(w: WallSpec): { a: Vertex; b: Vertex }[] {
+export function wallCells(w: StructureSpec): { a: Vertex; b: Vertex }[] {
   const { gx, gy } = w.at
+  if (w.kind === 'tower') {
+    const [p, q, r, s] = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([x, y]) => ({ gx: gx + x, gy: gy + y }))
+    return [{ a: p, b: q }, { a: q, b: r }, { a: r, b: s }, { a: s, b: p }]
+  }
   return arms(w).flatMap(([x, y]) => {
     const n = Math.abs(x + y)
     const [dx, dy] = [Math.sign(x), Math.sign(y)]
@@ -44,9 +58,11 @@ export function wallCells(w: WallSpec): { a: Vertex; b: Vertex }[] {
 }
 
 /** Legal when every cell lies on the owner's half (a cell on the halfway line belongs to neither) and outside the owner's no-build zone. */
-export function isLegal(w: WallSpec): boolean {
+export function isLegal(w: StructureSpec): boolean {
   const goalY = w.owner === 2 ? 0 : PITCH_HEIGHT
-  return wallCells(w).every(({ a, b }) => {
+  // A tower is judged as the whole square (a diagonal pair spans its box), so an edge resting on the halfway line is fine.
+  const parts = w.kind === 'tower' ? [{ a: w.at, b: { gx: w.at.gx + 1, gy: w.at.gy + 1 } }] : wallCells(w)
+  return parts.every(({ a, b }) => {
     const [x0, x1] = [a.gx, b.gx].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
     const [y0, y1] = [a.gy, b.gy].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
     const nearestToGoal = { x: Math.min(Math.max(PITCH_WIDTH / 2, x0), x1), y: Math.min(Math.max(goalY, y0), y1) }
@@ -58,7 +74,7 @@ export function isLegal(w: WallSpec): boolean {
  * Whether a ball-sized disc (one cell wide) can still go from the halfway line to the owner's goal mouth.
  * Flood fill over the owner's half in cells; a wall cell blocks the step across its edge, so a gap must be a full cell wide.
  */
-function goalReachable(walls: WallSpec[], owner: PlayerId): boolean {
+function goalReachable(walls: StructureSpec[], owner: PlayerId): boolean {
   const [cols, rows] = [PITCH_WIDTH / CELL_SIZE, PITCH_HEIGHT / CELL_SIZE]
   const edge = (ax: number, ay: number, bx: number, by: number) => `${ax},${ay},${bx},${by}`
   const blocked = new Set(walls.flatMap(wallCells).map(({ a, b }) => (a.gx + a.gy < b.gx + b.gy ? edge(a.gx, a.gy, b.gx, b.gy) : edge(b.gx, b.gy, a.gx, a.gy))))
@@ -89,22 +105,23 @@ function goalReachable(walls: WallSpec[], owner: PlayerId): boolean {
 }
 
 /** Legal, and the owner's goal stays reachable with it in place. Runs on placement only; destroying a wall only opens paths. */
-export function canPlace(existing: WallSpec[], w: WallSpec): boolean {
+export function canPlace(existing: StructureSpec[], w: StructureSpec): boolean {
   return isLegal(w) && goalReachable([...existing, w], w.owner)
 }
 
 /** Zero-thickness collision segments in world units, one per arm. */
-export function wallSegments(w: WallSpec): Segment[] {
+export function wallSegments(w: StructureSpec): Segment[] {
+  if (w.kind === 'tower') return wallCells(w).map(({ a, b }) => ({ a: { x: a.gx * CELL_SIZE, y: a.gy * CELL_SIZE }, b: { x: b.gx * CELL_SIZE, y: b.gy * CELL_SIZE } }))
   const a = { x: w.at.gx * CELL_SIZE, y: w.at.gy * CELL_SIZE }
   return arms(w).map(([x, y]) => ({ a, b: { x: a.x + x * CELL_SIZE, y: a.y + y * CELL_SIZE } }))
 }
 
 /** One jagged crack per lost hit point, as world-space polylines. Deterministic in (id, hp) so peers draw the same cracks. */
-export function crackLines(w: Wall): Point[][] {
+export function crackLines(w: Structure): Point[][] {
   const cells = wallCells(w)
-  return Array.from({ length: WALL_HP - w.hp }, (_, k) => {
+  return Array.from({ length: maxHp(w) - w.hp }, (_, k) => {
     // Seeded from id and the hp remaining after this crack, so earlier cracks never move.
-    let seed = (w.id * 31 + (WALL_HP - 1 - k)) * 2654435761
+    let seed = (w.id * 31 + (maxHp(w) - 1 - k)) * 2654435761
     const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) >>> 0) / 2 ** 32)
     const { a, b } = cells[Math.floor(rnd() * cells.length)]
     const [cx, cy] = [((a.gx + b.gx) / 2) * CELL_SIZE, ((a.gy + b.gy) / 2) * CELL_SIZE]
@@ -119,7 +136,7 @@ export function crackLines(w: Wall): Point[][] {
 }
 
 /** Removes 1 hp from the wall (one pool per wall); the shared damage path for every source. Unknown ids are ignored. */
-export function damageWall(objects: Wall[], id: number, at: Point): { objects: Wall[]; events: SimEvent[] } {
+export function damageWall(objects: Structure[], id: number, at: Point): { objects: Structure[]; events: SimEvent[] } {
   const target = objects.find((w) => w.id === id)
   if (!target) return { objects, events: [] }
   const hp = target.hp - 1

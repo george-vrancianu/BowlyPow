@@ -1,6 +1,6 @@
 import { BOARD, GOAL_LEFT, GOAL_RIGHT, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH, type Point } from './pitch'
 import type { SimConfig, SimEvent } from './step'
-import { damageWall, wallSegments, type Segment, type Wall } from './wall'
+import { damageWall, wallSegments, type Segment, type Structure } from './wall'
 
 export type Ball = { pos: Point; vel: Point; /** Distance travelled, drives the rolling dot. */ rolled: number }
 
@@ -45,7 +45,7 @@ function sweep(p: Point, d: Point, { a, b }: Segment, r: number): { t: number; n
 }
 
 /** One tick of ball motion: friction, then swept movement with bounces; walls hit hard enough lose hp. */
-export function rollBall(ball: Ball, objects: Wall[], c: SimConfig): { ball: Ball; objects: Wall[]; events: SimEvent[] } {
+export function rollBall(ball: Ball, objects: Structure[], c: SimConfig): { ball: Ball; objects: Structure[]; events: SimEvent[] } {
   const dt = 1 / c.tickHz
   const decay = 0.5 ** (dt / c.halfLife)
   let { pos, vel, rolled } = ball
@@ -56,8 +56,8 @@ export function rollBall(ball: Ball, objects: Wall[], c: SimConfig): { ball: Bal
   // The cap only matters when wedged in a corner; the rest of that tick's motion is dropped.
   for (let i = 0; i < 8 && left > 0 && (vel.x || vel.y); i++) {
     const d = { x: vel.x * dt * left, y: vel.y * dt * left }
-    let best: { t: number; n: Point; wall?: Wall } | null = null
-    const candidates: [Segment, Wall?][] = [...boards.map((s): [Segment] => [s]), ...objects.flatMap((w) => wallSegments(w).map((s): [Segment, Wall] => [s, w]))]
+    let best: { t: number; n: Point; wall?: Structure } | null = null
+    const candidates: [Segment, Structure?][] = [...boards.map((s): [Segment] => [s]), ...objects.flatMap((w) => wallSegments(w).map((s): [Segment, Structure] => [s, w]))]
     for (const [s, wall] of candidates) {
       const h = sweep(pos, d, s, c.ballRadius)
       if (h && (!best || h.t < best.t)) best = { ...h, wall }
