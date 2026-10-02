@@ -1,3 +1,4 @@
+import type { Frame } from './lockstep'
 export type Status = 'connected' | 'disconnected'
 
 /** The slice of RTCDataChannel we use, so tests can fake it. */
@@ -9,8 +10,8 @@ export type ChannelLike = {
   onmessage: ((e: { data: string }) => void) | null
 }
 
-export type Msg = { type: string; [k: string]: unknown }
 /** Game messages are JSON objects with a `type`; ping/pong stay inside the peer. */
+export type Msg = { type: 'start'; seed: number } | ({ type: 'frame' } & Frame)
 export type Peer = { ping(): Promise<number>; close(): void; send(m: Msg): void; onMessage: ((m: Msg) => void) | null }
 
 type Desc = { type: 'offer' | 'answer'; sdp: string }

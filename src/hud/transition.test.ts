@@ -77,3 +77,23 @@ describe('phase sweep', () => {
     expect(t.overlay).toBeUndefined()
   })
 })
+
+describe('online (no handover)', () => {
+  const online = (t: Transition, o: Partial<Frame>) => go(t, { active: 2, handover: false, ...o })
+  it('never flips or opens a turn card, and the screen stays with the local player', () => {
+    let t = online(newTransition(2), {})
+    expect(t.overlay).toBeUndefined()
+    expect(blocking(t)).toBe(false)
+    t = online(t, { now: 100, events: [{ type: 'round-ended', round: 1, scorer: 1 }] })
+    expect(t.flip).toBeUndefined()
+    expect(angle(t, 100)).toBe(180)
+  })
+  it('still holds on a goal and sweeps on a phase change', () => {
+    let t = online(newTransition(2), { phase: 'Play' })
+    t = online(t, { now: 10, phase: 'Build', events: [{ type: 'goal', scorer: 1, at: { x: 20, y: 0 } }] })
+    expect(blocking(t)).toBe(true)
+    t = online(t, { now: 1600, phase: 'Build' })
+    expect(blocking(t)).toBe(false)
+    expect(overlayView(t, 1600)?.text).toBe('BUILD')
+  })
+})

@@ -15,7 +15,8 @@ export const newTransition = (active: PlayerId): Transition => ({ shown: active,
 
 const rot = (p: PlayerId) => (p === 1 ? 0 : 180)
 
-export type Frame = { active: PlayerId; round: number; inHand: boolean; phase: string; events: SimEvent[]; now: number; reduced: boolean }
+/** `handover` false = online: each player always sits at the bottom, so no flip or turn card. */
+export type Frame = { handover?: boolean; active: PlayerId; round: number; inHand: boolean; phase: string; events: SimEvent[]; now: number; reduced: boolean }
 
 /** Call each tick (with that tick's events) and once per frame. Pure; the sim never waits on it, the shell pauses `step` while `blocking`. */
 export function advance(t: Transition, f: Frame): Transition {
@@ -27,7 +28,8 @@ export function advance(t: Transition, f: Frame): Transition {
     if (ev.type === 'round-ended') due = true
   }
   if (t.phase !== undefined && t.phase !== f.phase && overlay?.kind !== 'goal') overlay = { kind: 'sweep', at: f.now, player: f.active, text: f.phase.toUpperCase(), ms: SWEEP_MS }
-  if ((due || f.active !== shown) && !flip && overlay?.kind !== 'goal' && overlay?.kind !== 'turn') {
+  if (f.handover === false) due = false
+  else if ((due || f.active !== shown) && !flip && overlay?.kind !== 'goal' && overlay?.kind !== 'turn') {
     const ms = f.reduced ? 0 : FLIP_MS
     if (ms) flip = { at: f.now, ms, from: shown, to: f.active }
     else shown = f.active
@@ -35,7 +37,8 @@ export function advance(t: Transition, f: Frame): Transition {
     overlay = { kind: 'turn', at: f.now, player: f.active, text: `Player ${f.active}'s turn`, hint, ms }
     due = false
   }
-  return { shown, flip, overlay, due, phase: f.phase }
+  // A phase change during the goal hold is announced once the hold ends.
+  return { shown, flip, overlay, due, phase: overlay?.kind === 'goal' ? t.phase : f.phase }
 }
 
 /** The shell stops stepping the sim while a flip, goal or turn overlay is up. */

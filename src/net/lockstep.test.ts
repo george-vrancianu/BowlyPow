@@ -23,31 +23,38 @@ function bot(s: SimState, me: PlayerId): SimInput {
 }
 
 /** Two peers over a link where each frame arrives `lag` rounds late; a peer missing a frame stalls. */
-function match(seed: number, lag: number, ticks: number) {
+function match(seed: number, lag: number, ticks: number, play: (s: SimState, me: PlayerId) => SimInput = bot) {
+  let frames = 0
+  const blasts: unknown[] = []
   const inbox: { f: Frame; at: number }[][] = [[], []]
   let now = 0
-  const peers = [1, 2].map((me, i) => lockstep((f) => inbox[1 - i].push({ f, at: now + lag }), me as PlayerId, DELAY))
+  const peers = [1, 2].map((me, i) => lockstep((f) => (frames++, inbox[1 - i].push({ f, at: now + lag })), me as PlayerId, DELAY))
   const states = [initialState(seed, config), initialState(seed, config)]
-  while (states[0].tick < ticks && now < ticks * 20) {
+  while (states.some((s) => s.tick < ticks) && now < ticks * 20) {
     now++
     peers.forEach((net, i) => {
       for (const m of inbox[i].filter((m) => m.at <= now)) net.receive(m.f)
       inbox[i] = inbox[i].filter((m) => m.at > now)
-      net.submit(bot(states[i], (i + 1) as PlayerId))
-      const input = net.advance()
-      if (input) states[i] = step(states[i], input, config).state
+      if (states[i].tick >= ticks) return
+      net.submit(play(states[i], (i + 1) as PlayerId))
+      const input = net.advance(states[i].possession.shooter)
+      if (input) {
+        const r = step(states[i], input, config)
+        states[i] = r.state
+        if (i === 0) blasts.push(...r.events.filter((e) => e.type === 'blast-fired'))
+      }
     })
   }
-  return states
+  return Object.assign(states, { frames, blasts })
 }
 
 describe('lockstep', () => {
   it('stalls until the remote frame for the tick has arrived', () => {
     const a = lockstep(() => {}, 1, DELAY)
-    for (let i = 0; i < DELAY; i++) expect(a.advance()).toEqual({})
-    expect(a.advance()).toBeUndefined()
+    for (let i = 0; i < DELAY; i++) expect(a.advance(1)).toEqual({})
+    expect(a.advance(1)).toBeUndefined()
     a.receive({ t: DELAY })
-    expect(a.advance()).toEqual({})
+    expect(a.advance(1)).toEqual({})
   })
 
   it('applies an input on the same tick on both sides, merged by player id', () => {
@@ -61,8 +68,8 @@ describe('lockstep', () => {
     for (let t = 0; t <= DELAY; t++) {
       for (const f of out[0].splice(0)) b.receive(f)
       for (const f of out[1].splice(0)) a.receive(f)
-      seen[0].push(a.advance())
-      seen[1].push(b.advance())
+      seen[0].push(a.advance(1))
+      seen[1].push(b.advance(1))
     }
     expect(seen[0]).toEqual(seen[1])
     expect(seen[0][DELAY]).toEqual({ done: 1, placeBall })
@@ -76,6 +83,25 @@ describe('lockstep', () => {
       expect(a.match.builder).toBeNull()
       expect(a.match.roundShots).toBeGreaterThan(0)
     }
+  })
+
+  it('sends a frame per input or promise, not one per tick', () => {
+    const idle = match(5, 0, 600, () => ({}))
+    expect(idle.frames).toBeLessThan(600 / 2)
+  })
+
+  it('auto-fires a charging blast on shot-clock expiry at its current power, on both peers', () => {
+    // Once the build turns are over, the shooter holds a charge at power 0.6 and never releases.
+    const hold = (s: SimState, me: PlayerId): SimInput => {
+      if (s.match.builder === me) return { done: me }
+      const { possession: p, ball } = s
+      if (p.shooter !== me || s.match.builder || p.live) return {}
+      if (p.inHand) return s.tick % 20 === 0 ? { placeBall: { player: me, at: { x: 20, y: me === 1 ? 80 : 28 } } } : {}
+      return s.tick % 20 === 0 ? { charging: { origin: { x: ball.pos.x, y: ball.pos.y + (me === 1 ? 4 : -4) }, power: 0.6 } } : {}
+    }
+    const peers = match(5, 3, 1500, hold)
+    expect(peers[0]).toEqual(peers[1])
+    expect(peers.blasts).toContainEqual(expect.objectContaining({ type: 'blast-fired', power: 0.6 }))
   })
 
   it('latency does not change the outcome', () => {

@@ -1,5 +1,5 @@
 import { showConnectScreen } from './net/connectScreen'
-import { lockstep, type Frame } from './net/lockstep'
+import { lockstep } from './net/lockstep'
 import type { Peer } from './net/peer'
 import { applyEvents, newFx, reducedMotion, STEAL_MS } from './render/feedback'
 import { createScreens } from './screens/screens'
@@ -213,7 +213,7 @@ function onLink(peer: Peer, hosting: boolean, status: 'connected' | 'disconnecte
     if (net && !state.match.winner) (net = undefined, matchShown = true, screens.notice('Opponent disconnected'))
     return
   }
-  peer.onMessage = (m) => (m.type === 'start' ? startOnline(peer, 2, m.seed as number) : net?.sync.receive(m as unknown as Frame))
+  peer.onMessage = (m) => (m.type === 'start' ? startOnline(peer, 2, m.seed) : net?.sync.receive(m))
   if (hosting) {
     const seed = (Math.random() * 2 ** 31) | 0
     peer.send({ type: 'start', seed })
@@ -243,7 +243,7 @@ function frame(now: number) {
     if (net) {
       net.sync.submit(pending)
       pending = {}
-      const merged = net.sync.advance()
+      const merged = net.sync.advance(state.possession.shooter)
       if (!merged) {
         acc = Math.min(acc, TICK)
         break
