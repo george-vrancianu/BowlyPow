@@ -45,7 +45,8 @@ function sweep(p: Point, d: Point, { a, b }: Segment, r: number): { t: number; n
 }
 
 /** One tick of ball motion: friction, then swept movement with bounces; walls hit hard enough lose hp. */
-export function rollBall(ball: Ball, objects: Structure[], c: SimConfig): { ball: Ball; objects: Structure[]; events: SimEvent[] } {
+/** With `breaker`, the first structure touched is destroyed outright and the ball keeps its speed. */
+export function rollBall(ball: Ball, objects: Structure[], c: SimConfig, breaker = false): { ball: Ball; objects: Structure[]; events: SimEvent[]; breaker: boolean } {
   const dt = 1 / c.tickHz
   const decay = 0.5 ** (dt / c.halfLife)
   let { pos, vel, rolled } = ball
@@ -74,6 +75,13 @@ export function rollBall(ball: Ball, objects: Structure[], c: SimConfig): { ball
     const speed = Math.hypot(vel.x, vel.y)
     if (best.wall) {
       events.push({ type: 'ball-hit-wall', wall: best.wall.id, speed, at: pos })
+      if (breaker) {
+        breaker = false
+        const gone = { ...best.wall, hp: 0 }
+        objects = objects.filter((w) => w.id !== gone.id)
+        events.push({ type: 'wall-destroyed', wall: gone, at: pos, breaker: true })
+        continue
+      }
       if (speed > c.damageFraction * c.maxSpeed) {
         const r = damageWall(objects, best.wall.id, pos)
         objects = r.objects
@@ -94,5 +102,5 @@ export function rollBall(ball: Ball, objects: Structure[], c: SimConfig): { ball
       events.push({ type: 'repulsor-fired', tower: t.id, at: pos })
     }
   }
-  return { ball: { pos, vel, rolled }, objects, events }
+  return { ball: { pos, vel, rolled }, objects, events, breaker }
 }

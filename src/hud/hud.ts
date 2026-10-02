@@ -27,6 +27,8 @@ export type HudModel = {
   phase: string
   /** Phase buttons (build palette, Rotate, Confirm, Done) shown under the shared strip; rebuilt only when labels or state change. */
   buttons?: ButtonSpec[]
+  /** Breaker is armed (highlighted) and whether the active player may tap it now. */
+  breaker: { armed: boolean; tappable: boolean }
 }
 
 export type HudActions = { onMap(): void; onRecenter(): void; onPowerUp?(p: PowerUp): void }
@@ -108,7 +110,12 @@ export function createHud(root: HTMLElement, actions: HudActions) {
       for (const i of s.icons) {
         const n = p.inventory[i.p]
         i.badge.textContent = String(n)
+        const breaker = i.p === 'breaker'
+        const live = id === m.active && m.breaker.tappable
         i.b.style.opacity = n > 0 ? '1' : '0.35'
+        i.b.style.background = breaker && id === m.active && m.breaker.armed ? PLAYER_COLORS[id] : 'none'
+        i.b.style.color = breaker && id === m.active && m.breaker.armed ? '#0b0f1a' : PLAYER_COLORS[id]
+        i.b.disabled = breaker && !live
       }
     }
     round.textContent = `Round ${m.round} / ${m.rounds}`

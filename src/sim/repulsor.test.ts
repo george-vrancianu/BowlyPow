@@ -61,3 +61,15 @@ describe('repulsor firing', () => {
     expect(events).toContain('repulsor-fired')
   })
 })
+
+describe('repulsor vs breaker', () => {
+  it('a breaker ball destroys the repulsor without firing it', () => {
+    const { events, s } = run({ ...shot(place(repulsor()).state), breaker: true }, 30)
+    expect(events).toContain('wall-destroyed')
+    expect(events).not.toContain('repulsor-fired')
+    expect(s.objects).toHaveLength(0)
+  })
+  it('an unarmed ball still fires it', () => {
+    expect(run({ ...shot(place(repulsor()).state), breaker: false }, 30).events).toContain('repulsor-fired')
+  })
+})

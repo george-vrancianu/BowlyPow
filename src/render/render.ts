@@ -219,7 +219,7 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 }
 
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: StructureSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = [], fx?: Fx, ballGhost?: { at: Point; legal: boolean }): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: StructureSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = [], fx?: Fx, ballGhost?: { at: Point; legal: boolean }, armed?: PlayerId): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
@@ -287,6 +287,13 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
     }
   }
   drawBall(ctx, state.ball, !!fx?.pulses.some((p) => now - p.born < TRAIL_MS))
+  if (armed) {
+    ctx.beginPath()
+    ctx.arc(state.ball.pos.x, state.ball.pos.y, 1.5 + 0.25 * Math.sin(now / 120), 0, Math.PI * 2)
+    ctx.strokeStyle = PLAYER_COLORS[armed]
+    ctx.lineWidth = 0.3
+    ctx.stroke()
+  }
   if (charge) drawCharge(ctx, state, charge, now)
   for (const w of waves) {
     const t = (now - w.born) / WAVE_MS
