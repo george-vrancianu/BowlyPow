@@ -1,4 +1,5 @@
 import { showConnectScreen } from './net/connectScreen'
+import { createHud } from './hud/hud'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, pan, recenter, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
@@ -87,6 +88,7 @@ canvas.onpointerdown = (e) => {
   ghost = { ...ghost, at: snap(e) }
   pending = { placeWall: ghost }
 }
+const hud = createHud(document.body, { onMap: () => {}, onRecenter: () => (camera.y = state.ball.pos.y) })
 let acc = 0
 let last = performance.now()
 let lastFrame = last
@@ -112,6 +114,10 @@ function frame(now: number) {
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
+  hud.update(
+    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: null, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
+    { width: canvas.clientWidth, height: canvas.clientHeight },
+  )
   waves = waves.filter((w) => waveAlive(w, now))
   const age = now - shake.born
   const amp = shake.power > 0.3 && age < 200 ? 4 * shake.power * (1 - age / 200) : 0
