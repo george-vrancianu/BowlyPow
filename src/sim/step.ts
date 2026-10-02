@@ -164,10 +164,14 @@ export function step(
     } else events.push({ type: 'refused' })
   }
   const fired = possession.live && !state.possession.live
+  // A shot is consumed when it rests, is stolen, or is burned by the clock; the round cap is checked then.
+  let consumed = false
   if (expired) {
     const shooter = possession.shooter
     events.push({ type: 'shot-clock-expired', player: shooter })
     if (!possession.live) {
+      consumed = true
+      match = { ...match, roundShots: match.roundShots + 1 }
       if (clock.expiries >= 1) {
         possession = { shooter: opponent(shooter), shots: config.shots, inHand: true, live: false }
         events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
@@ -194,21 +198,21 @@ export function step(
   let out = rolled.ball
   const stolen = rolled.events.find((e) => e.type === 'steal-triggered')
   if (stolen) {
+    consumed = true
     possession = { shooter: stolen.owner, shots: config.shots, inHand: true, live: false }
     events.push({ type: 'possession-changed', shooter: stolen.owner, inHand: true })
   }
   // A Repulsor rearms when the ball rests.
   if (!out.vel.x && !out.vel.y && rolled.objects.some((o) => o.kind === 'tower' && o.spent)) rolled.objects = rolled.objects.map((o) => (o.kind === 'tower' && o.spent ? { ...o, spent: false } : o))
   const conceder = goalCrossed(ball.pos, out.pos)
-  let rested = false
   if (conceder) events.push({ type: 'goal', scorer: opponent(conceder), at: out.pos })
   else if (possession.live && !out.vel.x && !out.vel.y) {
-    rested = true
+    consumed = true
     const r = resolveRest(possession, out.pos.y, config)
     possession = r.possession
     events.push(...r.events)
   }
-  const ended = conceder || (rested && match.roundShots >= config.shotCap && match.round <= config.rounds)
+  const ended = conceder || (consumed && match.roundShots >= config.shotCap && match.round <= config.rounds)
   if (ended) {
     const e = endRound(match, conceder && opponent(conceder), config)
     match = e.match

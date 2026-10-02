@@ -49,6 +49,16 @@ describe('shot cap', () => {
     expect(r.state.possession).toMatchObject({ shooter: coinFlip(1, 2), inHand: true, live: false })
     expect(r.events).toContainEqual({ type: 'round-ended', round: 1, scorer: null })
   })
+  it('counts a shot burned on clock expiry, and the 30th burned shot ends the round', () => {
+    const burn = (shots: number) => {
+      const s = { ...resting(1, shots), ball: { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: { shooter: 1 as const, shots: 3, inHand: false, live: false }, clock: { left: 1, expiries: 0 } }
+      return step(s, {}, c)
+    }
+    expect(burn(28).state.match).toMatchObject({ round: 1, roundShots: 29 })
+    const r = burn(29)
+    expect(r.state.match).toMatchObject({ round: 2, roundShots: 0 })
+    expect(r.events).toContainEqual({ type: 'round-ended', round: 1, scorer: null })
+  })
   it('does not end the round before the 30th shot', () => {
     expect(step(resting(1, 29), {}, c).state.match.round).toBe(1)
   })

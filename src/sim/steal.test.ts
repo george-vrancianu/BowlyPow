@@ -49,6 +49,12 @@ describe('steal trigger', () => {
     expect(events).toContainEqual({ type: 'possession-changed', shooter: 1, inHand: true })
     expect(s.clock.expiries).toBe(0)
   })
+  it('a steal on the 30th shot ends the round scoreless', () => {
+    const s = shot(place(steal()).state, 2)
+    const { events, s: after } = run({ ...s, match: { ...s.match, roundShots: defaultConfig.shotCap } }, 30)
+    expect(events).toContainEqual({ type: 'round-ended', round: 1, scorer: null })
+    expect(after.match.round).toBe(2)
+  })
   it('triggers for either owner', () => {
     const { s, events } = run(shot(place(steal(2)).state, 1, 29), 30)
     expect(types(events)).toContain('steal-triggered')
