@@ -14,8 +14,12 @@ const MAX_SHAKE = 4
 
 export type Particle = { at: Point; vel: Point; color: string; born: number }
 export type Flash = { wall: number; dim: boolean; born: number }
-export type Fx = { particles: Particle[]; flashes: Flash[]; shake: { amp: number; born: number } }
-export const newFx = (): Fx => ({ particles: [], flashes: [], shake: { amp: 0, born: 0 } })
+/** A Repulsor fire: ring burst and tower glow last GLOW_MS, the ball's trail brightens for TRAIL_MS. */
+export type Pulse = { tower: number; born: number }
+export const GLOW_MS = 300
+export const TRAIL_MS = 500
+export type Fx = { particles: Particle[]; flashes: Flash[]; shake: { amp: number; born: number }; pulses: Pulse[] }
+export const newFx = (): Fx => ({ particles: [], flashes: [], shake: { amp: 0, born: 0 }, pulses: [] })
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -63,8 +67,10 @@ export function applyEvents(fx: Fx, events: FxEvent[], walls: { id: number; owne
       const s = 4 + Math.random() * 8
       fx.particles.push({ at: b.at, vel: { x: Math.cos(a) * s, y: Math.sin(a) * s }, color: b.color, born: now })
     }
+  for (const e of events) if (e.type === 'repulsor-fired') fx.pulses.push({ tower: e.tower, born: now })
   for (const amp of r.shakes) fx.shake = { amp, born: now }
   for (const v of r.vibrations) navigator.vibrate?.(v)
   fx.particles = fx.particles.filter((p) => now - p.born < PARTICLE_MS)
   fx.flashes = fx.flashes.filter((f) => now - f.born < FLASH_MS)
+  fx.pulses = fx.pulses.filter((p) => now - p.born < TRAIL_MS)
 }

@@ -23,6 +23,7 @@ export type SimEvent =
   | { type: 'round-ended'; round: number; scorer: PlayerId | null }
   | { type: 'match-ended'; winner: PlayerId }
   | { type: 'shot-clock-expired'; player: PlayerId }
+  | { type: 'repulsor-fired'; tower: number; at: Point }
 
 export type SimState = {
   tick: number
@@ -107,10 +108,14 @@ export function step(
   let { match } = state
   const events: SimEvent[] = []
   const building = match.builder !== null
+  let { players } = state
   const { placeWall, demolish } = input
   if (placeWall) {
     const cost = placeWall.kind === 'wall' ? wallCost(placeWall.shape) : TOWER_COST
-    if (placeWall.owner === match.builder && points[placeWall.owner] >= cost && canPlace(objects, placeWall)) {
+    const power = placeWall.kind === 'tower' ? placeWall.power : undefined
+    const stocked = !power || players[placeWall.owner].inventory[power] > 0
+    if (placeWall.owner === match.builder && stocked && points[placeWall.owner] >= cost && canPlace(objects, placeWall)) {
+      if (power) players = { ...players, [placeWall.owner]: { ...players[placeWall.owner], inventory: { ...players[placeWall.owner].inventory, [power]: players[placeWall.owner].inventory[power] - 1 } } }
       objects = [...objects, { ...placeWall, id: nextId++, hp: maxHp(placeWall) }]
       points = { ...points, [placeWall.owner]: points[placeWall.owner] - cost }
     } else events.push({ type: 'refused' })
@@ -189,6 +194,8 @@ export function step(
   const rolled = rollBall(ball, objects, config)
   events.push(...rolled.events)
   let out = rolled.ball
+  // A Repulsor rearms when the ball rests.
+  if (!out.vel.x && !out.vel.y && rolled.objects.some((o) => o.kind === 'tower' && o.spent)) rolled.objects = rolled.objects.map((o) => (o.kind === 'tower' && o.spent ? { ...o, spent: false } : o))
   const conceder = goalCrossed(ball.pos, out.pos)
   let rested = false
   if (conceder) events.push({ type: 'goal', scorer: opponent(conceder), at: out.pos })
@@ -210,5 +217,5 @@ export function step(
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
   if (possession.shooter !== state.possession.shooter || fired || ended) clock = { ...clock, expiries: 0 }
   if (expired || fired || ended || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
-  return { state: { ...state, possession, match, clock, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: out }, events }
+  return { state: { ...state, players, possession, match, clock, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: out }, events }
 }

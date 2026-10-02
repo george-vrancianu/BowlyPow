@@ -5,7 +5,7 @@ import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE, NO_BUILD_RADIUS } from '../sim/pitch'
 import { viewOf, type Camera } from './camera'
-import { DIM_FLASH_MS, FLASH_MS, PARTICLE_MS, shakeOffset, type Fx } from './feedback'
+import { DIM_FLASH_MS, FLASH_MS, GLOW_MS, PARTICLE_MS, TRAIL_MS, shakeOffset, type Fx } from './feedback'
 import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerSpec } from '../sim/wall'
 
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
@@ -91,7 +91,7 @@ function drawCracks(ctx: CanvasRenderingContext2D, w: Structure): void {
 }
 
 /** A square in the owner's colour with an empty inset where a power-up glyph will go. */
-function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; id?: number }, fill?: string): void {
+function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; id?: number; spent?: boolean }, fill?: string): void {
   const [x, y] = [t.at.gx * CELL_SIZE, t.at.gy * CELL_SIZE]
   ctx.fillStyle = fill ?? (t.owner === 2 ? hatch(ctx) : COLORS.p1)
   ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE)
@@ -100,23 +100,51 @@ function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; 
   ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE)
   ctx.lineWidth = 0.1
   ctx.strokeRect(x + 0.5, y + 0.5, CELL_SIZE - 1, CELL_SIZE - 1)
+  if (t.power === 'repulsor') {
+    // Two concentric rings; dimmed once spent for the shot.
+    ctx.globalAlpha = t.spent ? 0.3 : 1
+    for (const r of [0.7, 0.35]) {
+      ctx.beginPath()
+      ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, r, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+  }
   if (t.hp !== undefined) drawCracks(ctx, t as Structure)
 }
 
+/** Fire effect: a glow over the tower and rings bursting outward from its centre. */
+function drawPulse(ctx: CanvasRenderingContext2D, t: TowerSpec, age: number): void {
+  const k = age / GLOW_MS
+  if (k >= 1) return
+  const [cx, cy] = [(t.at.gx + 0.5) * CELL_SIZE, (t.at.gy + 0.5) * CELL_SIZE]
+  ctx.globalAlpha = 1 - k
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(cx - CELL_SIZE / 2, cy - CELL_SIZE / 2, CELL_SIZE, CELL_SIZE)
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 0.2
+  for (const r of [0.7, 0.35]) {
+    ctx.beginPath()
+    ctx.arc(cx, cy, r + k * 4, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.globalAlpha = 1
+}
+
 /** Disc with a speed-scaled fading trail behind it and a dot that rolls with the distance travelled. */
-function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState['ball']): void {
+function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState['ball'], bright = false): void {
   const speed = Math.hypot(vel.x, vel.y)
   if (speed > 0) {
     const tail = { x: pos.x - vel.x * 0.08, y: pos.y - vel.y * 0.08 }
     const g = ctx.createLinearGradient(pos.x, pos.y, tail.x, tail.y)
-    g.addColorStop(0, 'rgba(255,255,255,0.5)')
+    g.addColorStop(0, bright ? '#fff' : 'rgba(255,255,255,0.5)')
     g.addColorStop(1, 'rgba(255,255,255,0)')
     ctx.beginPath()
     ctx.moveTo(pos.x, pos.y)
     ctx.lineTo(tail.x, tail.y)
     ctx.lineCap = 'round'
     ctx.strokeStyle = g
-    ctx.lineWidth = 2
+    ctx.lineWidth = bright ? 3 : 2
     ctx.stroke()
   }
   ctx.beginPath()
@@ -246,6 +274,8 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
   const inRange = new Map(charge && charge.power > 0 ? blastDamage(state.objects, charge.origin, charge.power, charge.player, defaultConfig).map((h) => [h.wall.id, h.wall.owner === charge.player ? COLORS.ownTint : COLORS.illegal]) : [])
   for (const o of state.objects) {
     drawWall(ctx, o, inRange.get(o.id))
+    const pulse = fx?.pulses.find((p) => p.tower === o.id)
+    if (pulse && o.kind === 'tower') drawPulse(ctx, o, now - pulse.born)
     const flash = fx?.flashes.find((f) => f.wall === o.id)
     if (flash) {
       const t = (now - flash.born) / (flash.dim ? DIM_FLASH_MS : FLASH_MS)
@@ -256,7 +286,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
       }
     }
   }
-  drawBall(ctx, state.ball)
+  drawBall(ctx, state.ball, !!fx?.pulses.some((p) => now - p.born < TRAIL_MS))
   if (charge) drawCharge(ctx, state, charge, now)
   for (const w of waves) {
     const t = (now - w.born) / WAVE_MS

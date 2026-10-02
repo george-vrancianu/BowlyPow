@@ -86,6 +86,13 @@ export function rollBall(ball: Ball, objects: Structure[], c: SimConfig): { ball
     }
     const k = (1 + c.restitution) * (vel.x * best.n.x + vel.y * best.n.y)
     vel = { x: vel.x - k * best.n.x, y: vel.y - k * best.n.y }
+    const t = best.wall
+    if (t?.kind === 'tower' && t.power === 'repulsor' && !t.spent) {
+      const v = Math.hypot(vel.x, vel.y)
+      vel = { x: (vel.x / v) * c.maxSpeed, y: (vel.y / v) * c.maxSpeed }
+      objects = objects.map((o) => (o.id === t.id ? { ...o, spent: true } : o))
+      events.push({ type: 'repulsor-fired', tower: t.id, at: pos })
+    }
   }
   return { ball: { pos, vel, rolled }, objects, events }
 }

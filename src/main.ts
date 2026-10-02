@@ -13,7 +13,7 @@ import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
 import { canPlaceBall } from './sim/possession'
 import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
-import { canPlace, wallCost, wallSegments, type Segment, type StructureSpec, type WallShape, type WallSpec } from './sim/wall'
+import { canPlace, TOWER_COST, wallCost, wallSegments, type Rotation, type Segment, type StructureSpec, type WallShape } from './sim/wall'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
@@ -49,7 +49,7 @@ addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') toggleMap(false)
 })
 // Build turn: pick a shape, drag the ghost, Rotate, Confirm drops it through the sim as a placeWall input.
-let ghost: WallSpec | undefined
+let ghost: StructureSpec | undefined
 let demolishing = false
 let draggingGhost = false
 let fragments: Fragment[] = []
@@ -70,14 +70,16 @@ const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
   return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
 }
-const spawn = (shape: WallShape) => {
+const cost = (g: StructureSpec) => (g.kind === 'wall' ? wallCost(g.shape) : TOWER_COST)
+const spawn = (shape: WallShape | 'repulsor') => {
   const b = state.match.builder!
   demolishing = false
-  ghost = { kind: 'wall', owner: b, shape, rotation: ghost?.rotation ?? 0, at: ghost?.at ?? { gx: 10, gy: b === 1 ? 40 : 14 } }
+  const at = ghost?.at ?? { gx: 10, gy: b === 1 ? 40 : 14 }
+  ghost = shape === 'repulsor' ? { kind: 'tower', owner: b, power: 'repulsor', at } : { kind: 'wall', owner: b, shape, rotation: ghost?.kind === 'wall' ? ghost.rotation : 0, at }
 }
-const rotate = () => ghost && (ghost = { ...ghost, rotation: ((ghost.rotation + 1) % 4) as WallSpec['rotation'] })
+const rotate = () => ghost?.kind === 'wall' && (ghost = { ...ghost, rotation: ((ghost.rotation + 1) % 4) as Rotation })
 const confirmWall = () => {
-  if (!ghost || !canPlace(state.objects, ghost) || state.points[ghost.owner] < wallCost(ghost.shape)) return
+  if (!ghost || !canPlace(state.objects, ghost) || state.points[ghost.owner] < cost(ghost)) return
   pending = { placeWall: ghost }
   ghost = undefined
 }
@@ -239,9 +241,10 @@ function frame(now: number) {
   const b = state.match.builder
   const buttons = b
     ? [
-        ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, selected: ghost?.shape === shape, disabled: state.points[b] < wallCost(shape), onClick: () => spawn(shape) })),
-        { label: 'Rotate', disabled: !ghost, onClick: rotate },
-        { label: 'Confirm', disabled: !ghost || !canPlace(state.objects, ghost) || state.points[b] < wallCost(ghost.shape), onClick: confirmWall },
+        ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, selected: ghost?.kind === 'wall' && ghost.shape === shape, disabled: state.points[b] < wallCost(shape), onClick: () => spawn(shape) })),
+        { label: `Repulsor ×${state.players[b].inventory.repulsor}`, selected: ghost?.kind === 'tower', disabled: state.players[b].inventory.repulsor < 1, onClick: () => spawn('repulsor') },
+        { label: 'Rotate', disabled: ghost?.kind !== 'wall', onClick: rotate },
+        { label: 'Confirm', disabled: !ghost || !canPlace(state.objects, ghost) || state.points[b] < cost(ghost), onClick: confirmWall },
         { label: 'Demolish 1', selected: demolishing, disabled: state.points[b] < 1, onClick: () => ((demolishing = !demolishing), (ghost = undefined)) },
         { label: 'Done', onClick: () => (pending = { done: b }) },
       ]
