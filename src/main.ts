@@ -1,5 +1,7 @@
 import { showConnectScreen } from './net/connectScreen'
 import { applyEvents, newFx } from './render/feedback'
+import { createScreens } from './screens/screens'
+import { configFrom } from './sim/settings'
 import { createHud } from './hud/hud'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
@@ -12,7 +14,8 @@ import { wallSegments, type Segment, type Wall } from './sim/wall'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
-const TICK = 1 / defaultConfig.tickHz
+let config = defaultConfig
+const TICK = 1 / config.tickHz
 
 let state = initialState()
 const camera: Camera = { y: state.ball.pos.y }
@@ -49,7 +52,7 @@ let draggingBall = false
 let tap: Point | undefined
 const confirm = document.getElementById('confirm') as HTMLButtonElement
 confirm.onclick = () => {
-  if (ballGhost && canPlaceBall(state.possession.shooter, ballGhost, state.objects, defaultConfig)) pending = { placeBall: { player: state.possession.shooter, at: ballGhost } }
+  if (ballGhost && canPlaceBall(state.possession.shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: state.possession.shooter, at: ballGhost } }
 }
 const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
@@ -115,7 +118,7 @@ canvas.onpointerdown = (e) => {
   }
   if (state.possession.inHand && !ghost) {
     const at = toWorld(e)
-    if (ballGhost && Math.hypot(at.x - ballGhost.x, at.y - ballGhost.y) <= 2 * defaultConfig.ballRadius) {
+    if (ballGhost && Math.hypot(at.x - ballGhost.x, at.y - ballGhost.y) <= 2 * config.ballRadius) {
       draggingBall = true
       canvas.setPointerCapture(e.pointerId)
     } else {
@@ -130,7 +133,7 @@ canvas.onpointerdown = (e) => {
     const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
     const player = halfOf(at.y)
     if (hit) pending = { damage: { wall: hit.id, at } }
-    else if (player === state.possession.shooter && !state.possession.live && canBlastFrom(player, at, state, defaultConfig)) {
+    else if (player === state.possession.shooter && !state.possession.live && canBlastFrom(player, at, state, config)) {
       canvas.setPointerCapture(e.pointerId)
       charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
     } else panOnly = true
@@ -140,6 +143,20 @@ canvas.onpointerdown = (e) => {
   pending = { placeWall: ghost }
   recenter(camera)
 }
+// The seed varies per match; only the sim stays deterministic.
+const newMatch = () => {
+  state = initialState((Math.random() * 2 ** 31) | 0, config)
+  recenter(camera)
+  camera.y = state.ball.pos.y
+  matchShown = false
+}
+let matchShown = true
+const screens = createScreens(document.body, {
+  onStart: (s) => ((config = configFrom(s)), newMatch()),
+  onRematch: newMatch,
+  onMenu: () => (matchShown = true),
+})
+screens.title()
 const hud = createHud(document.body, { onMap: () => toggleMap(), onRecenter: () => recenter(camera) })
 let acc = 0
 let last = performance.now()
@@ -150,7 +167,7 @@ function frame(now: number) {
   last = now
   for (; acc >= TICK; acc -= TICK) {
     const power = charge?.gesture.mode === 'charge' ? gesturePower(charge.gesture, now) : 0
-    const r = step(state, power > 0 && charge ? { charging: { origin: charge.origin, power }, ...pending } : pending, defaultConfig)
+    const r = step(state, power > 0 && charge ? { charging: { origin: charge.origin, power }, ...pending } : pending, config)
     state = r.state
     if (!state.possession.inHand) ballGhost = undefined
     if (pending.placeWall || r.events.length) recenter(camera)
@@ -158,23 +175,24 @@ function frame(now: number) {
     applyEvents(fx, r.events, state.objects, now)
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
       else if (ev.type === 'blast-fired') {
-        waves.push({ origin: ev.origin, radius: blastRadius(ev.power, defaultConfig), born: now })
+        waves.push({ origin: ev.origin, radius: blastRadius(ev.power, config), born: now })
       }
   }
 
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
+  if (state.match.winner && !matchShown) (matchShown = true, screens.matchEnd(state.match.winner, state.match.score))
   confirm.hidden = !state.possession.inHand
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
   hud.update(
-    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: { seconds: state.clock.left / defaultConfig.tickHz, fraction: state.clock.left / (defaultConfig.shotClock * defaultConfig.tickHz) }, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
+    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: { seconds: state.clock.left / config.tickHz, fraction: state.clock.left / (config.shotClock * config.tickHz) }, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
     { width: canvas.clientWidth, height: canvas.clientHeight },
   )
   waves = waves.filter((w) => waveAlive(w, now))
-  render(ctx, state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, defaultConfig) })
+  render(ctx, state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, config) })
   if (mapOpen) {
     const o = viewOutline(canvas, mapCam, camera)
     ctx.strokeStyle = '#fff'
