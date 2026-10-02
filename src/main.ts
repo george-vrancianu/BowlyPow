@@ -1,4 +1,5 @@
 import { showConnectScreen } from './net/connectScreen'
+import { applyEvents, newFx } from './render/feedback'
 import { createHud } from './hud/hud'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
@@ -36,9 +37,9 @@ addEventListener('keydown', (e) => {
 // Dev page: the ghost follows the pointer; a click drops it through the sim as a placeWall input.
 let ghost: Omit<Wall, 'id' | 'hp'> | undefined
 let fragments: Fragment[] = []
+const fx = newFx()
 let pending: SimInput = {}
 let waves: Wave[] = []
-let shake = { born: -Infinity, power: 0 }
 // Dev page: hold on a legal spot to charge a blast; release fires it.
 let charge: { gesture: Gesture; origin: Point; player: 1 | 2 } | undefined
 const snap = (e: PointerEvent) => {
@@ -128,10 +129,10 @@ function frame(now: number) {
     state = r.state
     if (pending.placeWall || r.events.length) recenter(camera)
     pending = {}
+    applyEvents(fx, r.events, state.objects, now)
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
       else if (ev.type === 'blast-fired') {
         waves.push({ origin: ev.origin, radius: blastRadius(ev.power, defaultConfig), born: now })
-        shake = { born: now, power: ev.power }
       }
   }
 
@@ -146,10 +147,7 @@ function frame(now: number) {
     { width: canvas.clientWidth, height: canvas.clientHeight },
   )
   waves = waves.filter((w) => waveAlive(w, now))
-  const age = now - shake.born
-  const amp = shake.power > 0.3 && age < 200 ? 4 * shake.power * (1 - age / 200) : 0
-  canvas.style.transform = amp ? `translate(${Math.sin(age * 0.9) * amp}px, ${Math.cos(age * 1.3) * amp}px)` : ''
-  render(ctx, state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
+  render(ctx, state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx)
   if (mapOpen) {
     const o = viewOutline(canvas, mapCam, camera)
     ctx.strokeStyle = '#fff'

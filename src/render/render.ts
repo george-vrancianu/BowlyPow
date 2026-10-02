@@ -5,6 +5,7 @@ import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
 import { viewOf, type Camera } from './camera'
+import { DIM_FLASH_MS, FLASH_MS, PARTICLE_MS, shakeOffset, type Fx } from './feedback'
 import { canPlace, crackLines, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
 
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
@@ -174,7 +175,7 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 }
 
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = []): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = [], fx?: Fx): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
@@ -183,7 +184,8 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
   ctx.beginPath()
   ctx.rect(pane.x, pane.y, pane.w, pane.h)
   ctx.clip()
-  ctx.translate(pane.x, pane.y + pane.h / 2 - cam.y * sy)
+  const shake = fx ? shakeOffset(fx.shake.amp, fx.shake.born, now) : { x: 0, y: 0 }
+  ctx.translate(pane.x + shake.x, pane.y + pane.h / 2 - cam.y * sy + shake.y)
   ctx.scale(sx, sy)
 
   ctx.fillStyle = COLORS.board
@@ -212,7 +214,18 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
   ctx.fillRect(0, HALF_HEIGHT - 0.15, PITCH_WIDTH, 0.3)
 
   const inRange = new Map(charge && charge.power > 0 ? blastDamage(state.objects, charge.origin, charge.power, charge.player, defaultConfig).map((h) => [h.wall.id, h.wall.owner === charge.player ? COLORS.ownTint : COLORS.illegal]) : [])
-  for (const o of state.objects) drawWall(ctx, o, inRange.get(o.id))
+  for (const o of state.objects) {
+    drawWall(ctx, o, inRange.get(o.id))
+    const flash = fx?.flashes.find((f) => f.wall === o.id)
+    if (flash) {
+      const t = (now - flash.born) / (flash.dim ? DIM_FLASH_MS : FLASH_MS)
+      if (t < 1) {
+        ctx.globalAlpha = (flash.dim ? 0.35 : 1) * (1 - t)
+        drawWall(ctx, o, '#fff')
+        ctx.globalAlpha = 1
+      }
+    }
+  }
   drawBall(ctx, state.ball)
   if (charge) drawCharge(ctx, state, charge, now)
   for (const w of waves) {
@@ -226,6 +239,14 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
     ctx.globalAlpha = 1
   }
   for (const f of fragments) drawFragment(ctx, f, now)
+  for (const p of fx?.particles ?? []) {
+    const t = (now - p.born) / PARTICLE_MS
+    if (t >= 1) continue
+    ctx.globalAlpha = 1 - t
+    ctx.fillStyle = p.color
+    ctx.fillRect(p.at.x + p.vel.x * t - 0.15, p.at.y + p.vel.y * t - 0.15, 0.3, 0.3)
+  }
+  ctx.globalAlpha = 1
   if (ghost) {
     ctx.globalAlpha = 0.5
     drawWall(ctx, ghost, canPlace(state.objects, ghost) ? undefined : COLORS.illegal)
