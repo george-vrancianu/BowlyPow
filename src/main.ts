@@ -1,4 +1,5 @@
 import { showConnectScreen } from './net/connectScreen'
+import { applyEvents, newFx } from './render/feedback'
 import { follow, layout, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, type Fragment } from './render/render'
 import { CELL_SIZE, type Point } from './sim/pitch'
@@ -14,6 +15,7 @@ const camera: Camera = { y: state.ball.pos.y }
 // Dev page: the ghost follows the pointer; a click drops it through the sim as a placeWall input.
 let ghost: Omit<Wall, 'id' | 'hp'> | undefined
 let fragments: Fragment[] = []
+const fx = newFx()
 let pending: SimInput = {}
 const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
@@ -60,6 +62,7 @@ function frame(now: number) {
     const r = step(state, pending, defaultConfig)
     state = r.state
     pending = {}
+    applyEvents(fx, r.events, state.objects, now)
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
   }
 
@@ -69,7 +72,7 @@ function frame(now: number) {
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
-  render(ctx, state, camera, ghost, fragments, now)
+  render(ctx, state, camera, ghost, fragments, now, fx)
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
