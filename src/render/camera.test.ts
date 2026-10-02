@@ -8,8 +8,10 @@ describe('layout', () => {
     expect(l.visibleHeight).toBe(64)
     expect(l.pane).toEqual({ x: 0, y: 280, w: 400, h: 640 })
   })
-  it('short portrait screen shows less than 64 units', () => {
-    expect(layout({ width: 400, height: 500 }).visibleHeight).toBe(50)
+  it('3:4 tablet portrait gets side bands, still 40 x 64 units', () => {
+    const l = layout({ width: 600, height: 800 })
+    expect(l.scale).toBe(12.5)
+    expect(l.pane).toEqual({ x: 50, y: 0, w: 500, h: 800 })
   })
   it('wide screen gets a 10:16 pane with side bands', () => {
     const l = layout({ width: 1600, height: 800 })

@@ -6,12 +6,12 @@ const SMOOTHING_S = 0.15
 /** Renderer state: the world y at the centre of the view. The width is always the pitch width. */
 export type Camera = { y: number }
 
-/** Portrait screens show 40 units across and as much height as fits, up to 64 (letterbox when taller). Landscape screens get a 10:16 pane with side bands. */
+/** The pane is always 40 x 64 units: screens wider than 10:16 get side bands, taller ones get top and bottom bands. */
 export function layout({ width, height }: { width: number; height: number }) {
-  const scale = width > height ? height / MAX_VISIBLE_HEIGHT : width / PITCH_WIDTH
+  const scale = Math.min(width / PITCH_WIDTH, height / MAX_VISIBLE_HEIGHT)
   const w = PITCH_WIDTH * scale
-  const h = Math.min(height, MAX_VISIBLE_HEIGHT * scale)
-  return { scale, visibleHeight: h / scale, pane: { x: (width - w) / 2, y: (height - h) / 2, w, h } }
+  const h = MAX_VISIBLE_HEIGHT * scale
+  return { scale, visibleHeight: MAX_VISIBLE_HEIGHT, pane: { x: (width - w) / 2, y: (height - h) / 2, w, h } }
 }
 
 const clampY = (y: number, visible: number) => Math.min(Math.max(y, -BOARD + visible / 2), PITCH_HEIGHT + BOARD - visible / 2)
