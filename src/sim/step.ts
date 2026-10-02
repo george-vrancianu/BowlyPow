@@ -4,7 +4,7 @@ import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
-import { canPlace, damageWall, maxHp, TOWER_COST, wallCost, type Structure, type StructureSpec } from './wall'
+import { canPlace, damageWall, maxHp, structureCost, type Structure, type StructureSpec } from './wall'
 
 export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
@@ -114,7 +114,7 @@ export function step(
   const building = match.builder !== null
   const { placeWall, demolish } = input
   if (placeWall) {
-    const cost = placeWall.kind === 'wall' ? wallCost(placeWall.shape) : TOWER_COST
+    const cost = structureCost(placeWall)
     const stocked = placeWall.kind === 'wall' || players[placeWall.owner].inventory[placeWall.power] > 0
     if (placeWall.owner === match.builder && stocked && points[placeWall.owner] >= cost && canPlace(objects, placeWall)) {
       if (placeWall.kind === 'tower') players = spend(players, placeWall.owner, placeWall.power)

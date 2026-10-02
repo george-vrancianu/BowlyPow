@@ -1,6 +1,6 @@
 import { CELL_SIZE, halfOf, type PlayerId, type Point } from './pitch'
 import type { SimConfig, SimState } from './step'
-import { wallSegments, type Segment, type Structure } from './wall'
+import { wallSegments, type Segment, type Structure, type StructureSpec } from './wall'
 
 /** Half the drawn wall thickness; a blast cannot start on it. */
 export const WALL_HALF = 0.35
@@ -13,7 +13,7 @@ function nearestOn({ a, b }: Segment, p: Point): Point {
   return { x: a.x + t * vx, y: a.y + t * vy }
 }
 
-export function nearestOnWall(w: Structure, p: Point): { at: Point; dist: number } {
+export function nearestOnWall(w: StructureSpec, p: Point): { at: Point; dist: number } {
   return wallSegments(w)
     .map((s) => nearestOn(s, p))
     .map((at) => ({ at, dist: Math.hypot(at.x - p.x, at.y - p.y) }))

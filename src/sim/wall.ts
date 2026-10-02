@@ -20,10 +20,14 @@ export type Tower = TowerSpec & { id: number; hp: number; spent?: boolean }
 export type StructureSpec = WallSpec | TowerSpec
 export type Structure = Wall | Tower
 
+export type TowerPower = TowerSpec['power']
+
 export const WALL_HP = 3
 export const TOWER_HP = 3
 export const TOWER_COST = 0
-export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? (s.power === 'steal' ? 1 : TOWER_HP) : WALL_HP)
+/** A Steal tower is fragile; the rest take TOWER_HP. */
+const POWER_HP: Record<TowerPower, number> = { repulsor: TOWER_HP, steal: 1 }
+export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? POWER_HP[s.power] : WALL_HP)
 
 /** Each arm is a run of cells from the pivot, in grid units, before rotation. */
 const ARMS: Record<WallShape, [number, number][]> = {
@@ -33,6 +37,8 @@ const ARMS: Record<WallShape, [number, number][]> = {
 const COST: Record<WallShape, number> = { straight: 2, L: 3 }
 
 export const wallCost = (shape: WallShape): number => COST[shape]
+/** Wall points a placement spends; towers cost inventory instead. */
+export const structureCost = (s: StructureSpec): number => (s.kind === 'wall' ? wallCost(s.shape) : TOWER_COST)
 
 function arms({ shape, rotation }: WallSpec): [number, number][] {
   return ARMS[shape].map(([x, y]) => {

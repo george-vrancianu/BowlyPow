@@ -10,6 +10,9 @@ export type Possession = { shooter: PlayerId; shots: number; inHand: boolean; li
 export const canArm = (s: SimState, p: PlayerId): boolean =>
   !s.match.builder && s.possession.shooter === p && !s.possession.inHand && !s.possession.live && s.players[p].inventory.breaker > 0
 
+/** Who is expected to act: the builder during a build turn, else the shooter. */
+export const whoActs = (s: SimState): PlayerId => s.match.builder ?? s.possession.shooter
+
 export const opponent = (p: PlayerId): PlayerId => (p === 1 ? 2 : 1)
 
 /** Own half strictly (not the line), inside the boards, clear of every wall. The no-build zone does not apply. */

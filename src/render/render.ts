@@ -6,7 +6,7 @@ import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE, NO_BUILD_RADIUS } from '../sim/pitch'
 import { viewOf, type Camera } from './camera'
 import { DIM_FLASH_MS, FLASH_MS, GLOW_MS, PARTICLE_MS, STEAL_MS, TRAIL_MS, shakeOffset, type Fx } from './feedback'
-import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerSpec } from '../sim/wall'
+import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerPower, type TowerSpec } from '../sim/wall'
 
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
 
@@ -91,7 +91,26 @@ function drawCracks(ctx: CanvasRenderingContext2D, w: Structure): void {
   ctx.stroke()
 }
 
-/** A square in the owner's colour with an empty inset where a power-up glyph will go. */
+const GLYPHS: Record<TowerPower, (ctx: CanvasRenderingContext2D, x: number, y: number, spent: boolean) => void> = {
+  // Two concentric rings; dimmed once spent for the shot.
+  repulsor(ctx, x, y, spent) {
+    ctx.globalAlpha = spent ? 0.3 : 1
+    for (const r of [0.7, 0.35]) {
+      ctx.beginPath()
+      ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, r, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+  },
+  // Vortex: a spiral of two turns.
+  steal(ctx, x, y) {
+    ctx.beginPath()
+    for (let a = 0; a <= Math.PI * 4; a += 0.2) ctx.lineTo(x + CELL_SIZE / 2 + Math.cos(a) * a * 0.1, y + CELL_SIZE / 2 + Math.sin(a) * a * 0.1)
+    ctx.stroke()
+  },
+}
+
+/** A square in the owner's colour with its power-up glyph inset. */
 function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; id?: number; spent?: boolean }, fill?: string): void {
   const [x, y] = [t.at.gx * CELL_SIZE, t.at.gy * CELL_SIZE]
   ctx.fillStyle = fill ?? (t.owner === 2 ? hatch(ctx) : COLORS.p1)
@@ -101,22 +120,7 @@ function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; 
   ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE)
   ctx.lineWidth = 0.1
   ctx.strokeRect(x + 0.5, y + 0.5, CELL_SIZE - 1, CELL_SIZE - 1)
-  if (t.power === 'repulsor') {
-    // Two concentric rings; dimmed once spent for the shot.
-    ctx.globalAlpha = t.spent ? 0.3 : 1
-    for (const r of [0.7, 0.35]) {
-      ctx.beginPath()
-      ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, r, 0, Math.PI * 2)
-      ctx.stroke()
-    }
-    ctx.globalAlpha = 1
-  }
-  if (t.power === 'steal') {
-    // Vortex: a spiral of two turns.
-    ctx.beginPath()
-    for (let a = 0; a <= Math.PI * 4; a += 0.2) ctx.lineTo(x + CELL_SIZE / 2 + Math.cos(a) * a * 0.1, y + CELL_SIZE / 2 + Math.sin(a) * a * 0.1)
-    ctx.stroke()
-  }
+  GLYPHS[t.power](ctx, x, y, !!t.spent)
   if (t.hp !== undefined) drawCracks(ctx, t as Structure)
 }
 
@@ -226,7 +230,19 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 }
 
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: StructureSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = [], fx?: Fx, ballGhost?: { at: Point; legal: boolean }, armed?: PlayerId): void {
+export type Overlays = {
+  ghost?: StructureSpec
+  fragments?: Fragment[]
+  now?: number
+  charge?: Charge
+  waves?: Wave[]
+  fx?: Fx
+  ballGhost?: { at: Point; legal: boolean }
+  /** The shooter whose ball gets the Breaker outline. */
+  armed?: PlayerId
+}
+
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, { ghost, fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed }: Overlays = {}): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
