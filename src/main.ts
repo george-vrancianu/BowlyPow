@@ -11,7 +11,7 @@ import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from '
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
-import { canPlaceBall } from './sim/possession'
+import { canArm, canPlaceBall } from './sim/possession'
 import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
 import { canPlace, wallCost, wallSegments, type Segment, type StructureSpec, type WallShape, type WallSpec } from './sim/wall'
 
@@ -57,6 +57,8 @@ const fx = newFx()
 let pending: SimInput = {}
 let waves: Wave[] = []
 // Dev page: hold on a legal spot to charge a blast; release fires it.
+// Breaker icon armed for the next blast; the blast carries it, cancelling just disarms.
+let armed = false
 let charge: { gesture: Gesture; origin: Point; player: 1 | 2 } | undefined
 // Ball-in-hand: tap a point to place the ghost ball, drag it to move (dragging elsewhere pans), Confirm fixes it.
 let ballGhost: Point | undefined
@@ -113,7 +115,8 @@ canvas.onpointerup = (e) => {
   pointers.delete(e.pointerId)
   panOnly = false
   const power = charge ? gesturePower(charge.gesture, performance.now()) : 0
-  if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power } }
+  if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power, breaker: armed } }
+  else if (charge) armed = false
   charge = undefined
 }
 const toWorld = (e: PointerEvent) => screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
@@ -185,7 +188,7 @@ const screens = createScreens(document.body, {
   onMenu: () => (matchShown = true),
 })
 screens.title()
-const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera) })
+const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && canArm(state, state.possession.shooter) && (armed = !armed) })
 let lastBuilder: SimState['match']['builder'] | undefined
 let acc = 0
 let last = performance.now()
@@ -205,6 +208,7 @@ function frame(now: number) {
     const power = charge?.gesture.mode === 'charge' ? gesturePower(charge.gesture, now) : 0
     const r = step(state, power > 0 && charge ? { charging: { origin: charge.origin, power }, ...pending } : pending, config)
     state = r.state
+    if (!canArm(state, state.possession.shooter)) armed = false
     if (!state.possession.inHand) ballGhost = undefined
     if (!state.match.builder && r.events.length) recenter(camera)
     if (state.match.builder !== lastBuilder) {
@@ -248,12 +252,12 @@ function frame(now: number) {
     : undefined
   const { score } = state.match
   hud.update(
-    { players: { 1: { score: score[1], inventory: state.players[1].inventory }, 2: { score: score[2], inventory: state.players[2].inventory } }, active: trans.shown, round: state.match.round, rounds: config.rounds, clock: b ? null : { seconds: state.clock.left / config.tickHz, fraction: state.clock.left / (config.shotClock * config.tickHz) }, shotsLeft: state.possession.shots, shotsMax: config.shots, phase: b ? `Build · ${state.points[b]} pts` : phase, buttons },
+    { players: { 1: { score: score[1], inventory: state.players[1].inventory }, 2: { score: score[2], inventory: state.players[2].inventory } }, active: trans.shown, round: state.match.round, rounds: config.rounds, clock: b ? null : { seconds: state.clock.left / config.tickHz, fraction: state.clock.left / (config.shotClock * config.tickHz) }, shotsLeft: state.possession.shots, shotsMax: config.shots, phase: b ? `Build · ${state.points[b]} pts` : phase, buttons, breaker: { armed, tappable: canArm(state, state.possession.shooter) } },
     { width: canvas.clientWidth, height: canvas.clientHeight },
   )
   waves = waves.filter((w) => waveAlive(w, now))
   const net = goalBall(trans)
-  render(ctx, net ? { ...state, ball: { ...state.ball, pos: net, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, config) })
+  render(ctx, net ? { ...state, ball: { ...state.ball, pos: net, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, config) }, armed || state.breaker ? state.possession.shooter : undefined)
   if (mapOpen) {
     const o = viewOutline(canvas, mapCam, camera)
     ctx.strokeStyle = '#fff'

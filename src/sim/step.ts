@@ -12,11 +12,11 @@ export type SimObject = Structure
 export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
   /** Carries the removed wall (hp 0) so the renderer can shatter it. */
-  | { type: 'wall-destroyed'; wall: Structure; at: Point }
+  | { type: 'wall-destroyed'; wall: Structure; at: Point; /** Broken by a Breaker shot. */ breaker?: true }
   | { type: 'ball-hit-wall'; wall: number; speed: number; at: Point }
   /** An illegal placement or demolition was dropped. */
   | { type: 'refused' }
-  | { type: 'blast-fired'; player: PlayerId; origin: Point; power: number }
+  | { type: 'blast-fired'; player: PlayerId; origin: Point; power: number; breaker?: boolean }
   | { type: 'possession-changed'; shooter: PlayerId; inHand: boolean }
   | { type: 'goal'; scorer: PlayerId; at: Point }
   /** `scorer` null = the shot cap ended the round. */
@@ -36,17 +36,19 @@ export type SimState = {
   match: Match
   /** Shot clock: ticks left (frozen while a shot is live) and consecutive expiries in this possession. */
   clock: { left: number; expiries: number }
+  /** The shot in flight is a Breaker shot that has not broken anything yet. */
+  breaker: boolean
 }
 
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
 export type SimInput = {
-  blast?: { player: PlayerId; origin: Point; power: number }
+  blast?: { player: PlayerId; origin: Point; power: number; breaker?: boolean }
   placeWall?: StructureSpec
   demolish?: { player: PlayerId; wall: number }
   damage?: { wall: number; at: Point }
   kick?: Point
   /** The shooter's blast charge in progress; fires at this power when the shot clock runs out. */
-  charging?: { origin: Point; power: number }
+  charging?: { origin: Point; power: number; breaker?: boolean }
   /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   /** The builder ends their build turn. */
   done?: PlayerId
@@ -93,7 +95,7 @@ export const defaultConfig: SimConfig = {
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: config.shotClock * config.tickHz, expiries: 0 } }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: config.shotClock * config.tickHz, expiries: 0 }, breaker: false }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
@@ -103,7 +105,7 @@ export function step(
   config: SimConfig,
 ): { state: SimState; events: SimEvent[] } {
   if (state.match.winner) return { state, events: [] }
-  let { objects, points, nextId } = state
+  let { objects, points, nextId, players } = state
   let { match } = state
   const events: SimEvent[] = []
   const building = match.builder !== null
@@ -146,7 +148,8 @@ export function step(
   const { charging } = input
   const blast = input.blast ?? (expired && charging && canBlastFrom(possession.shooter, charging.origin, { objects, ball }, config) ? { player: possession.shooter, ...charging } : undefined)
   if (blast) {
-    if (!building && blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config)) {
+    if (!building && blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config) && (!blast.breaker || players[blast.player].inventory.breaker > 0)) {
+      if (blast.breaker) players = { ...players, [blast.player]: { ...players[blast.player], inventory: { ...players[blast.player].inventory, breaker: players[blast.player].inventory.breaker - 1 } } }
       events.push({ type: 'blast-fired', ...blast })
       possession = { ...possession, live: true }
       match = { ...match, roundShots: match.roundShots + 1 }
@@ -181,12 +184,13 @@ export function step(
       }
     }
   }
+  const breaker = state.breaker || (fired && !!blast?.breaker)
   const { done } = input
   if (done) {
     if (done === match.builder) match = { ...match, builder: done === firstBuilder(match.seed, match.round) ? opponent(done) : null }
     else events.push({ type: 'refused' })
   }
-  const rolled = rollBall(ball, objects, config)
+  const rolled = rollBall(ball, objects, config, breaker)
   events.push(...rolled.events)
   let out = rolled.ball
   const conceder = goalCrossed(ball.pos, out.pos)
@@ -210,5 +214,5 @@ export function step(
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
   if (possession.shooter !== state.possession.shooter || fired || ended) clock = { ...clock, expiries: 0 }
   if (expired || fired || ended || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
-  return { state: { ...state, possession, match, clock, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: out }, events }
+  return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, ball: out }, events }
 }

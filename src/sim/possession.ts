@@ -1,10 +1,14 @@
 import { BOARD, halfOf, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { insideTower, nearestOnWall, WALL_HALF } from './blast'
-import type { SimConfig, SimEvent } from './step'
+import type { SimConfig, SimEvent, SimState } from './step'
 import type { Structure } from './wall'
 
 /** `live`: a shot has been fired and the ball has not come to rest yet. */
 export type Possession = { shooter: PlayerId; shots: number; inHand: boolean; live: boolean }
+
+/** The Breaker icon works only for the shooter's own play phase, before the shot, with one left. */
+export const canArm = (s: SimState, p: PlayerId): boolean =>
+  !s.match.builder && s.possession.shooter === p && !s.possession.inHand && !s.possession.live && s.players[p].inventory.breaker > 0
 
 export const opponent = (p: PlayerId): PlayerId => (p === 1 ? 2 : 1)
 

@@ -32,6 +32,10 @@ describe('feedbackFor', () => {
     expect(hit.flashes).toEqual([{ wall: 1, dim: false }])
     expect(feedbackFor([destroyed], walls, false).bursts[0].count).toBeGreaterThan(hit.bursts[0].count)
   })
+  it('a Breaker break doubles the particles', () => {
+    const broke = { ...(destroyed as object), breaker: true } as never
+    expect(feedbackFor([broke], walls, false).bursts[0].count).toBe(2 * feedbackFor([destroyed], walls, false).bursts[0].count)
+  })
   it('non-damaging hit flashes dim with no particles', () => {
     const r = feedbackFor([{ type: 'ball-hit-wall', wall: 1, speed: 1, at }], walls, false)
     expect(r.flashes).toEqual([{ wall: 1, dim: true }])
