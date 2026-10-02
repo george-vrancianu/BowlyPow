@@ -4,15 +4,15 @@ import { BOARD, NET_DEPTH, GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PIT
 import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
-import { layout, type Camera } from './camera'
+import { viewOf, type Camera } from './camera'
 import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerSpec } from '../sim/wall'
 
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
 
 /** Canvas pixel position to world units through the camera. */
 export function screenToWorld(canvas: { width: number; height: number }, cam: Camera, px: number, py: number): Point {
-  const { scale, pane } = layout(canvas)
-  return { x: (px - pane.x) / scale, y: cam.y + (py - canvas.height / 2) / scale }
+  const { sx, sy, pane } = viewOf(canvas, cam)
+  return { x: (px - pane.x) / sx, y: cam.y + (py - (pane.y + pane.h / 2)) / sy }
 }
 
 /** Player 2 walls: owner colour with diagonal stripes. */
@@ -192,15 +192,15 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
 export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: StructureSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = []): void {
   const { width, height } = ctx.canvas
-  const { scale, pane, visibleHeight } = layout(ctx.canvas)
+  const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, width, height)
   ctx.save()
   ctx.beginPath()
   ctx.rect(pane.x, pane.y, pane.w, pane.h)
   ctx.clip()
-  ctx.translate(pane.x, height / 2 - cam.y * scale)
-  ctx.scale(scale, scale)
+  ctx.translate(pane.x, pane.y + pane.h / 2 - cam.y * sy)
+  ctx.scale(sx, sy)
 
   ctx.fillStyle = COLORS.board
   ctx.fillRect(0, -BOARD, PITCH_WIDTH, PITCH_HEIGHT + 2 * BOARD)

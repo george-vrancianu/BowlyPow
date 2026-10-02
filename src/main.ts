@@ -1,7 +1,7 @@
 import { showConnectScreen } from './net/connectScreen'
 import { createHud } from './hud/hud'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
-import { follow, layout, type Camera } from './render/camera'
+import { clampY, follow, layout, MAP_Y, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
@@ -14,6 +14,26 @@ const TICK = 1 / defaultConfig.tickHz
 
 let state = initialState()
 const camera: Camera = { y: state.ball.pos.y }
+// Map overlay: a second camera over the whole pitch; the fit/stretch choice lasts the session.
+const stored = (() => { try { return sessionStorage.getItem('mapStretch') === '1' } catch { return false } })()
+const mapCam: Camera = { y: MAP_Y, map: { stretch: stored } }
+let mapOpen = false
+// A map jump holds the camera until the next sim event or wall placement, then it returns to the ball.
+let held = false
+const mapUi = document.getElementById('map')!
+const toggleMap = (open = !mapOpen) => {
+  mapOpen = open
+  mapUi.style.display = open ? 'flex' : 'none'
+}
+document.getElementById('map-close')!.onclick = () => toggleMap(false)
+document.getElementById('map-stretch')!.onclick = () => {
+  mapCam.map!.stretch = !mapCam.map!.stretch
+  try { sessionStorage.setItem('mapStretch', mapCam.map!.stretch ? '1' : '0') } catch {}
+}
+addEventListener('keydown', (e) => {
+  if (e.key === 'm' || e.key === 'M') toggleMap()
+  else if (e.key === 'Escape') toggleMap(false)
+})
 // Dev page: the ghost follows the pointer; a click drops it through the sim as a placeWall input.
 let ghost: Omit<Wall, 'id' | 'hp'> | undefined
 let fragments: Fragment[] = []
@@ -52,6 +72,14 @@ const distToSegment = (p: Point, { a, b }: Segment) => {
   return Math.hypot(p.x - a.x - t * vx, p.y - a.y - t * vy)
 }
 canvas.onpointerdown = (e) => {
+  if (mapOpen) {
+    const px = e.offsetX * (canvas.width / canvas.clientWidth)
+    const py = e.offsetY * (canvas.height / canvas.clientHeight)
+    camera.y = clampY(screenToWorld(canvas, mapCam, px, py).y, layout(canvas).visibleHeight)
+    held = true
+    toggleMap(false)
+    return
+  }
   if (!ghost) {
     // Dev page: with no ghost, tapping a wall damages it.
     const at = toWorld(e)
@@ -66,8 +94,9 @@ canvas.onpointerdown = (e) => {
   }
   ghost = { ...ghost, at: snap(e) }
   pending = { placeWall: ghost }
+  held = false
 }
-const hud = createHud(document.body, { onMap: () => {}, onRecenter: () => (camera.y = state.ball.pos.y) })
+const hud = createHud(document.body, { onMap: () => toggleMap(), onRecenter: () => (held = false) })
 let acc = 0
 let last = performance.now()
 let lastFrame = last
@@ -79,6 +108,7 @@ function frame(now: number) {
     const r = step(state, pending, defaultConfig)
     state = r.state
     pending = {}
+    if (r.events.length) held = false
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
       else if (ev.type === 'blast-fired') {
         waves.push({ origin: ev.origin, radius: blastRadius(ev.power, defaultConfig), born: now })
@@ -86,7 +116,7 @@ function frame(now: number) {
       }
   }
 
-  follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  if (!held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
@@ -100,7 +130,13 @@ function frame(now: number) {
   const age = now - shake.born
   const amp = shake.power > 0.3 && age < 200 ? 4 * shake.power * (1 - age / 200) : 0
   canvas.style.transform = amp ? `translate(${Math.sin(age * 0.9) * amp}px, ${Math.cos(age * 1.3) * amp}px)` : ''
-  render(ctx, state, camera, ghost, fragments, now, charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
+  render(ctx, state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
+  if (mapOpen) {
+    const o = viewOutline(canvas, mapCam, camera)
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 2 * dpr
+    ctx.strokeRect(o.x, o.y, o.w, o.h)
+  }
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
