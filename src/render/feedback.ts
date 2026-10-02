@@ -3,7 +3,7 @@ import { PLAYER_COLORS } from '../sim/player'
 import type { SimEvent } from '../sim/step'
 
 /** Events other tickets add to the sim; power is 0..1. Handled by type so this layer works before and after they land. */
-type LaterEvent = { type: 'blast-fired'; power: number } | { type: 'goal' } | { type: 'charge-full' }
+type LaterEvent = { type: 'goal' } | { type: 'charge-full' }
 type FxEvent = SimEvent | LaterEvent
 
 export const SHAKE_MS = 200
