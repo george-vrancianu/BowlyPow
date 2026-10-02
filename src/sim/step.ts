@@ -68,12 +68,12 @@ export type SimConfig = {
   /** Shots per possession. */
   shots: number
   rounds: number
+  /** Wall points per build phase. */
+  wallPoints: number
   /** Shots in a round before it ends scoreless (not in sudden death). */
   shotCap: number
   /** Seconds per shot. */
   shotClock: number
-  /** Wall points each player gets per build turn. */
-  wallPoints: number
 }
 
 export const defaultConfig: SimConfig = {
@@ -87,13 +87,13 @@ export const defaultConfig: SimConfig = {
   destroyedSpeedFactor: 0.5,
   shots: 3,
   rounds: 5,
+  wallPoints: 10,
   shotCap: 30,
   shotClock: 15,
-  wallPoints: 10,
 }
 
-export function initialState(seed = 1): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: defaultConfig.wallPoints, 2: defaultConfig.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), defaultConfig), match: newMatch(seed), clock: { left: defaultConfig.shotClock * defaultConfig.tickHz, expiries: 0 } }
+export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: config.shotClock * config.tickHz, expiries: 0 } }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */

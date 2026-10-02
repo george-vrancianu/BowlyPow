@@ -34,13 +34,13 @@ export type HudActions = { onMap(): void; onRecenter(): void; onPowerUp?(p: Powe
 export type ButtonSpec = { label: string; onClick(): void; selected?: boolean; disabled?: boolean }
 
 const ICONS: Record<PowerUp, string> = { breaker: 'B', repulsor: 'R', steal: 'S' }
-const el = (tag: string, css = '', text = '') => {
+export const el = (tag: string, css = '', text = '') => {
   const e = document.createElement(tag)
   e.style.cssText = css
   e.textContent = text
   return e
 }
-const FONT = 'font:700 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-transform:uppercase;font-variant-numeric:tabular-nums;'
+export const FONT = 'font:700 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-transform:uppercase;font-variant-numeric:tabular-nums;'
 
 /** One row of buttons, shared by the build palette/Rotate/Confirm/Done and ball-in-hand Confirm. */
 export function buttonRow(specs: ButtonSpec[]): HTMLElement {
