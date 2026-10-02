@@ -1,4 +1,4 @@
-import { halfOf, type PlayerId, type Point } from './pitch'
+import { CELL_SIZE, halfOf, type PlayerId, type Point } from './pitch'
 import type { SimConfig, SimState } from './step'
 import { wallSegments, type Segment, type Structure } from './wall'
 
@@ -20,12 +20,16 @@ function nearestOnWall(w: Structure, p: Point): { at: Point; dist: number } {
     .reduce((m, h) => (h.dist < m.dist ? h : m))
 }
 
+/** A tower is solid, so its interior counts as on it too. */
+const insideTower = (w: Structure, p: Point): boolean =>
+  w.kind === 'tower' && Math.abs(p.x - (w.at.gx + 0.5) * CELL_SIZE) < CELL_SIZE / 2 && Math.abs(p.y - (w.at.gy + 0.5) * CELL_SIZE) < CELL_SIZE / 2
+
 /** On the player's own half (not the line), not on a wall, not on the ball. */
 export function canBlastFrom(player: PlayerId, origin: Point, s: Pick<SimState, 'objects' | 'ball'>, c: SimConfig): boolean {
   return (
     halfOf(origin.y) === player &&
     Math.hypot(origin.x - s.ball.pos.x, origin.y - s.ball.pos.y) > c.ballRadius &&
-    s.objects.every((w) => nearestOnWall(w, origin).dist > WALL_HALF)
+    s.objects.every((w) => nearestOnWall(w, origin).dist > WALL_HALF && !insideTower(w, origin))
   )
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, initialState, step, type SimInput, type SimState } from './step'
+import { canBlastFrom } from './blast'
 import { canPlace, isLegal, TOWER_COST, TOWER_HP, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
 
 const tower = (gx: number, gy: number, owner: TowerSpec['owner'] = 1): TowerSpec => ({ kind: 'tower', owner, at: { gx, gy } })
@@ -63,5 +64,20 @@ describe('tower damage', () => {
     const last = hit(hit(first.state).state)
     expect(last.state.objects).toEqual([])
     expect(last.events).toMatchObject([{ type: 'wall-destroyed', wall: { kind: 'tower', hp: 0 }, at }])
+  })
+})
+
+describe('tower and blasts', () => {
+  const state = (t: TowerSpec): SimState => ({ ...initialState(), objects: [{ ...t, id: 1, hp: TOWER_HP }] })
+  it('a blast cannot start inside or on a tower, but can start beside it', () => {
+    const s = state(tower(5, 40))
+    expect(canBlastFrom(1, { x: 11, y: 81 }, s, defaultConfig)).toBe(false)
+    expect(canBlastFrom(1, { x: 10, y: 81 }, s, defaultConfig)).toBe(false)
+    expect(canBlastFrom(1, { x: 13, y: 81 }, s, defaultConfig)).toBe(true)
+  })
+  it('takes blast damage by the same pressure rule: enemy tower loses 1 hp above 0.4', () => {
+    // Tower square y 48..50; origin 5 away at full power (radius 10) gives pressure 0.5.
+    const r = step(state(tower(10, 24, 2)), { blast: { player: 1, origin: { x: 21, y: 55 }, power: 1 } }, defaultConfig)
+    expect(r.state.objects[0].hp).toBe(TOWER_HP - 1)
   })
 })
