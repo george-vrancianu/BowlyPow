@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { wallCells, wallCost, wallSegments, type WallSpec } from './wall'
+import { isLegal, wallCells, wallCost, wallSegments, type WallSpec } from './wall'
 
 const wall = (shape: WallSpec['shape'], rotation: WallSpec['rotation']): WallSpec => ({
   kind: 'wall',
@@ -54,5 +54,40 @@ describe('collision segments', () => {
       { a: { x: 10, y: 14 }, b: { x: 10, y: 20 } },
       { a: { x: 10, y: 14 }, b: { x: 4, y: 14 } },
     ])
+  })
+})
+
+describe('isLegal', () => {
+  const at = (owner: WallSpec['owner'], shape: WallSpec['shape'], rotation: WallSpec['rotation'], gx: number, gy: number): WallSpec => ({ kind: 'wall', owner, shape, rotation, at: { gx, gy } })
+  it('allows a wall on the owner half, and refuses the opponent half', () => {
+    expect(isLegal(at(1, 'straight', 0, 2, 40))).toBe(true)
+    expect(isLegal(at(2, 'straight', 0, 2, 10))).toBe(true)
+    expect(isLegal(at(1, 'straight', 0, 2, 10))).toBe(false)
+    expect(isLegal(at(2, 'straight', 0, 2, 40))).toBe(false)
+  })
+  it('refuses any wall crossing the halfway line (gy 27)', () => {
+    expect(isLegal(at(1, 'straight', 1, 2, 25))).toBe(false)
+    expect(isLegal(at(2, 'straight', 1, 2, 25))).toBe(false)
+  })
+  it('refuses a wall lying on the line, allows one touching it from the owner side', () => {
+    expect(isLegal(at(1, 'straight', 0, 2, 27))).toBe(false)
+    expect(isLegal(at(2, 'straight', 0, 2, 27))).toBe(false)
+    expect(isLegal(at(1, 'straight', 1, 2, 27))).toBe(true)
+    expect(isLegal(at(2, 'straight', 3, 2, 27))).toBe(true)
+  })
+  it('refuses a wall inside the own no-build semicircle', () => {
+    expect(isLegal(at(2, 'straight', 0, 8, 2))).toBe(false)
+    expect(isLegal(at(1, 'straight', 0, 8, 52))).toBe(false)
+  })
+  it('judges the semicircle edge inclusively at radius 15', () => {
+    // Vertical wall on x=20 from y=14 is 14 from the goal centre; from y=16 it is 16.
+    expect(isLegal(at(2, 'straight', 1, 10, 7))).toBe(false)
+    expect(isLegal(at(2, 'straight', 1, 10, 8))).toBe(true)
+    // Vertical on x=6 (dx 14) from y=0 is inside; on x=4 (dx 16) outside.
+    expect(isLegal(at(2, 'straight', 1, 3, 0))).toBe(false)
+    expect(isLegal(at(2, 'straight', 1, 2, 0))).toBe(true)
+    // Horizontal y=14, x 14..22: both ends are outside only via the middle (nearest point (20,14)).
+    expect(isLegal(at(2, 'straight', 0, 7, 7))).toBe(false)
+    expect(isLegal(at(2, 'straight', 0, 1, 7))).toBe(true)
   })
 })

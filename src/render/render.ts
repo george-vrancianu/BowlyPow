@@ -3,10 +3,10 @@ import { PLAYER_COLORS } from '../sim/player'
 import { BOARD, NET_DEPTH, GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 import type { SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
-import { crackLines, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
+import { crackLines, isLegal, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
 
 const VIEW_WIDTH = PITCH_WIDTH + 2 * BOARD
-const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d' }
+const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444' }
 
 const view = ({ width, height }: { width: number; height: number }) => {
   const scale = width / VIEW_WIDTH
@@ -63,7 +63,7 @@ function drawFragment(ctx: CanvasRenderingContext2D, f: Fragment, now: number): 
   ctx.restore()
 }
 
-function drawWall(ctx: CanvasRenderingContext2D, w: { owner: WallSpec['owner'] } & ({ a: Point; b: Point } | WallSpec)): void {
+function drawWall(ctx: CanvasRenderingContext2D, w: { owner: WallSpec['owner'] } & ({ a: Point; b: Point } | WallSpec), fill?: string): void {
   ctx.beginPath()
   for (const { a, b } of 'a' in w ? [w] : wallSegments(w)) {
     ctx.moveTo(a.x, a.y)
@@ -74,7 +74,7 @@ function drawWall(ctx: CanvasRenderingContext2D, w: { owner: WallSpec['owner'] }
   ctx.strokeStyle = COLORS.outline
   ctx.lineWidth = 1
   ctx.stroke()
-  ctx.strokeStyle = w.owner === 2 ? hatch(ctx) : COLORS.p1
+  ctx.strokeStyle = fill ?? (w.owner === 2 ? hatch(ctx) : COLORS.p1)
   ctx.lineWidth = 0.7
   ctx.stroke()
   if ('hp' in w) {
@@ -160,7 +160,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: W
   for (const f of fragments) drawFragment(ctx, f, now)
   if (ghost) {
     ctx.globalAlpha = 0.5
-    drawWall(ctx, ghost)
+    drawWall(ctx, ghost, isLegal(ghost) ? undefined : COLORS.illegal)
   }
   ctx.restore()
 }

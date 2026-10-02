@@ -44,38 +44,38 @@ describe('ball', () => {
     expect(r.state.ball.pos.x).toBeLessThan(2)
   })
   it('never tunnels through a zero-thickness wall at max speed', () => {
-    // Straight wall along y=40*2/2... vertex (5,20) to (9,20): world y=40, x 10..18.
-    for (const startY of [60, 60.37, 60.9]) {
-      let s = withWall(wall('straight', 0, 5, 20), 14, startY, 0, -60)
+    // Straight wall along y=80, x 10..18.
+    for (const startY of [100, 100.37, 100.9]) {
+      let s = withWall(wall('straight', 0, 5, 40), 14, startY, 0, -60)
       for (let i = 0; i < 40; i++) s = run(s).state
-      expect(s.ball.pos.y).toBeGreaterThan(40)
+      expect(s.ball.pos.y).toBeGreaterThan(80)
     }
   })
   it('does not tunnel through the end of a wall when grazing a corner', () => {
-    let s = withWall(wall('straight', 0, 5, 20), 9.2, 44, 10, -50)
+    let s = withWall(wall('straight', 0, 5, 40), 9.2, 84, 10, -50)
     for (let i = 0; i < 20; i++) s = run(s).state
     expect(Number.isFinite(s.ball.pos.x)).toBe(true)
   })
   it('emits ball-hit-wall with the speed on contact', () => {
-    const { events } = ticks(withWall(wall('straight', 0, 5, 20), 14, 44, 0, -30), 20)
+    const { events } = ticks(withWall(wall('straight', 0, 5, 40), 14, 84, 0, -30), 20)
     expect(events.find((e) => e.type === 'ball-hit-wall')).toMatchObject({ speed: expect.closeTo(30, -1) })
   })
   it('a hit at exactly half max speed does not damage; above it removes 1 hp', () => {
     // Pre-compensate for one tick of friction so the speed at impact is v.
     const pre = (v: number) => -v / 0.5 ** (1 / 48)
     for (const [v, hp] of [[30, 3], [31, 2]] as const) {
-      const s = run(withWall(wall('straight', 0, 5, 20), 14, 41.02, 0, pre(v))).state
+      const s = run(withWall(wall('straight', 0, 5, 40), 14, 81.02, 0, pre(v))).state
       expect(s.objects[0].hp).toBe(hp)
     }
   })
   it('a ball that destroys a wall mid-shot continues through at reduced speed', () => {
-    let s = withWall(wall('straight', 0, 5, 20), 14, 41.02, 0, -60 / 0.5 ** (1 / 48))
+    let s = withWall(wall('straight', 0, 5, 40), 14, 81.02, 0, -60 / 0.5 ** (1 / 48))
     s = { ...s, objects: s.objects.map((w) => ({ ...w, hp: 1 })) }
     const r = run(s)
     expect(r.events.map((e) => e.type)).toEqual(['ball-hit-wall', 'wall-destroyed'])
     expect(r.state.objects).toEqual([])
     expect(r.state.ball.vel.y).toBeCloseTo(-30, 3)
-    expect(r.state.ball.pos.y).toBeLessThan(41)
+    expect(r.state.ball.pos.y).toBeLessThan(81)
   })
   it('rolls the distance travelled and comes to rest inside the net', () => {
     const s = ticks(at(20, 1, 0, -3), 600).s
@@ -86,7 +86,7 @@ describe('ball', () => {
   })
   it('is deterministic: the same inputs give identical state twice', () => {
     const play = () => {
-      let s = withWall(wall('L', 1, 8, 12), 20, 54, 0, 0)
+      let s = withWall(wall('L', 1, 8, 40), 20, 54, 0, 0)
       s = run(s, { kick: { x: -17, y: -55 } }).state
       return ticks(s, 400).s
     }

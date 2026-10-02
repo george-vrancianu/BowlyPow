@@ -1,7 +1,7 @@
 import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { initialPlayers, type Player } from './player'
 import { rollBall, type Ball } from './ball'
-import { WALL_HP, damageWall, type Wall, type WallSpec } from './wall'
+import { isLegal, WALL_HP, damageWall, type Wall, type WallSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
 export type SimObject = Wall
@@ -11,17 +11,27 @@ export type SimEvent =
   /** Carries the removed wall (hp 0) so the renderer can shatter it. */
   | { type: 'wall-destroyed'; wall: Wall; at: Point }
   | { type: 'ball-hit-wall'; wall: number; speed: number; at: Point }
+  /** An illegal placement or demolition was dropped. */
+  | { type: 'refused' }
 
 export type SimState = {
   tick: number
   objects: SimObject[]
   players: Record<PlayerId, Player>
+  /** Wall points; demolishing spends them. */
+  points: Record<PlayerId, number>
   nextId: number
   ball: Ball
 }
 
-/** Per-tick input from both players; filled out by later tickets. */
-export type SimInput = { blast?: { origin: Point; power: number }; placeWall?: WallSpec; damage?: { wall: number; at: Point }; kick?: Point }
+/** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
+export type SimInput = {
+  blast?: { origin: Point; power: number }
+  placeWall?: WallSpec
+  demolish?: { player: PlayerId; wall: number }
+  damage?: { wall: number; at: Point }
+  kick?: Point
+}
 
 export type SimConfig = {
   tickHz: number
@@ -49,7 +59,7 @@ export const defaultConfig: SimConfig = {
 }
 
 export function initialState(): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 } }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 } }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
@@ -58,9 +68,19 @@ export function step(
   input: SimInput,
   config: SimConfig,
 ): { state: SimState; events: SimEvent[] } {
-  let { objects, nextId } = state
+  let { objects, points, nextId } = state
   const events: SimEvent[] = []
-  if (input.placeWall) objects = [...objects, { ...input.placeWall, id: nextId++, hp: WALL_HP }]
+  if (input.placeWall) {
+    if (isLegal(input.placeWall)) objects = [...objects, { ...input.placeWall, id: nextId++, hp: WALL_HP }]
+    else events.push({ type: 'refused' })
+  }
+  const { demolish } = input
+  if (demolish) {
+    if (objects.find((w) => w.id === demolish.wall)?.owner === demolish.player && points[demolish.player] >= 1) {
+      objects = objects.filter((w) => w.id !== demolish.wall)
+      points = { ...points, [demolish.player]: points[demolish.player] - 1 }
+    } else events.push({ type: 'refused' })
+  }
   if (input.damage) {
     const r = damageWall(objects, input.damage.wall, input.damage.at)
     objects = r.objects
@@ -74,5 +94,5 @@ export function step(
   }
   const rolled = rollBall(ball, objects, config)
   events.push(...rolled.events)
-  return { state: { ...state, tick: state.tick + 1, objects: rolled.objects, nextId, ball: rolled.ball }, events }
+  return { state: { ...state, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: rolled.ball }, events }
 }
