@@ -1,5 +1,6 @@
 import { showConnectScreen } from './net/connectScreen'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
+import { follow, layout, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
@@ -11,6 +12,7 @@ const ctx = canvas.getContext('2d')!
 const TICK = 1 / defaultConfig.tickHz
 
 let state = initialState()
+const camera: Camera = { y: state.ball.pos.y }
 // Dev page: the ghost follows the pointer; a click drops it through the sim as a placeWall input.
 let ghost: Omit<Wall, 'id' | 'hp'> | undefined
 let fragments: Fragment[] = []
@@ -20,7 +22,7 @@ let shake = { born: -Infinity, power: 0 }
 // Dev page: hold on a legal spot to charge a blast; release fires it.
 let charge: { gesture: Gesture; origin: Point; player: 1 | 2 } | undefined
 const snap = (e: PointerEvent) => {
-  const p = screenToWorld(canvas, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
+  const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
   return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
 }
 const spawn = (shape: Wall['shape']) => (ghost = { kind: 'wall', owner: ghost?.owner ?? 1, shape, rotation: ghost?.rotation ?? 0, at: ghost?.at ?? { gx: 10, gy: 27 } })
@@ -42,7 +44,7 @@ canvas.onpointerup = () => {
   if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power } }
   charge = undefined
 }
-const toWorld = (e: PointerEvent) => screenToWorld(canvas, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
+const toWorld = (e: PointerEvent) => screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
 const distToSegment = (p: Point, { a, b }: Segment) => {
   const [vx, vy] = [b.x - a.x, b.y - a.y]
   const t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / (vx * vx + vy * vy)))
@@ -66,6 +68,7 @@ canvas.onpointerdown = (e) => {
 }
 let acc = 0
 let last = performance.now()
+let lastFrame = last
 
 function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
@@ -81,6 +84,8 @@ function frame(now: number) {
       }
   }
 
+  follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  lastFrame = now
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
@@ -89,7 +94,7 @@ function frame(now: number) {
   const age = now - shake.born
   const amp = shake.power > 0.3 && age < 200 ? 4 * shake.power * (1 - age / 200) : 0
   canvas.style.transform = amp ? `translate(${Math.sin(age * 0.9) * amp}px, ${Math.cos(age * 1.3) * amp}px)` : ''
-  render(ctx, state, ghost, fragments, now, charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
+  render(ctx, state, camera, ghost, fragments, now, charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)

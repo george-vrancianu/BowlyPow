@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLegal, wallCells, wallCost, wallSegments, type WallSpec } from './wall'
+import { canPlace, isLegal, wallCells, wallCost, wallSegments, type WallSpec } from './wall'
 
 const wall = (shape: WallSpec['shape'], rotation: WallSpec['rotation']): WallSpec => ({
   kind: 'wall',
@@ -89,5 +89,28 @@ describe('isLegal', () => {
     // Horizontal y=14, x 14..22: both ends are outside only via the middle (nearest point (20,14)).
     expect(isLegal(at(2, 'straight', 0, 7, 7))).toBe(false)
     expect(isLegal(at(2, 'straight', 0, 1, 7))).toBe(true)
+  })
+})
+
+describe('reachability', () => {
+  const straight = (gx: number, gy: number, rotation: WallSpec['rotation'] = 0): WallSpec => ({ kind: 'wall', owner: 1, shape: 'straight', rotation, at: { gx, gy } })
+  // A line across most of the half at gy=40 and a wall dropping down from its right end.
+  const staircase = [0, 4, 8, 12].map((gx) => straight(gx, 40)).concat(straight(16, 40, 1))
+
+  it('accepts a placement on an open pitch', () => {
+    expect(canPlace([], straight(0, 40))).toBe(true)
+  })
+  it('refuses the placement that seals the half from edge to edge', () => {
+    const row = [0, 4, 8, 12].map((gx) => straight(gx, 40))
+    expect(canPlace(row, straight(16, 40))).toBe(false)
+  })
+  it('accepts a one-cell gap', () => {
+    expect(canPlace(staircase, straight(17, 44))).toBe(true)
+  })
+  it('refuses a gap that is only diagonal, where two walls meet at a corner', () => {
+    expect(canPlace(staircase, straight(16, 44))).toBe(false)
+  })
+  it('still refuses an illegal placement that would not seal anything', () => {
+    expect(canPlace([], { ...straight(0, 10) })).toBe(false)
   })
 })

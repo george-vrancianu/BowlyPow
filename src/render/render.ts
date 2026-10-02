@@ -4,20 +4,15 @@ import { BOARD, NET_DEPTH, GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PIT
 import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
-import { crackLines, isLegal, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
+import { layout, type Camera } from './camera'
+import { canPlace, crackLines, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
 
-const VIEW_WIDTH = PITCH_WIDTH + 2 * BOARD
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
 
-const view = ({ width, height }: { width: number; height: number }) => {
-  const scale = width / VIEW_WIDTH
-  return { scale, x0: BOARD * scale, y0: height / 2 - (PITCH_HEIGHT / 2) * scale }
-}
-
-/** Canvas pixel position to world units under the fixed view. */
-export function screenToWorld(canvas: { width: number; height: number }, px: number, py: number): Point {
-  const { scale, x0, y0 } = view(canvas)
-  return { x: (px - x0) / scale, y: (py - y0) / scale }
+/** Canvas pixel position to world units through the camera. */
+export function screenToWorld(canvas: { width: number; height: number }, cam: Camera, px: number, py: number): Point {
+  const { scale, pane } = layout(canvas)
+  return { x: (px - pane.x) / scale, y: cam.y + (py - canvas.height / 2) / scale }
 }
 
 /** Player 2 walls: owner colour with diagonal stripes. */
@@ -178,19 +173,21 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
   }
 }
 
-/** Read-only: draws the state through a fixed view that always fits the pitch width. An optional ghost wall is drawn half-transparent. */
-export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = []): void {
+/** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = []): void {
   const { width, height } = ctx.canvas
-  const { scale } = view(ctx.canvas)
+  const { scale, pane, visibleHeight } = layout(ctx.canvas)
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, width, height)
   ctx.save()
-  // World (0,0) is the pitch corner; centre the pitch vertically.
-  ctx.translate(BOARD * scale, height / 2 - (PITCH_HEIGHT / 2) * scale)
+  ctx.beginPath()
+  ctx.rect(pane.x, pane.y, pane.w, pane.h)
+  ctx.clip()
+  ctx.translate(pane.x, height / 2 - cam.y * scale)
   ctx.scale(scale, scale)
 
   ctx.fillStyle = COLORS.board
-  ctx.fillRect(-BOARD, -BOARD, VIEW_WIDTH, PITCH_HEIGHT + 2 * BOARD)
+  ctx.fillRect(0, -BOARD, PITCH_WIDTH, PITCH_HEIGHT + 2 * BOARD)
   ctx.fillStyle = COLORS.pitch
   ctx.fillRect(0, 0, PITCH_WIDTH, PITCH_HEIGHT)
   // Faint owner tint per half.
@@ -231,7 +228,21 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: W
   for (const f of fragments) drawFragment(ctx, f, now)
   if (ghost) {
     ctx.globalAlpha = 0.5
-    drawWall(ctx, ghost, isLegal(ghost) ? undefined : COLORS.illegal)
+    drawWall(ctx, ghost, canPlace(state.objects, ghost) ? undefined : COLORS.illegal)
   }
   ctx.restore()
+  edgeFade(ctx, pane, cam.y - visibleHeight / 2 > -BOARD, cam.y + visibleHeight / 2 < PITCH_HEIGHT + BOARD)
+}
+
+/** Soft gradient at the top/bottom edge of the pane where more pitch lies beyond. */
+function edgeFade(ctx: CanvasRenderingContext2D, { x, y, w, h }: { x: number; y: number; w: number; h: number }, top: boolean, bottom: boolean): void {
+  const fade = h * 0.06
+  for (const [on, y0, y1] of [[top, y, y + fade], [bottom, y + h, y + h - fade]] as const) {
+    if (!on) continue
+    const g = ctx.createLinearGradient(0, y0, 0, y1)
+    g.addColorStop(0, COLORS.bg)
+    g.addColorStop(1, 'rgba(11,15,26,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(x, Math.min(y0, y1), w, fade)
+  }
 }
