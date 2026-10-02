@@ -179,17 +179,12 @@ canvas.onpointerdown = (e) => {
     }
     return
   }
-  // Dev page: tapping a wall damages it.
-  {
-    const at = toWorld(e)
-    const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
-    const player = halfOf(at.y)
-    if (hit && !net) pending = { damage: { wall: hit.id, at } }
-    else if (player === state.possession.shooter && mine(player) && !state.possession.live && canBlastFrom(player, at, state, config)) {
-      canvas.setPointerCapture(e.pointerId)
-      charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
-    } else panOnly = true
-  }
+  const at = toWorld(e)
+  const player = halfOf(at.y)
+  if (player === state.possession.shooter && mine(player) && !state.possession.live && canBlastFrom(player, at, state, config)) {
+    canvas.setPointerCapture(e.pointerId)
+    charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
+  } else panOnly = true
 }
 // The seed varies per match; only the sim stays deterministic.
 const newMatch = (seed = (Math.random() * 2 ** 31) | 0) => {

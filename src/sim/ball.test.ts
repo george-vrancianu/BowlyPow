@@ -20,10 +20,6 @@ const ticks = (s: SimState, n: number) => {
 }
 
 describe('ball', () => {
-  it('a kick above max speed is clamped', () => {
-    const s = run(playState(), { kick: { x: 0, y: -600 } }).state
-    expect(Math.hypot(s.ball.vel.x, s.ball.vel.y)).toBeLessThanOrEqual(60)
-  })
   it('halves its speed every 0.8 s', () => {
     const s = ticks(at(20, 54, 0, 30), 48).s // 0.8 s at 60 Hz
     expect(s.ball.vel.y).toBeCloseTo(15, 5)
@@ -86,7 +82,7 @@ describe('ball', () => {
   it('is deterministic: the same inputs give identical state twice', () => {
     const play = () => {
       let s = withWall(wall('L', 1, 8, 40), 20, 54, 0, 0)
-      s = run(s, { kick: { x: -17, y: -55 } }).state
+      s = { ...s, ball: { ...s.ball, vel: { x: -17, y: -55 } } }
       return ticks(s, 400).s
     }
     expect(play()).toEqual(play())

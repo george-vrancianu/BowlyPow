@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultConfig, step, type SimInput, type SimState } from './step'
 import { buildState, place, playState } from './testkit'
 import { canBlastFrom } from './blast'
-import { canPlace, isLegal, TOWER_COST, TOWER_HP, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
+import { canPlace, damageWall, isLegal, TOWER_COST, TOWER_HP, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
 
 const tower = (gx: number, gy: number, owner: TowerSpec['owner'] = 1): TowerSpec => ({ kind: 'tower', owner, at: { gx, gy } })
 const straight = (gx: number, gy: number, rotation: WallSpec['rotation'] = 0): WallSpec => ({ kind: 'wall', owner: 1, shape: 'straight', rotation, at: { gx, gy } })
@@ -58,7 +58,10 @@ describe('tower as obstacle', () => {
 describe('tower damage', () => {
   it('goes through the wall damage rule and events', () => {
     const at = { x: 11, y: 81 }
-    const hit = (s: SimState) => run(s, { damage: { wall: 1, at } })
+    const hit = (s: SimState) => {
+      const r = damageWall(s.objects, 1, at)
+      return { state: { ...s, objects: r.objects }, events: r.events }
+    }
     const s0 = place(tower(5, 40)).state
     const first = hit(s0)
     expect(first.events).toEqual([{ type: 'wall-cracked', id: 1, hp: 2, at }])

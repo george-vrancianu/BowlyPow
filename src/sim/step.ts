@@ -48,8 +48,6 @@ export type SimInput = {
   blast?: { player: PlayerId; origin: Point; power: number; breaker?: boolean }
   placeWall?: StructureSpec
   demolish?: { player: PlayerId; wall: number }
-  damage?: { wall: number; at: Point }
-  kick?: Point
   /** The shooter's blast charge in progress; fires at this power when the shot clock runs out. */
   charging?: { origin: Point; power: number; breaker?: boolean }
   /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
@@ -132,17 +130,7 @@ export function step(
       points = { ...points, [demolish.player]: points[demolish.player] - 1 }
     } else events.push({ type: 'refused' })
   }
-  if (input.damage) {
-    const r = damageWall(objects, input.damage.wall, input.damage.at)
-    objects = r.objects
-    events.push(...r.events)
-  }
   let ball = state.ball
-  if (input.kick) {
-    const k = Math.hypot(input.kick.x, input.kick.y)
-    const f = k > config.maxSpeed ? config.maxSpeed / k : 1
-    ball = { ...ball, vel: { x: input.kick.x * f, y: input.kick.y * f } }
-  }
   let { possession } = state
   const { placeBall } = input
   if (placeBall) {

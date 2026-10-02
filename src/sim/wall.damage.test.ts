@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig, step, type SimInput, type SimState } from './step'
+import type { SimState } from './step'
 import { place, playState } from './testkit'
-import { crackLines, type WallSpec } from './wall'
+import { crackLines, damageWall, type WallSpec } from './wall'
 
 const spec = (shape: WallSpec['shape']): WallSpec => ({ kind: 'wall', owner: 1, shape, rotation: 0, at: { gx: 5, gy: 40 } })
 const at = { x: 11, y: 80 }
-const run = (s: SimState, input: SimInput) => step(s, input, defaultConfig)
 const placed = (shape: WallSpec['shape'] = 'straight') => place(spec(shape)).state
-const hit = (s: SimState) => run(s, { damage: { wall: s.objects[0].id, at } })
+/** Damages the first object through the shared damage path, as a ball hit or blast would. */
+const hit = (s: SimState, id = s.objects[0].id) => {
+  const r = damageWall(s.objects, id, at)
+  return { state: { ...s, objects: r.objects }, events: r.events }
+}
 
 describe('wall damage', () => {
   it('placed walls start with 3 hp', () => {
@@ -38,7 +41,7 @@ describe('wall damage', () => {
     expect(s.players).toEqual(before)
   })
   it('ignores damage to an unknown wall', () => {
-    const r = run(placed(), { damage: { wall: 99, at } })
+    const r = hit(placed(), 99)
     expect(r.events).toEqual([])
     expect(r.state.objects[0].hp).toBe(3)
   })
