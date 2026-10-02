@@ -17,6 +17,9 @@ describe('step', () => {
     const wall = { kind: 'wall', owner: 2, shape: 'L', rotation: 1, at: { gx: 3, gy: 4 } } as const
     let s = step(initialState(), { placeWall: wall }, defaultConfig).state
     s = step(s, { placeWall: wall }, defaultConfig).state
-    expect(s.objects).toEqual([wall, wall])
+    expect(s.objects).toEqual([
+      { ...wall, id: 1, hp: 3 },
+      { ...wall, id: 2, hp: 3 },
+    ])
   })
 })
