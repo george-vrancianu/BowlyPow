@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig, initialState, step, type SimInput, type SimState } from './step'
+import { defaultConfig, step, type SimInput, type SimState } from './step'
+import { place, playState } from './testkit'
 import type { WallSpec } from './wall'
 
 const c = defaultConfig
 const run = (s: SimState, input: SimInput = {}) => step(s, input, c)
-const at = (x: number, y: number, vx = 0, vy = 0, s = initialState()): SimState => ({ ...s, ball: { pos: { x, y }, vel: { x: vx, y: vy }, rolled: 0 } })
+const at = (x: number, y: number, vx = 0, vy = 0, s = playState()): SimState => ({ ...s, ball: { pos: { x, y }, vel: { x: vx, y: vy }, rolled: 0 } })
 const wall = (shape: WallSpec['shape'], rotation: WallSpec['rotation'], gx: number, gy: number): WallSpec => ({ kind: 'wall', owner: 1, shape, rotation, at: { gx, gy } })
 /** A straight wall placed in the sim, then the ball positioned over it. */
-const withWall = (spec: WallSpec, x: number, y: number, vx: number, vy: number) => at(x, y, vx, vy, run(initialState(), { placeWall: spec }).state)
+const withWall = (spec: WallSpec, x: number, y: number, vx: number, vy: number) => at(x, y, vx, vy, place(spec).state)
 const ticks = (s: SimState, n: number) => {
   const events = []
   for (let i = 0; i < n; i++) {
@@ -20,7 +21,7 @@ const ticks = (s: SimState, n: number) => {
 
 describe('ball', () => {
   it('a kick above max speed is clamped', () => {
-    const s = run(initialState(), { kick: { x: 0, y: -600 } }).state
+    const s = run(playState(), { kick: { x: 0, y: -600 } }).state
     expect(Math.hypot(s.ball.vel.x, s.ball.vel.y)).toBeLessThanOrEqual(60)
   })
   it('halves its speed every 0.8 s', () => {

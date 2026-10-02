@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { canPlaceBall } from './possession'
-import { defaultConfig as c, initialState, step, type SimState } from './step'
+import { defaultConfig as c, step, type SimState } from './step'
+import { playState } from './testkit'
 import { WALL_HP, type Wall } from './wall'
 
 const at = (y: number, x = 20) => ({ x, y })
 const base = (ball: { x: number; y: number }, shooter: 1 | 2 = 1, shots = 3): SimState => ({
-  ...initialState(),
+  ...playState(),
   ball: { pos: ball, vel: { x: 0, y: 0 }, rolled: 0 },
   possession: { shooter, shots, inHand: false, live: false },
 })
@@ -17,7 +18,7 @@ const miss = (s: SimState) => {
 
 describe('possession', () => {
   it('starts with the configured shots', () => {
-    expect(initialState().possession.shots).toBe(c.shots)
+    expect(playState().possession.shots).toBe(c.shots)
     expect(c.shots).toBe(3)
   })
   it('does nothing until the ball rests', () => {

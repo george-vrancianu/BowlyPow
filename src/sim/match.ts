@@ -2,10 +2,13 @@ import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { opponent, type Possession } from './possession'
 import type { SimConfig, SimEvent } from './step'
 
-/** `round` counts from 1 and may exceed `config.rounds` (sudden death). `winner` set means the match is over. */
-export type Match = { seed: number; round: number; score: Record<PlayerId, number>; roundShots: number; winner: PlayerId | null }
+/** `round` counts from 1 and may exceed `config.rounds` (sudden death). `winner` set means the match is over. `builder` is whose build turn it is; null = play phase. */
+export type Match = { seed: number; round: number; score: Record<PlayerId, number>; roundShots: number; winner: PlayerId | null; builder: PlayerId | null }
 
-export const newMatch = (seed: number): Match => ({ seed, round: 1, score: { 1: 0, 2: 0 }, roundShots: 0, winner: null })
+/** Round 1: the coin-flip loser builds first; the order alternates each round. */
+export const firstBuilder = (seed: number, round: number): PlayerId => (round % 2 ? opponent(coinFlip(seed, 1)) : coinFlip(seed, 1))
+
+export const newMatch = (seed: number): Match => ({ seed, round: 1, score: { 1: 0, 2: 0 }, roundShots: 0, winner: null, builder: firstBuilder(seed, 1) })
 
 /** Seeded, deterministic: who gets ball-in-hand when nobody conceded. */
 export function coinFlip(seed: number, round: number): PlayerId {
@@ -25,7 +28,7 @@ export function endRound(m: Match, scorer: PlayerId | null, c: SimConfig): { mat
   const events: SimEvent[] = [{ type: 'round-ended', round: m.round, scorer }]
   if (winner) events.push({ type: 'match-ended', winner })
   return {
-    match: { ...m, score, round, roundShots: 0, winner },
+    match: { ...m, score, round, roundShots: 0, winner, builder: winner ? null : firstBuilder(m.seed, round) },
     possession: startingPossession(shooter, c),
     ball: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT },
     events,

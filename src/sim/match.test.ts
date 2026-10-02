@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { coinFlip } from './match'
-import { defaultConfig as c, initialState, step, type SimState } from './step'
+import { defaultConfig as c, step, type SimState } from './step'
+import { playState } from './testkit'
 
 const mid = { x: 20, y: 54 }
 const shotAt = (y: number, vy: number, over: Partial<SimState> = {}): SimState => ({
-  ...initialState(),
+  ...playState(),
   ball: { pos: { x: 20, y }, vel: { x: 0, y: vy }, rolled: 0 },
   possession: { shooter: 1, shots: 3, inHand: false, live: true },
   ...over,
 })
-const matchAt = (round: number, score: { 1: number; 2: number }, roundShots = 0) => ({ ...initialState().match, round, score, roundShots })
+const matchAt = (round: number, score: { 1: number; 2: number }, roundShots = 0) => ({ ...playState().match, round, score, roundShots })
 
 describe('goals', () => {
   it('credits the shooter when the ball centre crosses the opponent goal line', () => {
@@ -62,7 +63,7 @@ describe('coin flip', () => {
     expect(new Set(Array.from({ length: 20 }, (_, i) => coinFlip(i, 1)))).toEqual(new Set([1, 2]))
   })
   it('decides round 1 ball-in-hand from the seed', () => {
-    expect(initialState(5).possession).toMatchObject({ shooter: coinFlip(5, 1), inHand: true })
+    expect(playState(5).possession).toMatchObject({ shooter: coinFlip(5, 1), inHand: true })
   })
 })
 

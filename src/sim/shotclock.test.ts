@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig as c, initialState, step, type SimEvent, type SimInput, type SimState } from './step'
+import { defaultConfig as c, step, type SimEvent, type SimInput, type SimState } from './step'
+import { playState } from './testkit'
 
 const TICKS = 15 * c.tickHz
-const base = (over: Partial<SimState> = {}): SimState => ({ ...initialState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, ball: { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }, ...over })
+const base = (over: Partial<SimState> = {}): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, ball: { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }, ...over })
 /** Run `n` ticks, giving `input` on the last one, collecting events. */
 const run = (s: SimState, n: number, input: SimInput = {}) => {
   const events: SimEvent[] = []

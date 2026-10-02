@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig, initialState, step, type SimInput, type SimState } from './step'
+import { defaultConfig, step, type SimInput, type SimState } from './step'
+import { buildState, place, playState } from './testkit'
 import { canBlastFrom } from './blast'
 import { canPlace, isLegal, TOWER_COST, TOWER_HP, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
 
@@ -37,10 +38,10 @@ describe('tower placement', () => {
     expect(isLegal(tower(10, 52))).toBe(false)
   })
   it('places through step with TOWER_HP and no point cost, refuses illegal ones', () => {
-    const r = run(initialState(), { placeWall: tower(5, 40) })
+    const r = run(buildState(1), { placeWall: tower(5, 40) })
     expect(r.state.objects).toMatchObject([{ kind: 'tower', id: 1, hp: TOWER_HP }])
-    expect(r.state.points).toEqual(initialState().points)
-    expect(run(initialState(), { placeWall: tower(5, 10) }).events).toEqual([{ type: 'refused' }])
+    expect(r.state.points).toEqual(playState().points)
+    expect(run(buildState(1), { placeWall: tower(5, 10) }).events).toEqual([{ type: 'refused' }])
   })
 })
 
@@ -58,7 +59,7 @@ describe('tower damage', () => {
   it('goes through the wall damage rule and events', () => {
     const at = { x: 11, y: 81 }
     const hit = (s: SimState) => run(s, { damage: { wall: 1, at } })
-    const s0 = run(initialState(), { placeWall: tower(5, 40) }).state
+    const s0 = place(tower(5, 40)).state
     const first = hit(s0)
     expect(first.events).toEqual([{ type: 'wall-cracked', id: 1, hp: 2, at }])
     const last = hit(hit(first.state).state)
@@ -68,7 +69,7 @@ describe('tower damage', () => {
 })
 
 describe('tower and blasts', () => {
-  const state = (t: TowerSpec): SimState => ({ ...initialState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, objects: [{ ...t, id: 1, hp: TOWER_HP }] })
+  const state = (t: TowerSpec): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, objects: [{ ...t, id: 1, hp: TOWER_HP }] })
   it('a blast cannot start inside or on a tower, but can start beside it', () => {
     const s = state(tower(5, 40))
     expect(canBlastFrom(1, { x: 11, y: 81 }, s, defaultConfig)).toBe(false)

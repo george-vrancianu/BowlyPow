@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig, initialState, step, type SimInput, type SimState } from './step'
+import { defaultConfig, step, type SimInput, type SimState } from './step'
+import { place, playState } from './testkit'
 import { crackLines, type WallSpec } from './wall'
 
 const spec = (shape: WallSpec['shape']): WallSpec => ({ kind: 'wall', owner: 1, shape, rotation: 0, at: { gx: 5, gy: 40 } })
 const at = { x: 11, y: 80 }
 const run = (s: SimState, input: SimInput) => step(s, input, defaultConfig)
-const placed = (shape: WallSpec['shape'] = 'straight') => run(initialState(), { placeWall: spec(shape) }).state
+const placed = (shape: WallSpec['shape'] = 'straight') => place(spec(shape)).state
 const hit = (s: SimState) => run(s, { damage: { wall: s.objects[0].id, at } })
 
 describe('wall damage', () => {
