@@ -21,3 +21,5 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
+document.getElementById('splash')?.remove()
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js')
