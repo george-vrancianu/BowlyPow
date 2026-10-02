@@ -2,7 +2,7 @@ import type { PlayerId, Point } from '../sim/pitch'
 import { PLAYER_COLORS } from '../sim/player'
 import type { SimEvent } from '../sim/step'
 
-/** Events other tickets add to the sim; power is 0..1. Handled by type so this layer works before and after they land. */
+/** Events other tickets add to the sim; power is 0..1.. */
 type LaterEvent = { type: 'goal' } | { type: 'charge-full' }
 type FxEvent = SimEvent | LaterEvent
 
