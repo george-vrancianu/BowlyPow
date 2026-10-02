@@ -20,3 +20,33 @@ describe('step', () => {
     expect(s.objects).toEqual([wall, wall])
   })
 })
+
+describe('placement and demolition rules', () => {
+  const legal = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 2, gy: 40 } } as const
+  const illegal = { ...legal, at: { gx: 2, gy: 10 } }
+  it('places a legal wall and refuses an illegal one', () => {
+    expect(step(initialState(), { placeWall: legal }, defaultConfig).state.objects).toEqual([legal])
+    const bad = step(initialState(), { placeWall: illegal }, defaultConfig)
+    expect(bad.state.objects).toEqual([])
+    expect(bad.events).toEqual([{ type: 'refused' }])
+  })
+  it('demolishes own wall for 1 point, no refund', () => {
+    const s = { ...initialState(), objects: [legal] }
+    const { state } = step(s, { demolish: { player: 1, index: 0 } }, defaultConfig)
+    expect(state.objects).toEqual([])
+    expect(state.points[1]).toBe(s.points[1] - 1)
+    expect(state.points[2]).toBe(s.points[2])
+  })
+  it('refuses to demolish the opponent wall', () => {
+    const s = { ...initialState(), objects: [legal] }
+    const { state, events } = step(s, { demolish: { player: 2, index: 0 } }, defaultConfig)
+    expect(state.objects).toEqual([legal])
+    expect(state.points).toEqual(s.points)
+    expect(events).toEqual([{ type: 'refused' }])
+  })
+  it('refuses to demolish with no points left, or a missing wall', () => {
+    const s = { ...initialState(), objects: [legal], points: { 1: 0, 2: 0 } }
+    expect(step(s, { demolish: { player: 1, index: 0 } }, defaultConfig).state.objects).toEqual([legal])
+    expect(step(initialState(), { demolish: { player: 1, index: 0 } }, defaultConfig).events).toEqual([{ type: 'refused' }])
+  })
+})

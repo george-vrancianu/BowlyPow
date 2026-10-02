@@ -1,4 +1,4 @@
-import { CELL_SIZE, type PlayerId, type Point } from './pitch'
+import { CELL_SIZE, halfOf, inNoBuildZone, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 
 /** A grid vertex: world position is (gx, gy) * CELL_SIZE. */
 export type Vertex = { gx: number; gy: number }
@@ -35,6 +35,17 @@ export function wallCells(w: Wall): { a: Vertex; b: Vertex }[] {
       a: { gx: gx + dx * i, gy: gy + dy * i },
       b: { gx: gx + dx * (i + 1), gy: gy + dy * (i + 1) },
     }))
+  })
+}
+
+/** Legal when every cell lies on the owner's half (a cell on the halfway line belongs to neither) and outside the owner's no-build zone. */
+export function isLegal(w: Wall): boolean {
+  const goalY = w.owner === 2 ? 0 : PITCH_HEIGHT
+  return wallCells(w).every(({ a, b }) => {
+    const [x0, x1] = [a.gx, b.gx].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
+    const [y0, y1] = [a.gy, b.gy].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
+    const nearestToGoal = { x: Math.min(Math.max(PITCH_WIDTH / 2, x0), x1), y: Math.min(Math.max(goalY, y0), y1) }
+    return halfOf((y0 + y1) / 2) === w.owner && !inNoBuildZone(nearestToGoal)
   })
 }
 

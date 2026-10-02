@@ -2,12 +2,12 @@ import type { Point } from '../sim/pitch'
 import { PLAYER_COLORS } from '../sim/player'
 import { GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 import type { SimState } from '../sim/step'
-import { wallSegments, type Wall } from '../sim/wall'
+import { isLegal, wallSegments, type Wall } from '../sim/wall'
 
 const BOARD = 1
 const NET_DEPTH = 3
 const VIEW_WIDTH = PITCH_WIDTH + 2 * BOARD
-const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d' }
+const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444' }
 
 const view = ({ width, height }: { width: number; height: number }) => {
   const scale = width / VIEW_WIDTH
@@ -38,7 +38,7 @@ function hatch(ctx: CanvasRenderingContext2D): CanvasPattern {
   return pattern
 }
 
-function drawWall(ctx: CanvasRenderingContext2D, w: Wall): void {
+function drawWall(ctx: CanvasRenderingContext2D, w: Wall, fill?: string): void {
   ctx.beginPath()
   for (const { a, b } of wallSegments(w)) {
     ctx.moveTo(a.x, a.y)
@@ -49,7 +49,7 @@ function drawWall(ctx: CanvasRenderingContext2D, w: Wall): void {
   ctx.strokeStyle = COLORS.outline
   ctx.lineWidth = 1
   ctx.stroke()
-  ctx.strokeStyle = w.owner === 2 ? hatch(ctx) : COLORS.p1
+  ctx.strokeStyle = fill ?? (w.owner === 2 ? hatch(ctx) : COLORS.p1)
   ctx.lineWidth = 0.7
   ctx.stroke()
 }
@@ -93,7 +93,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: W
   for (const o of state.objects) drawWall(ctx, o)
   if (ghost) {
     ctx.globalAlpha = 0.5
-    drawWall(ctx, ghost)
+    drawWall(ctx, ghost, isLegal(ghost) ? undefined : COLORS.illegal)
   }
   ctx.restore()
 }
