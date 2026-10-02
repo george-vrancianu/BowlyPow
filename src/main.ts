@@ -39,7 +39,9 @@ canvas.onpointerdown = (e) => {
     // Dev page: with no ghost, tapping a wall damages it.
     const at = toWorld(e)
     const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
-    if (hit) pending = { damage: { wall: hit.id, at } }
+    // Otherwise tap to push the ball toward the tap, harder the further away.
+    const { pos } = state.ball
+    pending = hit ? { damage: { wall: hit.id, at } } : { kick: { x: (at.x - pos.x) * 3, y: (at.y - pos.y) * 3 } }
     return
   }
   ghost = { ...ghost, at: snap(e) }
