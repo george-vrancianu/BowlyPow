@@ -1,7 +1,10 @@
 import { showConnectScreen } from './net/connectScreen'
+import { createHud } from './hud/hud'
+import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { clampY, follow, layout, MAP_Y, viewOutline, type Camera } from './render/camera'
-import { fragmentAlive, render, screenToWorld, shatter, type Fragment } from './render/render'
-import { CELL_SIZE, type Point } from './sim/pitch'
+import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
+import { blastRadius, canBlastFrom } from './sim/blast'
+import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput } from './sim/step'
 import { wallSegments, type Segment, type Wall } from './sim/wall'
 
@@ -22,7 +25,6 @@ const toggleMap = (open = !mapOpen) => {
   mapOpen = open
   mapUi.style.display = open ? 'flex' : 'none'
 }
-document.getElementById('map-open')!.onclick = () => toggleMap()
 document.getElementById('map-close')!.onclick = () => toggleMap(false)
 document.getElementById('map-stretch')!.onclick = () => {
   mapCam.map!.stretch = !mapCam.map!.stretch
@@ -36,6 +38,10 @@ addEventListener('keydown', (e) => {
 let ghost: Omit<Wall, 'id' | 'hp'> | undefined
 let fragments: Fragment[] = []
 let pending: SimInput = {}
+let waves: Wave[] = []
+let shake = { born: -Infinity, power: 0 }
+// Dev page: hold on a legal spot to charge a blast; release fires it.
+let charge: { gesture: Gesture; origin: Point; player: 1 | 2 } | undefined
 const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
   return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
@@ -50,7 +56,15 @@ ownerBtn.onclick = () => {
   ownerBtn.textContent = `Owner: ${owner}`
   if (ghost) ghost = { ...ghost, owner }
 }
-canvas.onpointermove = (e) => ghost && (ghost = { ...ghost, at: snap(e) })
+canvas.onpointermove = (e) => {
+  if (ghost) ghost = { ...ghost, at: snap(e) }
+  if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
+}
+canvas.onpointerup = () => {
+  const power = charge ? gesturePower(charge.gesture, performance.now()) : 0
+  if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power } }
+  charge = undefined
+}
 const toWorld = (e: PointerEvent) => screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
 const distToSegment = (p: Point, { a, b }: Segment) => {
   const [vx, vy] = [b.x - a.x, b.y - a.y]
@@ -70,15 +84,19 @@ canvas.onpointerdown = (e) => {
     // Dev page: with no ghost, tapping a wall damages it.
     const at = toWorld(e)
     const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
-    // Otherwise tap to push the ball toward the tap, harder the further away.
-    const { pos } = state.ball
-    pending = hit ? { damage: { wall: hit.id, at } } : { kick: { x: (at.x - pos.x) * 3, y: (at.y - pos.y) * 3 } }
+    const player = halfOf(at.y)
+    if (hit) pending = { damage: { wall: hit.id, at } }
+    else if (player && canBlastFrom(player, at, state, defaultConfig)) {
+      canvas.setPointerCapture(e.pointerId)
+      charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
+    }
     return
   }
   ghost = { ...ghost, at: snap(e) }
   pending = { placeWall: ghost }
   held = false
 }
+const hud = createHud(document.body, { onMap: () => toggleMap(), onRecenter: () => (held = false) })
 let acc = 0
 let last = performance.now()
 let lastFrame = last
@@ -92,6 +110,10 @@ function frame(now: number) {
     pending = {}
     if (r.events.length) held = false
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
+      else if (ev.type === 'blast-fired') {
+        waves.push({ origin: ev.origin, radius: blastRadius(ev.power, defaultConfig), born: now })
+        shake = { born: now, power: ev.power }
+      }
   }
 
   if (!held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
@@ -100,13 +122,21 @@ function frame(now: number) {
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
+  hud.update(
+    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: null, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
+    { width: canvas.clientWidth, height: canvas.clientHeight },
+  )
+  waves = waves.filter((w) => waveAlive(w, now))
+  const age = now - shake.born
+  const amp = shake.power > 0.3 && age < 200 ? 4 * shake.power * (1 - age / 200) : 0
+  canvas.style.transform = amp ? `translate(${Math.sin(age * 0.9) * amp}px, ${Math.cos(age * 1.3) * amp}px)` : ''
+  render(ctx, state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
   if (mapOpen) {
-    render(ctx, state, mapCam, undefined, fragments, now)
     const o = viewOutline(canvas, mapCam, camera)
     ctx.strokeStyle = '#fff'
     ctx.lineWidth = 2 * dpr
     ctx.strokeRect(o.x, o.y, o.w, o.h)
-  } else render(ctx, state, camera, ghost, fragments, now)
+  }
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)

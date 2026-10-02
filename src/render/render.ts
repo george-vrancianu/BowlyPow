@@ -1,12 +1,13 @@
-import type { Point } from '../sim/pitch'
+import type { PlayerId, Point } from '../sim/pitch'
 import { PLAYER_COLORS } from '../sim/player'
 import { BOARD, NET_DEPTH, GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
-import type { SimState } from '../sim/step'
+import { blastDamage, blastPush, blastRadius } from '../sim/blast'
+import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
 import { viewOf, type Camera } from './camera'
 import { canPlace, crackLines, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
 
-const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444' }
+const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
 
 /** Canvas pixel position to world units through the camera. */
 export function screenToWorld(canvas: { width: number; height: number }, cam: Camera, px: number, py: number): Point {
@@ -114,8 +115,66 @@ function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState[
   ctx.fill()
 }
 
+/** A blast being charged: `power` is 0 during the dwell. */
+export type Charge = { origin: Point; power: number; player: PlayerId }
+/** A fired blast's expanding ring. */
+export type Wave = { origin: Point; radius: number; born: number }
+export const WAVE_MS = 250
+export const waveAlive = (w: Wave, now: number) => now - w.born < WAVE_MS
+
+const lerpRed = (t: number) => `rgb(${Math.round(255 * t + 90 * (1 - t))},${Math.round(90 * (1 - t) + 40 * t)},${Math.round(90 * (1 - t) + 40 * t)})`
+
+function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, power, player }: Charge, now: number): void {
+  ctx.lineWidth = 0.15
+  if (power === 0) {
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(now / 120)
+    ctx.strokeStyle = COLORS[player === 1 ? 'p1' : 'p2']
+    ctx.beginPath()
+    ctx.arc(origin.x, origin.y, 1.2, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+    return
+  }
+  const r = blastRadius(power, defaultConfig)
+  const color = lerpRed(power)
+  ctx.beginPath()
+  ctx.arc(origin.x, origin.y, r, 0, Math.PI * 2)
+  ctx.globalAlpha = 0.15
+  ctx.fillStyle = color
+  ctx.fill()
+  ctx.globalAlpha = 1
+  ctx.strokeStyle = color
+  ctx.stroke()
+  // Radar rings sweeping outward.
+  for (const phase of [0, 0.5]) {
+    const t = (now / 800 + phase) % 1
+    ctx.globalAlpha = 1 - t
+    ctx.beginPath()
+    ctx.arc(origin.x, origin.y, r * t, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.globalAlpha = 1
+  const push = blastPush(state.ball.pos, origin, power, player, defaultConfig)
+  if (push) {
+    const { pos } = state.ball
+    const tip = { x: pos.x + push.x * 0.15, y: pos.y + push.y * 0.15 }
+    const ang = Math.atan2(push.y, push.x)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+    ctx.lineTo(tip.x, tip.y)
+    for (const s of [-1, 1]) {
+      ctx.moveTo(tip.x, tip.y)
+      ctx.lineTo(tip.x - Math.cos(ang + s * 0.5) * 0.8, tip.y - Math.sin(ang + s * 0.5) * 0.8)
+    }
+    ctx.globalAlpha = 0.6
+    ctx.strokeStyle = '#f4f4f0'
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+}
+
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = []): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
@@ -152,8 +211,20 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
   ctx.fillStyle = COLORS.line
   ctx.fillRect(0, HALF_HEIGHT - 0.15, PITCH_WIDTH, 0.3)
 
-  for (const o of state.objects) drawWall(ctx, o)
+  const inRange = new Map(charge && charge.power > 0 ? blastDamage(state.objects, charge.origin, charge.power, charge.player, defaultConfig).map((h) => [h.wall.id, h.wall.owner === charge.player ? COLORS.ownTint : COLORS.illegal]) : [])
+  for (const o of state.objects) drawWall(ctx, o, inRange.get(o.id))
   drawBall(ctx, state.ball)
+  if (charge) drawCharge(ctx, state, charge, now)
+  for (const w of waves) {
+    const t = (now - w.born) / WAVE_MS
+    ctx.globalAlpha = 1 - t
+    ctx.beginPath()
+    ctx.arc(w.origin.x, w.origin.y, w.radius * t, 0, Math.PI * 2)
+    ctx.strokeStyle = '#f4f4f0'
+    ctx.lineWidth = 0.3
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  }
   for (const f of fragments) drawFragment(ctx, f, now)
   if (ghost) {
     ctx.globalAlpha = 0.5
