@@ -1,7 +1,7 @@
 import { showConnectScreen } from './net/connectScreen'
 import { createHud } from './hud/hud'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
-import { clampY, follow, layout, MAP_Y, viewOutline, type Camera } from './render/camera'
+import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
@@ -19,7 +19,6 @@ const stored = (() => { try { return sessionStorage.getItem('mapStretch') === '1
 const mapCam: Camera = { y: MAP_Y, map: { stretch: stored } }
 let mapOpen = false
 // A map jump holds the camera until the next sim event or wall placement, then it returns to the ball.
-let held = false
 const mapUi = document.getElementById('map')!
 const toggleMap = (open = !mapOpen) => {
   mapOpen = open
@@ -56,11 +55,27 @@ ownerBtn.onclick = () => {
   ownerBtn.textContent = `Owner: ${owner}`
   if (ghost) ghost = { ...ghost, owner }
 }
+// Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
+const pointers = new Map<number, Point>()
+let panOnly = false
+const canvasPx = () => canvas.width / canvas.clientWidth
+const panBy = (dyPx: number) => pan(camera, -(dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight)
+canvas.onwheel = (e) => (e.preventDefault(), panBy(-e.deltaY))
+addEventListener('keydown', (e) => e.code === 'Space' && (e.preventDefault(), recenter(camera)))
 canvas.onpointermove = (e) => {
+  const prev = pointers.get(e.pointerId)
+  if (prev) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const dy = e.clientY - prev.y
+    if (pointers.size > 1) panBy(dy / pointers.size)
+    else if (panOnly || (charge && gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now()).mode === 'pan')) panBy(dy)
+  }
   if (ghost) ghost = { ...ghost, at: snap(e) }
   if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
 }
-canvas.onpointerup = () => {
+canvas.onpointerup = (e) => {
+  pointers.delete(e.pointerId)
+  panOnly = false
   const power = charge ? gesturePower(charge.gesture, performance.now()) : 0
   if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power } }
   charge = undefined
@@ -75,9 +90,13 @@ canvas.onpointerdown = (e) => {
   if (mapOpen) {
     const px = e.offsetX * (canvas.width / canvas.clientWidth)
     const py = e.offsetY * (canvas.height / canvas.clientHeight)
-    camera.y = clampY(screenToWorld(canvas, mapCam, px, py).y, layout(canvas).visibleHeight)
-    held = true
+    pan(camera, screenToWorld(canvas, mapCam, px, py).y - camera.y, layout(canvas).visibleHeight)
     toggleMap(false)
+    return
+  }
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  if (pointers.size > 1) {
+    charge = undefined
     return
   }
   if (!ghost) {
@@ -89,14 +108,14 @@ canvas.onpointerdown = (e) => {
     else if (player && canBlastFrom(player, at, state, defaultConfig)) {
       canvas.setPointerCapture(e.pointerId)
       charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
-    }
+    } else panOnly = true
     return
   }
   ghost = { ...ghost, at: snap(e) }
   pending = { placeWall: ghost }
-  held = false
+  recenter(camera)
 }
-const hud = createHud(document.body, { onMap: () => toggleMap(), onRecenter: () => (held = false) })
+const hud = createHud(document.body, { onMap: () => toggleMap(), onRecenter: () => recenter(camera) })
 let acc = 0
 let last = performance.now()
 let lastFrame = last
@@ -107,8 +126,8 @@ function frame(now: number) {
   for (; acc >= TICK; acc -= TICK) {
     const r = step(state, pending, defaultConfig)
     state = r.state
+    if (pending.placeWall || r.events.length) recenter(camera)
     pending = {}
-    if (r.events.length) held = false
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
       else if (ev.type === 'blast-fired') {
         waves.push({ origin: ev.origin, radius: blastRadius(ev.power, defaultConfig), born: now })
@@ -116,7 +135,7 @@ function frame(now: number) {
       }
   }
 
-  if (!held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr

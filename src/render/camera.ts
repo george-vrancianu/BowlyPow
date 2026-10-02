@@ -3,8 +3,8 @@ import { BOARD, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 const MAX_VISIBLE_HEIGHT = 64
 const SMOOTHING_S = 0.15
 
-/** Renderer state: the world y at the centre of the view. The width is always the pitch width. `map` makes it the whole-pitch map camera. */
-export type Camera = { y: number; map?: { stretch: boolean } }
+/** Renderer state: the world y at the centre of the view. The width is always the pitch width. `map` makes it the whole-pitch map camera. `held` keeps the view off the ball (manual pan or map jump) until recenter(). */
+export type Camera = { y: number; map?: { stretch: boolean }; held?: boolean }
 
 type Pane = { x: number; y: number; w: number; h: number }
 /** What the renderer draws through: per-axis scale (they differ only in a stretched map), the pane on the canvas, and the world height shown. */
@@ -35,6 +35,14 @@ export function viewOutline(canvas: { width: number; height: number }, map: Came
   const h = v.visibleHeight
   return { x: m.pane.x, y: m.pane.y + m.pane.h / 2 + (cam.y - h / 2 - map.y) * m.sy, w: PITCH_WIDTH * m.sx, h: h * m.sy }
 }
+
+/** Manual pan: moves the view and holds it off the ball until recenter() (sim events call it too). */
+export function pan(cam: Camera, dy: number, visible: number): void {
+  cam.y = clampY(cam.y + dy, visible)
+  cam.held = true
+}
+
+export const recenter = (cam: Camera): void => void (cam.held = false)
 
 /** The pane is always 40 x 64 units: screens wider than 10:16 get side bands, taller ones get top and bottom bands. */
 export function layout({ width, height }: { width: number; height: number }) {
