@@ -3,7 +3,7 @@ import type { SimConfig, SimState } from './step'
 import { wallSegments, type Segment, type Wall } from './wall'
 
 /** Half the drawn wall thickness; a blast cannot start on it. */
-const WALL_HALF = 0.35
+export const WALL_HALF = 0.35
 
 export const blastRadius = (power: number, c: SimConfig): number => 2 * c.ballRadius * (1 + 4 * power)
 
@@ -13,7 +13,7 @@ function nearestOn({ a, b }: Segment, p: Point): Point {
   return { x: a.x + t * vx, y: a.y + t * vy }
 }
 
-function nearestOnWall(w: Wall, p: Point): { at: Point; dist: number } {
+export function nearestOnWall(w: Wall, p: Point): { at: Point; dist: number } {
   return wallSegments(w)
     .map((s) => nearestOn(s, p))
     .map((at) => ({ at, dist: Math.hypot(at.x - p.x, at.y - p.y) }))

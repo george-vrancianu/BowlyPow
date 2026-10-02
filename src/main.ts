@@ -4,6 +4,7 @@ import { follow, layout, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
+import { canPlaceBall } from './sim/possession'
 import { defaultConfig, initialState, step, type SimInput } from './sim/step'
 import { wallSegments, type Segment, type Wall } from './sim/wall'
 
@@ -21,6 +22,13 @@ let waves: Wave[] = []
 let shake = { born: -Infinity, power: 0 }
 // Dev page: hold on a legal spot to charge a blast; release fires it.
 let charge: { gesture: Gesture; origin: Point; player: 1 | 2 } | undefined
+// Ball-in-hand: tap a point to place the ghost ball, drag it to move, Confirm fixes it.
+let ballGhost: Point | undefined
+let draggingBall = false
+const confirm = document.getElementById('confirm') as HTMLButtonElement
+confirm.onclick = () => {
+  if (ballGhost && canPlaceBall(state.possession.shooter, ballGhost, state.objects, defaultConfig)) pending = { placeBall: { player: state.possession.shooter, at: ballGhost } }
+}
 const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
   return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
@@ -36,10 +44,12 @@ ownerBtn.onclick = () => {
   if (ghost) ghost = { ...ghost, owner }
 }
 canvas.onpointermove = (e) => {
+  if (draggingBall) ballGhost = toWorld(e)
   if (ghost) ghost = { ...ghost, at: snap(e) }
   if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
 }
 canvas.onpointerup = () => {
+  draggingBall = false
   const power = charge ? gesturePower(charge.gesture, performance.now()) : 0
   if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power } }
   charge = undefined
@@ -51,13 +61,20 @@ const distToSegment = (p: Point, { a, b }: Segment) => {
   return Math.hypot(p.x - a.x - t * vx, p.y - a.y - t * vy)
 }
 canvas.onpointerdown = (e) => {
+  if (state.possession.inHand && !ghost) {
+    const at = toWorld(e)
+    if (!ballGhost || Math.hypot(at.x - ballGhost.x, at.y - ballGhost.y) > 2 * defaultConfig.ballRadius) ballGhost = at
+    draggingBall = true
+    canvas.setPointerCapture(e.pointerId)
+    return
+  }
   if (!ghost) {
     // Dev page: with no ghost, tapping a wall damages it.
     const at = toWorld(e)
     const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
     const player = halfOf(at.y)
     if (hit) pending = { damage: { wall: hit.id, at } }
-    else if (player && canBlastFrom(player, at, state, defaultConfig)) {
+    else if (player === state.possession.shooter && !state.possession.live && canBlastFrom(player, at, state, defaultConfig)) {
       canvas.setPointerCapture(e.pointerId)
       charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
     }
@@ -76,6 +93,7 @@ function frame(now: number) {
   for (; acc >= TICK; acc -= TICK) {
     const r = step(state, pending, defaultConfig)
     state = r.state
+    if (!state.possession.inHand) ballGhost = undefined
     pending = {}
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
       else if (ev.type === 'blast-fired') {
@@ -84,6 +102,7 @@ function frame(now: number) {
       }
   }
 
+  confirm.hidden = !state.possession.inHand
   follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
   const dpr = window.devicePixelRatio || 1
@@ -94,7 +113,7 @@ function frame(now: number) {
   const age = now - shake.born
   const amp = shake.power > 0.3 && age < 200 ? 4 * shake.power * (1 - age / 200) : 0
   canvas.style.transform = amp ? `translate(${Math.sin(age * 0.9) * amp}px, ${Math.cos(age * 1.3) * amp}px)` : ''
-  render(ctx, state, camera, ghost, fragments, now, charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
+  render(ctx, state, camera, ghost, fragments, now, charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, defaultConfig) })
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)

@@ -38,7 +38,7 @@ describe('ball push', () => {
 
 describe('structure damage', () => {
   const origin = { x: 20, y: 79.5 }
-  const after = (objects: Wall[], player: 1 | 2 = 1, o = origin) => fire(setup(objects), { player, origin: o, power: 1 }).state
+  const after = (objects: Wall[], player: 1 | 2 = 1, o = origin) => fire({ ...setup(objects), possession: { shooter: player, shots: 3, inHand: false, live: false } }, { player, origin: o, power: 1 }).state
   it('enemy loses 1 hp above 0.4 and 2 above 0.8', () => {
     // distances 5.5, 3.5, 1.5 -> pressure 0.45, 0.65, 0.85; 7.5 -> 0.25
     const s = after([wall(1, 2, 37), wall(2, 2, 38), wall(3, 2, 39), wall(4, 2, 36)])

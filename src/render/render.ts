@@ -174,7 +174,7 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 }
 
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = []): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = [], ballGhost?: { at: Point; legal: boolean }): void {
   const { width, height } = ctx.canvas
   const { scale, pane, visibleHeight } = layout(ctx.canvas)
   ctx.fillStyle = COLORS.bg
@@ -229,6 +229,14 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
   if (ghost) {
     ctx.globalAlpha = 0.5
     drawWall(ctx, ghost, canPlace(state.objects, ghost) ? undefined : COLORS.illegal)
+  }
+  if (ballGhost) {
+    ctx.globalAlpha = 0.5
+    ctx.beginPath()
+    ctx.arc(ballGhost.at.x, ballGhost.at.y, defaultConfig.ballRadius, 0, Math.PI * 2)
+    ctx.fillStyle = ballGhost.legal ? '#f4f4f0' : COLORS.illegal
+    ctx.fill()
+    ctx.globalAlpha = 1
   }
   ctx.restore()
   edgeFade(ctx, pane, cam.y - visibleHeight / 2 > -BOARD, cam.y + visibleHeight / 2 < PITCH_HEIGHT + BOARD)

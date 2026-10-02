@@ -2,6 +2,7 @@ import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { initialPlayers, type Player } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
+import { canPlaceBall, resolveRest, type Possession } from './possession'
 import { canPlace, WALL_HP, damageWall, type Wall, type WallSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
@@ -15,6 +16,7 @@ export type SimEvent =
   /** An illegal placement or demolition was dropped. */
   | { type: 'refused' }
   | { type: 'blast-fired'; player: PlayerId; origin: Point; power: number }
+  | { type: 'possession-changed'; shooter: PlayerId; inHand: boolean }
 
 export type SimState = {
   tick: number
@@ -24,6 +26,7 @@ export type SimState = {
   points: Record<PlayerId, number>
   nextId: number
   ball: Ball
+  possession: Possession
 }
 
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
@@ -33,6 +36,8 @@ export type SimInput = {
   demolish?: { player: PlayerId; wall: number }
   damage?: { wall: number; at: Point }
   kick?: Point
+  /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
+  placeBall?: { player: PlayerId; at: Point }
 }
 
 export type SimConfig = {
@@ -47,6 +52,8 @@ export type SimConfig = {
   damageFraction: number
   /** Speed kept by a ball that destroys a wall mid-shot. */
   destroyedSpeedFactor: number
+  /** Shots per possession. */
+  shots: number
 }
 
 export const defaultConfig: SimConfig = {
@@ -58,10 +65,11 @@ export const defaultConfig: SimConfig = {
   restitution: 0.85,
   damageFraction: 0.5,
   destroyedSpeedFactor: 0.5,
+  shots: 3,
 }
 
 export function initialState(): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 } }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: { shooter: 1, shots: defaultConfig.shots, inHand: false, live: false } }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
@@ -94,10 +102,19 @@ export function step(
     const f = k > config.maxSpeed ? config.maxSpeed / k : 1
     ball = { ...ball, vel: { x: input.kick.x * f, y: input.kick.y * f } }
   }
+  let { possession } = state
+  const { placeBall } = input
+  if (placeBall) {
+    if (possession.inHand && placeBall.player === possession.shooter && canPlaceBall(placeBall.player, placeBall.at, objects, config)) {
+      ball = { ...ball, pos: placeBall.at, vel: { x: 0, y: 0 } }
+      possession = { ...possession, inHand: false }
+    } else events.push({ type: 'refused' })
+  }
   const { blast } = input
   if (blast) {
-    if (canBlastFrom(blast.player, blast.origin, { objects, ball }, config)) {
+    if (blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config)) {
       events.push({ type: 'blast-fired', ...blast })
+      possession = { ...possession, live: true }
       const vel = blastPush(ball.pos, blast.origin, blast.power, blast.player, config)
       if (vel) ball = { ...ball, vel }
       for (const { wall, loss, at } of blastDamage(objects, blast.origin, blast.power, blast.player, config)) {
@@ -111,5 +128,10 @@ export function step(
   }
   const rolled = rollBall(ball, objects, config)
   events.push(...rolled.events)
-  return { state: { ...state, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: rolled.ball }, events }
+  if (possession.live && !rolled.ball.vel.x && !rolled.ball.vel.y) {
+    const r = resolveRest(possession, rolled.ball.pos.y, config)
+    possession = r.possession
+    events.push(...r.events)
+  }
+  return { state: { ...state, possession, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: rolled.ball }, events }
 }
