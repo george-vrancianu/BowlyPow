@@ -1,8 +1,8 @@
 import { showConnectScreen } from './net/connectScreen'
-import { render, screenToWorld } from './render/render'
-import { CELL_SIZE } from './sim/pitch'
+import { fragmentAlive, render, screenToWorld, shatter, type Fragment } from './render/render'
+import { CELL_SIZE, type Point } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput } from './sim/step'
-import type { Wall } from './sim/wall'
+import { wallSegments, type Segment, type Wall } from './sim/wall'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
@@ -10,7 +10,8 @@ const TICK = 1 / defaultConfig.tickHz
 
 let state = initialState()
 // Dev page: the ghost follows the pointer; a click drops it through the sim as a placeWall input.
-let ghost: Wall | undefined
+let ghost: Omit<Wall, 'id' | 'hp'> | undefined
+let fragments: Fragment[] = []
 let pending: SimInput = {}
 const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
@@ -19,6 +20,7 @@ const snap = (e: PointerEvent) => {
 const spawn = (shape: Wall['shape']) => (ghost = { kind: 'wall', owner: ghost?.owner ?? 1, shape, rotation: ghost?.rotation ?? 0, at: ghost?.at ?? { gx: 10, gy: 27 } })
 document.querySelectorAll<HTMLButtonElement>('[data-shape]').forEach((b) => (b.onclick = () => spawn(b.dataset.shape as Wall['shape'])))
 document.getElementById('rotate')!.onclick = () => ghost && (ghost = { ...ghost, rotation: ((ghost.rotation + 1) % 4) as Wall['rotation'] })
+document.getElementById('damage')!.onclick = () => (ghost = undefined)
 const ownerBtn = document.getElementById('owner')!
 ownerBtn.onclick = () => {
   const owner = ghost?.owner === 2 ? 1 : 2
@@ -26,8 +28,20 @@ ownerBtn.onclick = () => {
   if (ghost) ghost = { ...ghost, owner }
 }
 canvas.onpointermove = (e) => ghost && (ghost = { ...ghost, at: snap(e) })
+const toWorld = (e: PointerEvent) => screenToWorld(canvas, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
+const distToSegment = (p: Point, { a, b }: Segment) => {
+  const [vx, vy] = [b.x - a.x, b.y - a.y]
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / (vx * vx + vy * vy)))
+  return Math.hypot(p.x - a.x - t * vx, p.y - a.y - t * vy)
+}
 canvas.onpointerdown = (e) => {
-  if (!ghost) return
+  if (!ghost) {
+    // Dev page: with no ghost, tapping a wall damages it.
+    const at = toWorld(e)
+    const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
+    if (hit) pending = { damage: { wall: hit.id, at } }
+    return
+  }
   ghost = { ...ghost, at: snap(e) }
   pending = { placeWall: ghost }
 }
@@ -38,14 +52,17 @@ function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
   for (; acc >= TICK; acc -= TICK) {
-    state = step(state, pending, defaultConfig).state
+    const r = step(state, pending, defaultConfig)
+    state = r.state
     pending = {}
+    for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
   }
 
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
-  render(ctx, state, ghost)
+  fragments = fragments.filter((f) => fragmentAlive(f, now))
+  render(ctx, state, ghost, fragments, now)
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)

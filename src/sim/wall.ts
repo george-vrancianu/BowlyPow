@@ -7,7 +7,11 @@ export type WallShape = 'straight' | 'L'
 export type Rotation = 0 | 1 | 2 | 3
 
 /** `at` is the pivot vertex (the corner of an L, the start of a straight); rotation is in quarter turns clockwise on screen. */
-export type Wall = { kind: 'wall'; owner: PlayerId; shape: WallShape; rotation: Rotation; at: Vertex }
+export type WallSpec = { kind: 'wall'; owner: PlayerId; shape: WallShape; rotation: Rotation; at: Vertex }
+/** A placed wall: one hit point pool (an L shares it) and a stable id assigned by the sim. */
+export type Wall = WallSpec & { id: number; hp: number }
+
+export const WALL_HP = 3
 
 /** Each arm is a run of cells from the pivot, in grid units, before rotation. */
 const ARMS: Record<WallShape, [number, number][]> = {
@@ -18,7 +22,7 @@ const COST: Record<WallShape, number> = { straight: 2, L: 3 }
 
 export const wallCost = (shape: WallShape): number => COST[shape]
 
-function arms({ shape, rotation }: Wall): [number, number][] {
+function arms({ shape, rotation }: WallSpec): [number, number][] {
   return ARMS[shape].map(([x, y]) => {
     for (let i = 0; i < rotation; i++) [x, y] = [-y, x]
     return [x, y]
@@ -26,7 +30,7 @@ function arms({ shape, rotation }: Wall): [number, number][] {
 }
 
 /** The wall as unit cells (one cell = one grid edge), in grid vertices. */
-export function wallCells(w: Wall): { a: Vertex; b: Vertex }[] {
+export function wallCells(w: WallSpec): { a: Vertex; b: Vertex }[] {
   const { gx, gy } = w.at
   return arms(w).flatMap(([x, y]) => {
     const n = Math.abs(x + y)
@@ -39,7 +43,7 @@ export function wallCells(w: Wall): { a: Vertex; b: Vertex }[] {
 }
 
 /** Legal when every cell lies on the owner's half (a cell on the halfway line belongs to neither) and outside the owner's no-build zone. */
-export function isLegal(w: Wall): boolean {
+export function isLegal(w: WallSpec): boolean {
   const goalY = w.owner === 2 ? 0 : PITCH_HEIGHT
   return wallCells(w).every(({ a, b }) => {
     const [x0, x1] = [a.gx, b.gx].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
@@ -50,7 +54,26 @@ export function isLegal(w: Wall): boolean {
 }
 
 /** Zero-thickness collision segments in world units, one per arm. */
-export function wallSegments(w: Wall): Segment[] {
+export function wallSegments(w: WallSpec): Segment[] {
   const a = { x: w.at.gx * CELL_SIZE, y: w.at.gy * CELL_SIZE }
   return arms(w).map(([x, y]) => ({ a, b: { x: a.x + x * CELL_SIZE, y: a.y + y * CELL_SIZE } }))
+}
+
+/** One jagged crack per lost hit point, as world-space polylines. Deterministic in (id, hp) so peers draw the same cracks. */
+export function crackLines(w: Wall): Point[][] {
+  const cells = wallCells(w)
+  return Array.from({ length: WALL_HP - w.hp }, (_, k) => {
+    // Seeded from id and the hp remaining after this crack, so earlier cracks never move.
+    let seed = (w.id * 31 + (WALL_HP - 1 - k)) * 2654435761
+    const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) >>> 0) / 2 ** 32)
+    const { a, b } = cells[Math.floor(rnd() * cells.length)]
+    const [cx, cy] = [((a.gx + b.gx) / 2) * CELL_SIZE, ((a.gy + b.gy) / 2) * CELL_SIZE]
+    // Across the wall: perpendicular to the cell's direction.
+    const [nx, ny] = [Math.abs(b.gy - a.gy), Math.abs(b.gx - a.gx)]
+    const along = (rnd() - 0.5) * CELL_SIZE * 0.6
+    return [-0.4, -0.13, 0.13, 0.4].map((t) => {
+      const j = (rnd() - 0.5) * 0.5
+      return { x: cx + nx * t + ny * (along + j), y: cy + ny * t + nx * (along + j) }
+    })
+  })
 }

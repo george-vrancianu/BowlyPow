@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { isLegal, wallCells,wallCost, wallSegments, type Wall } from './wall'
+import { isLegal, wallCells, wallCost, wallSegments, type WallSpec } from './wall'
 
-const wall = (shape: Wall['shape'], rotation: Wall['rotation']): Wall => ({
+const wall = (shape: WallSpec['shape'], rotation: WallSpec['rotation']): WallSpec => ({
   kind: 'wall',
   owner: 1,
   shape,
@@ -9,7 +9,7 @@ const wall = (shape: Wall['shape'], rotation: Wall['rotation']): Wall => ({
   at: { gx: 5, gy: 7 },
 })
 // Direction along a cell is meaningless, so list each edge low end first.
-const cells = (w: Wall) =>
+const cells = (w: WallSpec) =>
   wallCells(w)
     .map(({ a, b }) => (a.gx + a.gy < b.gx + b.gy ? [a, b] : [b, a]))
     .map(([a, b]) => `${a.gx},${a.gy}-${b.gx},${b.gy}`)
@@ -58,7 +58,7 @@ describe('collision segments', () => {
 })
 
 describe('isLegal', () => {
-  const at = (owner: Wall['owner'], shape: Wall['shape'], rotation: Wall['rotation'], gx: number, gy: number): Wall => ({ kind: 'wall', owner, shape, rotation, at: { gx, gy } })
+  const at = (owner: WallSpec['owner'], shape: WallSpec['shape'], rotation: WallSpec['rotation'], gx: number, gy: number): WallSpec => ({ kind: 'wall', owner, shape, rotation, at: { gx, gy } })
   it('allows a wall on the owner half, and refuses the opponent half', () => {
     expect(isLegal(at(1, 'straight', 0, 2, 40))).toBe(true)
     expect(isLegal(at(2, 'straight', 0, 2, 10))).toBe(true)
