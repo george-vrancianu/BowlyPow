@@ -2,15 +2,15 @@ import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { initialPlayers, type Player } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
-import { canPlace, WALL_HP, damageWall, type Wall, type WallSpec } from './wall'
+import { canPlace, damageWall, maxHp, type Structure, type StructureSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
-export type SimObject = Wall
+export type SimObject = Structure
 
 export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
   /** Carries the removed wall (hp 0) so the renderer can shatter it. */
-  | { type: 'wall-destroyed'; wall: Wall; at: Point }
+  | { type: 'wall-destroyed'; wall: Structure; at: Point }
   | { type: 'ball-hit-wall'; wall: number; speed: number; at: Point }
   /** An illegal placement or demolition was dropped. */
   | { type: 'refused' }
@@ -29,7 +29,7 @@ export type SimState = {
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
 export type SimInput = {
   blast?: { player: PlayerId; origin: Point; power: number }
-  placeWall?: WallSpec
+  placeWall?: StructureSpec
   demolish?: { player: PlayerId; wall: number }
   damage?: { wall: number; at: Point }
   kick?: Point
@@ -73,7 +73,7 @@ export function step(
   let { objects, points, nextId } = state
   const events: SimEvent[] = []
   if (input.placeWall) {
-    if (canPlace(objects, input.placeWall)) objects = [...objects, { ...input.placeWall, id: nextId++, hp: WALL_HP }]
+    if (canPlace(objects, input.placeWall)) objects = [...objects, { ...input.placeWall, id: nextId++, hp: maxHp(input.placeWall) }]
     else events.push({ type: 'refused' })
   }
   const { demolish } = input

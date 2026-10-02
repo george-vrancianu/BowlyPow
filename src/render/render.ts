@@ -6,7 +6,7 @@ import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
 import { viewOf, type Camera } from './camera'
 import { DIM_FLASH_MS, FLASH_MS, PARTICLE_MS, shakeOffset, type Fx } from './feedback'
-import { canPlace, crackLines, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
+import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerSpec } from '../sim/wall'
 
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
 
@@ -36,10 +36,10 @@ function hatch(ctx: CanvasRenderingContext2D): CanvasPattern {
 
 const SHATTER_MS = 400
 /** One cell-sized piece of a destroyed wall, flying away from the impact point. */
-export type Fragment = { a: Point; b: Point; owner: WallSpec['owner']; from: Point; born: number }
+export type Fragment = { a: Point; b: Point; owner: StructureSpec['owner']; from: Point; born: number }
 
 /** Splits a destroyed wall into one fragment per cell. */
-export const shatter = (w: WallSpec, from: Point, born: number): Fragment[] =>
+export const shatter = (w: StructureSpec, from: Point, born: number): Fragment[] =>
   wallCells(w).map(({ a, b }) => ({ a: { x: a.gx * CELL_SIZE, y: a.gy * CELL_SIZE }, b: { x: b.gx * CELL_SIZE, y: b.gy * CELL_SIZE }, owner: w.owner, from, born }))
 
 /** True while the fragment is still visible. */
@@ -60,7 +60,8 @@ function drawFragment(ctx: CanvasRenderingContext2D, f: Fragment, now: number): 
   ctx.restore()
 }
 
-function drawWall(ctx: CanvasRenderingContext2D, w: { owner: WallSpec['owner'] } & ({ a: Point; b: Point } | WallSpec), fill?: string): void {
+function drawWall(ctx: CanvasRenderingContext2D, w: { owner: StructureSpec['owner'] } & ({ a: Point; b: Point } | StructureSpec), fill?: string): void {
+  if ('kind' in w && w.kind === 'tower') return drawTower(ctx, w, fill)
   ctx.beginPath()
   for (const { a, b } of 'a' in w ? [w] : wallSegments(w)) {
     ctx.moveTo(a.x, a.y)
@@ -74,17 +75,32 @@ function drawWall(ctx: CanvasRenderingContext2D, w: { owner: WallSpec['owner'] }
   ctx.strokeStyle = fill ?? (w.owner === 2 ? hatch(ctx) : COLORS.p1)
   ctx.lineWidth = 0.7
   ctx.stroke()
-  if ('hp' in w) {
-    ctx.beginPath()
-    for (const [p, ...rest] of crackLines(w as Wall)) {
-      ctx.moveTo(p.x, p.y)
-      for (const q of rest) ctx.lineTo(q.x, q.y)
-    }
-    ctx.lineCap = 'butt'
-    ctx.strokeStyle = COLORS.outline
-    ctx.lineWidth = 0.12
-    ctx.stroke()
+  if ('hp' in w) drawCracks(ctx, w as Structure)
+}
+
+function drawCracks(ctx: CanvasRenderingContext2D, w: Structure): void {
+  ctx.beginPath()
+  for (const [p, ...rest] of crackLines(w)) {
+    ctx.moveTo(p.x, p.y)
+    for (const q of rest) ctx.lineTo(q.x, q.y)
   }
+  ctx.lineCap = 'butt'
+  ctx.strokeStyle = COLORS.outline
+  ctx.lineWidth = 0.12
+  ctx.stroke()
+}
+
+/** A square in the owner's colour with an empty inset where a power-up glyph will go. */
+function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; id?: number }, fill?: string): void {
+  const [x, y] = [t.at.gx * CELL_SIZE, t.at.gy * CELL_SIZE]
+  ctx.fillStyle = fill ?? (t.owner === 2 ? hatch(ctx) : COLORS.p1)
+  ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE)
+  ctx.strokeStyle = COLORS.outline
+  ctx.lineWidth = 0.3
+  ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE)
+  ctx.lineWidth = 0.1
+  ctx.strokeRect(x + 0.5, y + 0.5, CELL_SIZE - 1, CELL_SIZE - 1)
+  if (t.hp !== undefined) drawCracks(ctx, t as Structure)
 }
 
 /** Disc with a speed-scaled fading trail behind it and a dot that rolls with the distance travelled. */
@@ -175,7 +191,7 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 }
 
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: WallSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = [], fx?: Fx): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, ghost?: StructureSpec, fragments: Fragment[] = [], now = 0, charge?: Charge, waves: Wave[] = [], fx?: Fx): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
