@@ -1,4 +1,5 @@
 import { CELL_SIZE, cellToWorld, GOAL_LEFT, GOAL_RIGHT, halfOf, inNoBuildZone, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import type { SimEvent } from './step'
 
 /** A grid vertex: world position is (gx, gy) * CELL_SIZE. */
 export type Vertex = { gx: number; gy: number }
@@ -115,4 +116,14 @@ export function crackLines(w: Wall): Point[][] {
       return { x: cx + nx * t + ny * (along + j), y: cy + ny * t + nx * (along + j) }
     })
   })
+}
+
+/** Removes 1 hp from the wall (one pool per wall); the shared damage path for every source. Unknown ids are ignored. */
+export function damageWall(objects: Wall[], id: number, at: Point): { objects: Wall[]; events: SimEvent[] } {
+  const target = objects.find((w) => w.id === id)
+  if (!target) return { objects, events: [] }
+  const hp = target.hp - 1
+  return hp > 0
+    ? { objects: objects.map((w) => (w === target ? { ...w, hp } : w)), events: [{ type: 'wall-cracked', id, hp, at }] }
+    : { objects: objects.filter((w) => w !== target), events: [{ type: 'wall-destroyed', wall: { ...target, hp }, at }] }
 }

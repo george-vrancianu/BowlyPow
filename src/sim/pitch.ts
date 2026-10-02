@@ -12,6 +12,8 @@ export const GOAL_WIDTH = 10
 export const GOAL_LEFT = (PITCH_WIDTH - GOAL_WIDTH) / 2
 export const GOAL_RIGHT = GOAL_LEFT + GOAL_WIDTH
 export const NO_BUILD_RADIUS = 15
+export const BOARD = 1
+export const NET_DEPTH = 3
 
 /** The player whose half contains y, or null exactly on the halfway line. */
 export function halfOf(y: number): PlayerId | null {

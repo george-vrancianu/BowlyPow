@@ -1,6 +1,7 @@
-import type { PlayerId, Point } from './pitch'
+import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { initialPlayers, type Player } from './player'
-import { canPlace, WALL_HP, type Wall, type WallSpec } from './wall'
+import { rollBall, type Ball } from './ball'
+import { canPlace, WALL_HP, damageWall, type Wall, type WallSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
 export type SimObject = Wall
@@ -9,6 +10,7 @@ export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
   /** Carries the removed wall (hp 0) so the renderer can shatter it. */
   | { type: 'wall-destroyed'; wall: Wall; at: Point }
+  | { type: 'ball-hit-wall'; wall: number; speed: number; at: Point }
   /** An illegal placement or demolition was dropped. */
   | { type: 'refused' }
 
@@ -19,6 +21,7 @@ export type SimState = {
   /** Wall points; demolishing spends them. */
   points: Record<PlayerId, number>
   nextId: number
+  ball: Ball
 }
 
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
@@ -27,21 +30,43 @@ export type SimInput = {
   placeWall?: WallSpec
   demolish?: { player: PlayerId; wall: number }
   damage?: { wall: number; at: Point }
+  kick?: Point
 }
 
-export type SimConfig = { tickHz: number }
+export type SimConfig = {
+  tickHz: number
+  ballRadius: number
+  maxSpeed: number
+  /** Seconds for ball speed to halve. */
+  halfLife: number
+  restSpeed: number
+  restitution: number
+  /** A wall hit above this fraction of maxSpeed removes 1 hp. */
+  damageFraction: number
+  /** Speed kept by a ball that destroys a wall mid-shot. */
+  destroyedSpeedFactor: number
+}
 
-export const defaultConfig: SimConfig = { tickHz: 60 }
+export const defaultConfig: SimConfig = {
+  tickHz: 60,
+  ballRadius: 1,
+  maxSpeed: 60,
+  halfLife: 0.8,
+  restSpeed: 0.5,
+  restitution: 0.85,
+  damageFraction: 0.5,
+  destroyedSpeedFactor: 0.5,
+}
 
 export function initialState(): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1 }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 } }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
 export function step(
   state: SimState,
   input: SimInput,
-  _config: SimConfig,
+  config: SimConfig,
 ): { state: SimState; events: SimEvent[] } {
   let { objects, points, nextId } = state
   const events: SimEvent[] = []
@@ -56,12 +81,18 @@ export function step(
       points = { ...points, [demolish.player]: points[demolish.player] - 1 }
     } else events.push({ type: 'refused' })
   }
-  const { damage } = input
-  const target = damage && objects.find((w) => w.id === damage.wall)
-  if (damage && target) {
-    const hp = target.hp - 1
-    objects = hp > 0 ? objects.map((w) => (w === target ? { ...w, hp } : w)) : objects.filter((w) => w !== target)
-    events.push(hp > 0 ? { type: 'wall-cracked', id: target.id, hp, at: damage.at } : { type: 'wall-destroyed', wall: { ...target, hp }, at: damage.at })
+  if (input.damage) {
+    const r = damageWall(objects, input.damage.wall, input.damage.at)
+    objects = r.objects
+    events.push(...r.events)
   }
-  return { state: { ...state, tick: state.tick + 1, objects, points, nextId }, events }
+  let ball = state.ball
+  if (input.kick) {
+    const k = Math.hypot(input.kick.x, input.kick.y)
+    const f = k > config.maxSpeed ? config.maxSpeed / k : 1
+    ball = { ...ball, vel: { x: input.kick.x * f, y: input.kick.y * f } }
+  }
+  const rolled = rollBall(ball, objects, config)
+  events.push(...rolled.events)
+  return { state: { ...state, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: rolled.ball }, events }
 }

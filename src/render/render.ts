@@ -1,12 +1,10 @@
 import type { Point } from '../sim/pitch'
 import { PLAYER_COLORS } from '../sim/player'
-import { GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
+import { BOARD, NET_DEPTH, GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 import type { SimState } from '../sim/step'
 import { CELL_SIZE } from '../sim/pitch'
 import { canPlace, crackLines, wallCells, wallSegments, type Wall, type WallSpec } from '../sim/wall'
 
-const BOARD = 1
-const NET_DEPTH = 3
 const VIEW_WIDTH = PITCH_WIDTH + 2 * BOARD
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444' }
 
@@ -92,6 +90,35 @@ function drawWall(ctx: CanvasRenderingContext2D, w: { owner: WallSpec['owner'] }
   }
 }
 
+/** Disc with a speed-scaled fading trail behind it and a dot that rolls with the distance travelled. */
+function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState['ball']): void {
+  const speed = Math.hypot(vel.x, vel.y)
+  if (speed > 0) {
+    const tail = { x: pos.x - vel.x * 0.08, y: pos.y - vel.y * 0.08 }
+    const g = ctx.createLinearGradient(pos.x, pos.y, tail.x, tail.y)
+    g.addColorStop(0, 'rgba(255,255,255,0.5)')
+    g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+    ctx.lineTo(tail.x, tail.y)
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = g
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+  ctx.beginPath()
+  ctx.arc(pos.x, pos.y, 1, 0, Math.PI * 2)
+  ctx.fillStyle = '#f4f4f0'
+  ctx.fill()
+  ctx.strokeStyle = COLORS.outline
+  ctx.lineWidth = 0.12
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(pos.x + Math.cos(rolled) * 0.55, pos.y + Math.sin(rolled) * 0.55, 0.2, 0, Math.PI * 2)
+  ctx.fillStyle = COLORS.outline
+  ctx.fill()
+}
+
 /** Read-only: draws the state through a fixed view that always fits the pitch width. An optional ghost wall is drawn half-transparent. */
 export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: WallSpec, fragments: Fragment[] = [], now = 0): void {
   const { width, height } = ctx.canvas
@@ -129,6 +156,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: W
   ctx.fillRect(0, HALF_HEIGHT - 0.15, PITCH_WIDTH, 0.3)
 
   for (const o of state.objects) drawWall(ctx, o)
+  drawBall(ctx, state.ball)
   for (const f of fragments) drawFragment(ctx, f, now)
   if (ghost) {
     ctx.globalAlpha = 0.5
