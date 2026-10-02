@@ -6,11 +6,19 @@
     <title>BowlyPow</title>
     <style>
       html, body { margin: 0; height: 100%; background: #0b0f1a; overflow: hidden; }
+      #dev { position: fixed; top: 4px; left: 4px; display: flex; gap: 4px; }
+      #dev button { font: 14px sans-serif; padding: 6px 10px; }
       canvas { display: block; width: 100%; height: 100%; }
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
+    <div id="dev">
+      <button data-shape="straight">Straight</button>
+      <button data-shape="L">L</button>
+      <button id="rotate">Rotate</button>
+      <button id="owner">Owner: 1</button>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
