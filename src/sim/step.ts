@@ -1,6 +1,7 @@
 import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { initialPlayers, type Player } from './player'
 import { rollBall, type Ball } from './ball'
+import { blastDamage, blastPush, canBlastFrom } from './blast'
 import { isLegal, WALL_HP, damageWall, type Wall, type WallSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
@@ -13,6 +14,7 @@ export type SimEvent =
   | { type: 'ball-hit-wall'; wall: number; speed: number; at: Point }
   /** An illegal placement or demolition was dropped. */
   | { type: 'refused' }
+  | { type: 'blast-fired'; player: PlayerId; origin: Point; power: number }
 
 export type SimState = {
   tick: number
@@ -26,7 +28,7 @@ export type SimState = {
 
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
 export type SimInput = {
-  blast?: { origin: Point; power: number }
+  blast?: { player: PlayerId; origin: Point; power: number }
   placeWall?: WallSpec
   demolish?: { player: PlayerId; wall: number }
   damage?: { wall: number; at: Point }
@@ -91,6 +93,21 @@ export function step(
     const k = Math.hypot(input.kick.x, input.kick.y)
     const f = k > config.maxSpeed ? config.maxSpeed / k : 1
     ball = { ...ball, vel: { x: input.kick.x * f, y: input.kick.y * f } }
+  }
+  const { blast } = input
+  if (blast) {
+    if (canBlastFrom(blast.player, blast.origin, { objects, ball }, config)) {
+      events.push({ type: 'blast-fired', ...blast })
+      const vel = blastPush(ball.pos, blast.origin, blast.power, blast.player, config)
+      if (vel) ball = { ...ball, vel }
+      for (const { wall, loss, at } of blastDamage(objects, blast.origin, blast.power, blast.player, config)) {
+        for (let i = 0; i < loss; i++) {
+          const r = damageWall(objects, wall.id, at)
+          objects = r.objects
+          events.push(...r.events)
+        }
+      }
+    } else events.push({ type: 'refused' })
   }
   const rolled = rollBall(ball, objects, config)
   events.push(...rolled.events)

@@ -1,6 +1,8 @@
 import { showConnectScreen } from './net/connectScreen'
-import { fragmentAlive, render, screenToWorld, shatter, type Fragment } from './render/render'
-import { CELL_SIZE, type Point } from './sim/pitch'
+import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
+import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
+import { blastRadius, canBlastFrom } from './sim/blast'
+import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput } from './sim/step'
 import { wallSegments, type Segment, type Wall } from './sim/wall'
 
@@ -13,6 +15,10 @@ let state = initialState()
 let ghost: Omit<Wall, 'id' | 'hp'> | undefined
 let fragments: Fragment[] = []
 let pending: SimInput = {}
+let waves: Wave[] = []
+let shake = { born: -Infinity, power: 0 }
+// Dev page: hold on a legal spot to charge a blast; release fires it.
+let charge: { gesture: Gesture; origin: Point; player: 1 | 2 } | undefined
 const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
   return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
@@ -27,7 +33,15 @@ ownerBtn.onclick = () => {
   ownerBtn.textContent = `Owner: ${owner}`
   if (ghost) ghost = { ...ghost, owner }
 }
-canvas.onpointermove = (e) => ghost && (ghost = { ...ghost, at: snap(e) })
+canvas.onpointermove = (e) => {
+  if (ghost) ghost = { ...ghost, at: snap(e) }
+  if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
+}
+canvas.onpointerup = () => {
+  const power = charge ? gesturePower(charge.gesture, performance.now()) : 0
+  if (charge && power > 0) pending = { blast: { player: charge.player, origin: charge.origin, power } }
+  charge = undefined
+}
 const toWorld = (e: PointerEvent) => screenToWorld(canvas, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
 const distToSegment = (p: Point, { a, b }: Segment) => {
   const [vx, vy] = [b.x - a.x, b.y - a.y]
@@ -39,9 +53,12 @@ canvas.onpointerdown = (e) => {
     // Dev page: with no ghost, tapping a wall damages it.
     const at = toWorld(e)
     const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
-    // Otherwise tap to push the ball toward the tap, harder the further away.
-    const { pos } = state.ball
-    pending = hit ? { damage: { wall: hit.id, at } } : { kick: { x: (at.x - pos.x) * 3, y: (at.y - pos.y) * 3 } }
+    const player = halfOf(at.y)
+    if (hit) pending = { damage: { wall: hit.id, at } }
+    else if (player && canBlastFrom(player, at, state, defaultConfig)) {
+      canvas.setPointerCapture(e.pointerId)
+      charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
+    }
     return
   }
   ghost = { ...ghost, at: snap(e) }
@@ -58,13 +75,21 @@ function frame(now: number) {
     state = r.state
     pending = {}
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
+      else if (ev.type === 'blast-fired') {
+        waves.push({ origin: ev.origin, radius: blastRadius(ev.power, defaultConfig), born: now })
+        shake = { born: now, power: ev.power }
+      }
   }
 
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
-  render(ctx, state, ghost, fragments, now)
+  waves = waves.filter((w) => waveAlive(w, now))
+  const age = now - shake.born
+  const amp = shake.power > 0.3 && age < 200 ? 4 * shake.power * (1 - age / 200) : 0
+  canvas.style.transform = amp ? `translate(${Math.sin(age * 0.9) * amp}px, ${Math.cos(age * 1.3) * amp}px)` : ''
+  render(ctx, state, ghost, fragments, now, charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves)
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
