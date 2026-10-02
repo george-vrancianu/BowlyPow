@@ -36,4 +36,15 @@ describe('wireChannel', () => {
     wireChannel(b, () => {})
     expect(await peerA.ping()).toBeGreaterThanOrEqual(0)
   })
+
+  it('delivers game messages to the other side and keeps ping/pong internal', () => {
+    const [a, b] = pair()
+    const peerA = wireChannel(a, () => {})
+    const peerB = wireChannel(b, () => {})
+    const got: unknown[] = []
+    peerB.onMessage = (m) => got.push(m)
+    peerA.send({ type: 'frame', t: 3 })
+    void peerA.ping()
+    expect(got).toEqual([{ type: 'frame', t: 3 }])
+  })
 })

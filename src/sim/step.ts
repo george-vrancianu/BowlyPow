@@ -79,6 +79,8 @@ export type SimConfig = {
   shotCap: number
   /** Seconds per shot. */
   shotClock: number
+  /** Seconds per build turn; 0 = no timer (hot-seat). */
+  buildTime: number
 }
 
 export const defaultConfig: SimConfig = {
@@ -95,10 +97,11 @@ export const defaultConfig: SimConfig = {
   wallPoints: 10,
   shotCap: 30,
   shotClock: 15,
+  buildTime: 0,
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: config.shotClock * config.tickHz, expiries: 0 }, breaker: false }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
@@ -149,6 +152,8 @@ export function step(
     } else events.push({ type: 'refused' })
   }
   let { clock } = state
+  const buildExpired = building && config.buildTime > 0 && clock.left <= 1
+  if (building && config.buildTime > 0) clock = { ...clock, left: clock.left - 1 }
   const expired = !building && !possession.live && clock.left <= 1
   if (!building && !possession.live) clock = { ...clock, left: clock.left - 1 }
   const { charging } = input
@@ -191,7 +196,7 @@ export function step(
     }
   }
   const breaker = state.breaker || (fired && !!blast?.breaker)
-  const { done } = input
+  const done = input.done ?? (buildExpired ? match.builder : null)
   if (done) {
     if (done === match.builder) match = { ...match, builder: done === firstBuilder(match.seed, match.round) ? opponent(done) : null }
     else events.push({ type: 'refused' })
@@ -223,7 +228,10 @@ export function step(
     out = { ...out, pos: e.ball, vel: { x: 0, y: 0 } }
     events.push(...e.events)
   }
-  if (match.builder && match.builder !== state.match.builder) points = { ...points, [match.builder]: config.wallPoints }
+  if (match.builder && match.builder !== state.match.builder) {
+    points = { ...points, [match.builder]: config.wallPoints }
+    if (config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
+  }
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
   if (possession.shooter !== state.possession.shooter || fired || ended) clock = { ...clock, expiries: 0 }
   if (expired || fired || ended || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }

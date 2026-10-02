@@ -3,7 +3,7 @@ import { PLAYER_COLORS } from '../sim/player'
 import { SLIDERS, type Settings } from '../sim/settings'
 import type { PlayerId } from '../sim/pitch'
 
-export type ScreenActions = { onStart(s: Settings): void; onRematch(): void; onMenu(): void }
+export type ScreenActions = { onStart(s: Settings): void; onRematch(): void; onMenu(): void; onOnline(): void }
 
 /** Full-screen overlays outside the match, in the HUD's flat style. Each call replaces the previous screen. */
 export function createScreens(root: HTMLElement, actions: ScreenActions) {
@@ -33,17 +33,19 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
   }
 
   const title = () =>
-    show(el('div', 'font-size:12vw;font-weight:800;letter-spacing:0.05em;', 'BowlyPow'), buttonRow([{ label: 'Play', onClick: settingsScreen }]))
+    show(el('div', 'font-size:12vw;font-weight:800;letter-spacing:0.05em;', 'BowlyPow'), buttonRow([{ label: 'Play', onClick: settingsScreen }, { label: 'Online', onClick: actions.onOnline }]))
 
-  const matchEnd = (winner: PlayerId, score: Record<PlayerId, number>) =>
+  const hide = () => (overlay.style.display = 'none')
+  const menu = { label: 'Menu', onClick: () => (title(), actions.onMenu()) }
+  /** A message with a way back to the title (e.g. the opponent disconnected). */
+  const notice = (text: string) => show(el('div', 'font-size:24px;', text), buttonRow([menu]))
+
+  const matchEnd = (winner: PlayerId, score: Record<PlayerId, number>, online = false) =>
     show(
       el('div', `font-size:32px;color:${PLAYER_COLORS[winner]};`, `Player ${winner} wins`),
       el('div', 'font-size:48px;', `${score[1]} - ${score[2]}`),
-      buttonRow([
-        { label: 'Rematch', onClick: () => (overlay.style.display = 'none', actions.onRematch()) },
-        { label: 'Menu', onClick: () => (title(), actions.onMenu()) },
-      ]),
+      buttonRow(online ? [menu] : [{ label: 'Rematch', onClick: () => (hide(), actions.onRematch()) }, menu]),
     )
 
-  return { title, matchEnd, settings }
+  return { title, matchEnd, notice, hide, settings }
 }

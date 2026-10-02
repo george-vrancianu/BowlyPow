@@ -1,4 +1,6 @@
 import { showConnectScreen } from './net/connectScreen'
+import { lockstep, type Frame } from './net/lockstep'
+import type { Peer } from './net/peer'
 import { applyEvents, newFx, reducedMotion, STEAL_MS } from './render/feedback'
 import { createScreens } from './screens/screens'
 import { configFrom } from './sim/settings'
@@ -12,6 +14,7 @@ import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
 import { canArm, canPlaceBall } from './sim/possession'
+import type { PlayerId } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
 import { canPlace, TOWER_COST, wallCost, wallSegments, type Rotation, type Segment, type StructureSpec, type WallShape } from './sim/wall'
 
@@ -25,6 +28,10 @@ stage.style.cssText = 'position:fixed;inset:0'
 canvas.before(stage)
 stage.append(canvas)
 
+// Online: the sim runs on both peers from the same seed; `me` sits at the bottom and only my own inputs are sent.
+const ONLINE_BUILD_SECONDS = 30
+let net: { me: PlayerId; peer: Peer; sync: ReturnType<typeof lockstep> } | undefined
+const mine = (p: PlayerId | null | undefined) => !net || p === net.me
 let state = initialState()
 let trans = newTransition(state.possession.shooter)
 const overlay = createOverlay(stage, () => (trans = dismiss(trans, performance.now())))
@@ -66,7 +73,7 @@ let draggingBall = false
 let tap: Point | undefined
 const confirm = document.getElementById('confirm') as HTMLButtonElement
 confirm.onclick = () => {
-  if (ballGhost && canPlaceBall(state.possession.shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: state.possession.shooter, at: ballGhost } }
+  if (mine(state.possession.shooter) && ballGhost && canPlaceBall(state.possession.shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: state.possession.shooter, at: ballGhost } }
 }
 const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
@@ -75,6 +82,7 @@ const snap = (e: PointerEvent) => {
 const cost = (g: StructureSpec) => (g.kind === 'wall' ? wallCost(g.shape) : TOWER_COST)
 const spawn = (shape: WallShape | 'repulsor' | 'steal') => {
   const b = state.match.builder!
+  if (!mine(b)) return
   demolishing = false
   const at = ghost?.at ?? { gx: 10, gy: b === 1 ? 40 : 14 }
   ghost = shape === 'repulsor' || shape === 'steal' ? { kind: 'tower', owner: b, power: shape, at } : { kind: 'wall', owner: b, shape, rotation: ghost?.kind === 'wall' ? ghost.rotation : 0, at }
@@ -86,7 +94,7 @@ const confirmWall = () => {
   ghost = undefined
 }
 addEventListener('keydown', (e) => {
-  if (!state.match.builder) return
+  if (!state.match.builder || !mine(state.match.builder)) return
   if (e.key === 'r' || e.key === 'R') rotate()
   else if (e.key === 'Enter') confirmWall()
 })
@@ -142,6 +150,10 @@ canvas.onpointerdown = (e) => {
   }
   const builder = state.match.builder
   if (builder) {
+    if (!mine(builder)) {
+      panOnly = true
+      return
+    }
     const at = toWorld(e)
     const near = (w: StructureSpec | undefined, r: number) => w && wallSegments(w).some((sg) => distToSegment(at, sg) < r)
     const hit = demolishing ? state.objects.find((w) => w.owner === builder && near(w, 1)) : undefined
@@ -153,6 +165,10 @@ canvas.onpointerdown = (e) => {
     return
   }
   if (state.possession.inHand) {
+    if (!mine(state.possession.shooter)) {
+      panOnly = true
+      return
+    }
     const at = toWorld(e)
     if (ballGhost && Math.hypot(at.x - ballGhost.x, at.y - ballGhost.y) <= 2 * config.ballRadius) {
       draggingBall = true
@@ -168,17 +184,17 @@ canvas.onpointerdown = (e) => {
     const at = toWorld(e)
     const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
     const player = halfOf(at.y)
-    if (hit) pending = { damage: { wall: hit.id, at } }
-    else if (player === state.possession.shooter && !state.possession.live && canBlastFrom(player, at, state, config)) {
+    if (hit && !net) pending = { damage: { wall: hit.id, at } }
+    else if (player === state.possession.shooter && mine(player) && !state.possession.live && canBlastFrom(player, at, state, config)) {
       canvas.setPointerCapture(e.pointerId)
       charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
     } else panOnly = true
   }
 }
 // The seed varies per match; only the sim stays deterministic.
-const newMatch = () => {
-  state = initialState((Math.random() * 2 ** 31) | 0, config)
-  trans = newTransition(state.possession.shooter)
+const newMatch = (seed = (Math.random() * 2 ** 31) | 0) => {
+  state = initialState(seed, config)
+  trans = newTransition(net ? net.me : state.possession.shooter)
   recenter(camera)
   camera.y = state.ball.pos.y
   matchShown = false
@@ -186,11 +202,31 @@ const newMatch = () => {
 let matchShown = true
 const screens = createScreens(document.body, {
   onStart: (s) => ((config = configFrom(s)), newMatch()),
-  onRematch: newMatch,
+  onRematch: () => newMatch(),
   onMenu: () => (matchShown = true),
+  onOnline: () => showConnectScreen(onLink),
 })
+// Host is player 1 and picks the seed; the guest starts when it arrives. A drop mid-match ends it with a message.
+function startOnline(peer: Peer, me: PlayerId, seed: number) {
+  config = { ...defaultConfig, buildTime: ONLINE_BUILD_SECONDS }
+  net = { me, peer, sync: lockstep((f) => peer.send({ type: 'frame', ...f }), me) }
+  screens.hide()
+  newMatch(seed)
+}
+function onLink(peer: Peer, hosting: boolean, status: 'connected' | 'disconnected') {
+  if (status === 'disconnected') {
+    if (net && !state.match.winner) (net = undefined, matchShown = true, screens.notice('Opponent disconnected'))
+    return
+  }
+  peer.onMessage = (m) => (m.type === 'start' ? startOnline(peer, 2, m.seed as number) : net?.sync.receive(m as unknown as Frame))
+  if (hosting) {
+    const seed = (Math.random() * 2 ** 31) | 0
+    peer.send({ type: 'start', seed })
+    startOnline(peer, 1, seed)
+  }
+}
 screens.title()
-const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && canArm(state, state.possession.shooter) && (armed = !armed) })
+const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && mine(state.possession.shooter) && canArm(state, state.possession.shooter) && (armed = !armed) })
 let lastBuilder: SimState['match']['builder'] | undefined
 let acc = 0
 let last = performance.now()
@@ -201,14 +237,25 @@ function frame(now: number) {
   last = now
   // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
   const phase = state.match.builder ? 'Build' : 'Play'
-  const turn = (events: SimEvent[]) => (trans = advance(trans, { active: state.match.builder ?? state.possession.shooter, round: state.match.round, inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
+  const turn = (events: SimEvent[]) => !net && (trans = advance(trans, { active: state.match.builder ?? state.possession.shooter, round: state.match.round, inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
     if (blocking(trans)) {
       pending = {}
       continue
     }
     const power = charge?.gesture.mode === 'charge' ? gesturePower(charge.gesture, now) : 0
-    const r = step(state, power > 0 && charge ? { charging: { origin: charge.origin, power }, ...pending } : pending, config)
+    let input = power > 0 && charge && !net ? { charging: { origin: charge.origin, power }, ...pending } : pending
+    if (net) {
+      net.sync.submit(pending)
+      pending = {}
+      const merged = net.sync.advance()
+      if (!merged) {
+        acc = Math.min(acc, TICK)
+        break
+      }
+      input = merged
+    }
+    const r = step(state, input, config)
     state = r.state
     if (!canArm(state, state.possession.shooter)) armed = false
     if (!state.possession.inHand) ballGhost = undefined
@@ -237,14 +284,14 @@ function frame(now: number) {
   overlay.update(overlayView(trans, now))
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
-  if (state.match.winner && !matchShown) (matchShown = true, screens.matchEnd(state.match.winner, state.match.score))
-  confirm.hidden = !state.possession.inHand || !!state.match.builder
+  if (state.match.winner && !matchShown) (matchShown = true, screens.matchEnd(state.match.winner, state.match.score, !!net))
+  confirm.hidden = !state.possession.inHand || !!state.match.builder || !mine(state.possession.shooter)
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
   const b = state.match.builder
-  const buttons = b
+  const buttons = b && mine(b)
     ? [
         ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, selected: ghost?.kind === 'wall' && ghost.shape === shape, disabled: state.points[b] < wallCost(shape), onClick: () => spawn(shape) })),
         { label: `Repulsor ×${state.players[b].inventory.repulsor}`, selected: ghost?.kind === 'tower' && ghost.power === 'repulsor', disabled: state.players[b].inventory.repulsor < 1, onClick: () => spawn('repulsor') },
@@ -257,12 +304,12 @@ function frame(now: number) {
     : undefined
   const { score } = state.match
   hud.update(
-    { players: { 1: { score: score[1], inventory: state.players[1].inventory }, 2: { score: score[2], inventory: state.players[2].inventory } }, active: trans.shown, round: state.match.round, rounds: config.rounds, clock: b ? null : { seconds: state.clock.left / config.tickHz, fraction: state.clock.left / (config.shotClock * config.tickHz) }, shotsLeft: state.possession.shots, shotsMax: config.shots, phase: b ? `Build · ${state.points[b]} pts` : phase, buttons, breaker: { armed, tappable: canArm(state, state.possession.shooter) } },
+    { players: { 1: { score: score[1], inventory: state.players[1].inventory }, 2: { score: score[2], inventory: state.players[2].inventory } }, active: trans.shown, round: state.match.round, rounds: config.rounds, clock: b ? (config.buildTime ? { seconds: state.clock.left / config.tickHz, fraction: state.clock.left / (config.buildTime * config.tickHz) } : null) : { seconds: state.clock.left / config.tickHz, fraction: state.clock.left / (config.shotClock * config.tickHz) }, shotsLeft: state.possession.shots, shotsMax: config.shots, phase: b ? `Build · ${state.points[b]} pts` : phase, buttons, breaker: { armed, tappable: mine(state.possession.shooter) && canArm(state, state.possession.shooter) } },
     { width: canvas.clientWidth, height: canvas.clientHeight },
   )
   waves = waves.filter((w) => waveAlive(w, now))
-  const net = goalBall(trans)
-  render(ctx, net ? { ...state, ball: { ...state.ball, pos: net, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, config) }, armed || state.breaker ? state.possession.shooter : undefined)
+  const inNet = goalBall(trans)
+  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, mapOpen ? undefined : ghost, fragments, now, !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined, waves, fx, ballGhost && { at: ballGhost, legal: canPlaceBall(state.possession.shooter, ballGhost, state.objects, config) }, armed || state.breaker ? state.possession.shooter : undefined)
   if (mapOpen) {
     const o = viewOutline(canvas, mapCam, camera)
     ctx.strokeStyle = '#fff'
@@ -272,7 +319,5 @@ function frame(now: number) {
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
-// Connect screen is gated behind #connect so it does not cover the wall dev page.
-if (location.hash === '#connect') showConnectScreen()
 document.getElementById('splash')?.remove()
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js')

@@ -9,7 +9,9 @@ export type ChannelLike = {
   onmessage: ((e: { data: string }) => void) | null
 }
 
-export type Peer = { ping(): Promise<number>; close(): void }
+export type Msg = { type: string; [k: string]: unknown }
+/** Game messages are JSON objects with a `type`; ping/pong stay inside the peer. */
+export type Peer = { ping(): Promise<number>; close(): void; send(m: Msg): void; onMessage: ((m: Msg) => void) | null }
 
 type Desc = { type: 'offer' | 'answer'; sdp: string }
 
@@ -32,8 +34,11 @@ export function wireChannel(ch: ChannelLike, onStatus: (s: Status) => void): Pee
     const m = JSON.parse(e.data)
     if (m.type === 'ping') ch.send(JSON.stringify({ type: 'pong', id: m.id, t: m.t }))
     else if (m.type === 'pong') pending.get(m.id)?.(performance.now() - m.t)
+    else peer.onMessage?.(m)
   }
-  return {
+  const peer: Peer = {
+    onMessage: null,
+    send: (m) => ch.send(JSON.stringify(m)),
     ping: () =>
       new Promise((resolve) => {
         const id = n++
@@ -42,11 +47,13 @@ export function wireChannel(ch: ChannelLike, onStatus: (s: Status) => void): Pee
       }),
     close: () => ch.close(),
   }
+  return peer
 }
 
 const wireRtc = (ch: RTCDataChannel, onStatus: (s: Status) => void) => {
   const peer = wireChannel(ch as unknown as ChannelLike, onStatus)
-  if (ch.readyState === 'open') onStatus('connected')
+  // Deferred so the caller has the peer in hand when it hears 'connected'.
+  if (ch.readyState === 'open') queueMicrotask(() => onStatus('connected'))
   return peer
 }
 
