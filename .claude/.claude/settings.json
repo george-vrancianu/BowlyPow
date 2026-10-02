@@ -1,0 +1,27 @@
+{   
+    "disableClaudeAiConnectors": true,
+    "disableWorkflows": true,
+    "disableBundledSkills": true,
+    "disableArtifact": true,
+    "permissions": {
+        "deny": [
+            "NotebookEdit",
+            "DesignSync",
+            "CronCreate",
+            "CronDelete",
+            "CronList",
+            "EnterPlanMode",
+            "ExitPlanMode",
+            "PushNotification",
+            "RemoteTrigger",
+            "ReportFindings",
+            "ScheduleWakeup",
+            "AskUserQuestion",
+            "SendFeedback"
+        ]
+    },
+    "statusLine": {
+        "type": "command",
+        "command": "npx ccstatusline@latest"
+    }
+}
