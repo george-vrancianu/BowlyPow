@@ -77,7 +77,7 @@ describe('pitch bounds', () => {
     expect(placed({ kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 19, gy: 40 } })).toBe(false)
     expect(placed({ kind: 'wall', owner: 1, shape: 'straight', rotation: 2, at: { gx: 1, gy: 40 } })).toBe(false)
     expect(placed({ kind: 'wall', owner: 1, shape: 'L', rotation: 1, at: { gx: 2, gy: 40 } })).toBe(false)
-    expect(placed({ kind: 'tower', owner: 1, at: { gx: 20, gy: 40 } })).toBe(false)
+    expect(placed({ kind: 'tower', owner: 1, power: 'steal', at: { gx: 20, gy: 40 } })).toBe(false)
   })
   it('accepts a wall flush against the boards', () => {
     expect(placed({ kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 16, gy: 40 } })).toBe(true)

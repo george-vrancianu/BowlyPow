@@ -4,7 +4,7 @@ import { buildState, place, playState } from './testkit'
 import { canBlastFrom } from './blast'
 import { canPlace, damageWall, isLegal, TOWER_COST, TOWER_HP, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
 
-const tower = (gx: number, gy: number, owner: TowerSpec['owner'] = 1): TowerSpec => ({ kind: 'tower', owner, at: { gx, gy } })
+const tower = (gx: number, gy: number, owner: TowerSpec['owner'] = 1): TowerSpec => ({ kind: 'tower', owner, power: 'repulsor', at: { gx, gy } })
 const straight = (gx: number, gy: number, rotation: WallSpec['rotation'] = 0): WallSpec => ({ kind: 'wall', owner: 1, shape: 'straight', rotation, at: { gx, gy } })
 const run = (s: SimState, input: SimInput) => step(s, input, defaultConfig)
 

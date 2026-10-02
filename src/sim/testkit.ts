@@ -1,5 +1,6 @@
 import { defaultConfig, initialState, step, type SimState } from './step'
 import type { PlayerId } from './pitch'
+import type { PowerUp } from './player'
 import type { StructureSpec } from './wall'
 
 /** A fresh state already in the play phase (build turns are skipped). */
@@ -20,3 +21,6 @@ export const place = (spec: StructureSpec, s = playState()) => {
   const state: SimState = { ...r.state, match: { ...r.state.match, builder: null } }
   return { ...r, state }
 }
+
+/** `s` with `player`'s stock of `power` emptied. */
+export const emptied = (s: SimState, player: PlayerId, power: PowerUp): SimState => ({ ...s, players: { ...s.players, [player]: { ...s.players[player], inventory: { ...s.players[player].inventory, [power]: 0 } } } })

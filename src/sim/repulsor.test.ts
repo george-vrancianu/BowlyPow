@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, step, type SimState } from './step'
-import { buildState, place } from './testkit'
+import { buildState, emptied, place } from './testkit'
 import type { TowerSpec } from './wall'
 
 const repulsor = (owner: 1 | 2 = 1): TowerSpec => ({ kind: 'tower', owner, power: 'repulsor', at: { gx: 10, gy: owner === 1 ? 40 : 14 } })
@@ -23,8 +23,7 @@ describe('repulsor placement', () => {
     expect(r.state.objects).toHaveLength(1)
     expect(r.state.points[1]).toBe(b.points[1])
     expect(r.state.players[1].inventory.repulsor).toBe(2)
-    const empty = { ...b, players: { ...b.players, 1: { ...b.players[1], inventory: { ...b.players[1].inventory, repulsor: 0 } } } }
-    const x = step(empty, { placeWall: repulsor() }, defaultConfig)
+    const x = step(emptied(b, 1, 'repulsor'), { placeWall: repulsor() }, defaultConfig)
     expect(x.state.objects).toHaveLength(0)
     expect(x.events).toEqual([{ type: 'refused' }])
   })

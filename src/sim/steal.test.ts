@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, step, type SimEvent, type SimState } from './step'
-import { buildState, place } from './testkit'
+import { buildState, emptied, place } from './testkit'
 import type { PlayerId } from './pitch'
 import type { TowerSpec } from './wall'
 
@@ -29,8 +29,7 @@ describe('steal placement', () => {
     expect(r.state.objects).toHaveLength(1)
     expect(r.state.points[1]).toBe(b.points[1])
     expect(r.state.players[1].inventory.steal).toBe(2)
-    const empty = { ...b, players: { ...b.players, 1: { ...b.players[1], inventory: { ...b.players[1].inventory, steal: 0 } } } }
-    const x = step(empty, { placeWall: steal() }, defaultConfig)
+    const x = step(emptied(b, 1, 'steal'), { placeWall: steal() }, defaultConfig)
     expect(x.state.objects).toHaveLength(0)
     expect(x.events).toEqual([{ type: 'refused' }])
   })

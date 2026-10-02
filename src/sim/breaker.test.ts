@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, step, type SimInput, type SimState } from './step'
 import { canArm } from './possession'
-import { place, playState } from './testkit'
+import { emptied, place, playState } from './testkit'
 import type { WallSpec } from './wall'
 
 const c = defaultConfig
@@ -30,8 +30,7 @@ describe('breaker', () => {
   it('is refused with none left', () => {
     const s = ready()
     const p = shooter(s)
-    const none = { ...s, players: { ...s.players, [p]: { ...s.players[p], inventory: { ...s.players[p].inventory, breaker: 0 } } } }
-    const r = fire(none, true)
+    const r = fire(emptied(s, p, 'breaker'), true)
     expect(r.events).toEqual([{ type: 'refused' }])
     expect(r.state.possession.live).toBe(false)
   })
@@ -72,6 +71,6 @@ describe('breaker', () => {
     expect(canArm({ ...s, match: { ...s.match, builder: p } }, p)).toBe(false)
     expect(canArm({ ...s, possession: { ...s.possession, live: true } }, p)).toBe(false)
     expect(canArm({ ...s, possession: { ...s.possession, inHand: true } }, p)).toBe(false)
-    expect(canArm({ ...s, players: { ...s.players, [p]: { ...s.players[p], inventory: { ...s.players[p].inventory, breaker: 0 } } } }, p)).toBe(false)
+    expect(canArm(emptied(s, p, 'breaker'), p)).toBe(false)
   })
 })

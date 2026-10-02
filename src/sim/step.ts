@@ -1,13 +1,10 @@
 import { goalCrossed, HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { coinFlip, endRound, firstBuilder, newMatch, startingPossession, type Match } from './match'
-import { initialPlayers, type Player } from './player'
+import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
 import { canPlace, damageWall, maxHp, TOWER_COST, wallCost, type Structure, type StructureSpec } from './wall'
-
-/** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
-export type SimObject = Structure
 
 export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
@@ -29,7 +26,7 @@ export type SimEvent =
 
 export type SimState = {
   tick: number
-  objects: SimObject[]
+  objects: Structure[]
   players: Record<PlayerId, Player>
   /** Wall points; demolishing spends them. */
   points: Record<PlayerId, number>
@@ -43,16 +40,16 @@ export type SimState = {
   breaker: boolean
 }
 
-/** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
+/** Per-tick input from both players. `demolish.wall` is a wall id. */
 export type SimInput = {
   blast?: { player: PlayerId; origin: Point; power: number; breaker?: boolean }
   placeWall?: StructureSpec
   demolish?: { player: PlayerId; wall: number }
   /** The shooter's blast charge in progress; fires at this power when the shot clock runs out. */
   charging?: { origin: Point; power: number; breaker?: boolean }
-  /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   /** The builder ends their build turn. */
   done?: PlayerId
+  /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   placeBall?: { player: PlayerId; at: Point }
 }
 
@@ -102,6 +99,8 @@ export function initialState(seed = 1, config: SimConfig = defaultConfig): SimSt
   return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
 }
 
+const spend = (players: SimState['players'], id: PlayerId, power: PowerUp): SimState['players'] => ({ ...players, [id]: { ...players[id], inventory: { ...players[id].inventory, [power]: players[id].inventory[power] - 1 } } })
+
 /** Pure and deterministic: no DOM, no randomness. */
 export function step(
   state: SimState,
@@ -116,10 +115,9 @@ export function step(
   const { placeWall, demolish } = input
   if (placeWall) {
     const cost = placeWall.kind === 'wall' ? wallCost(placeWall.shape) : TOWER_COST
-    const power = placeWall.kind === 'tower' ? placeWall.power : undefined
-    const stocked = !power || players[placeWall.owner].inventory[power] > 0
+    const stocked = placeWall.kind === 'wall' || players[placeWall.owner].inventory[placeWall.power] > 0
     if (placeWall.owner === match.builder && stocked && points[placeWall.owner] >= cost && canPlace(objects, placeWall)) {
-      if (power) players = { ...players, [placeWall.owner]: { ...players[placeWall.owner], inventory: { ...players[placeWall.owner].inventory, [power]: players[placeWall.owner].inventory[power] - 1 } } }
+      if (placeWall.kind === 'tower') players = spend(players, placeWall.owner, placeWall.power)
       objects = [...objects, { ...placeWall, id: nextId++, hp: maxHp(placeWall) }]
       points = { ...points, [placeWall.owner]: points[placeWall.owner] - cost }
     } else events.push({ type: 'refused' })
@@ -148,7 +146,7 @@ export function step(
   const blast = input.blast ?? (expired && charging && canBlastFrom(possession.shooter, charging.origin, { objects, ball }, config) ? { player: possession.shooter, ...charging } : undefined)
   if (blast) {
     if (!building && blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config) && (!blast.breaker || players[blast.player].inventory.breaker > 0)) {
-      if (blast.breaker) players = { ...players, [blast.player]: { ...players[blast.player], inventory: { ...players[blast.player].inventory, breaker: players[blast.player].inventory.breaker - 1 } } }
+      if (blast.breaker) players = spend(players, blast.player, 'breaker')
       events.push({ type: 'blast-fired', ...blast })
       possession = { ...possession, live: true }
       match = { ...match, roundShots: match.roundShots + 1 }
@@ -195,7 +193,7 @@ export function step(
   }
   const rolled = rollBall(ball, objects, config, breaker, possession.shooter)
   events.push(...rolled.events)
-  let out = rolled.ball
+  let landed = rolled.ball
   const stolen = rolled.events.find((e) => e.type === 'steal-triggered')
   if (stolen) {
     consumed = true
@@ -203,12 +201,12 @@ export function step(
     events.push({ type: 'possession-changed', shooter: stolen.owner, inHand: true })
   }
   // A Repulsor rearms when the ball rests.
-  if (!out.vel.x && !out.vel.y && rolled.objects.some((o) => o.kind === 'tower' && o.spent)) rolled.objects = rolled.objects.map((o) => (o.kind === 'tower' && o.spent ? { ...o, spent: false } : o))
-  const conceder = goalCrossed(ball.pos, out.pos)
-  if (conceder) events.push({ type: 'goal', scorer: opponent(conceder), at: out.pos })
-  else if (possession.live && !out.vel.x && !out.vel.y) {
+  if (!landed.vel.x && !landed.vel.y && rolled.objects.some((o) => o.kind === 'tower' && o.spent)) rolled.objects = rolled.objects.map((o) => (o.kind === 'tower' && o.spent ? { ...o, spent: false } : o))
+  const conceder = goalCrossed(ball.pos, landed.pos)
+  if (conceder) events.push({ type: 'goal', scorer: opponent(conceder), at: landed.pos })
+  else if (possession.live && !landed.vel.x && !landed.vel.y) {
     consumed = true
-    const r = resolveRest(possession, out.pos.y, config)
+    const r = resolveRest(possession, landed.pos.y, config)
     possession = r.possession
     events.push(...r.events)
   }
@@ -217,7 +215,7 @@ export function step(
     const e = endRound(match, conceder && opponent(conceder), config)
     match = e.match
     possession = e.possession
-    out = { ...out, pos: e.ball, vel: { x: 0, y: 0 } }
+    landed = { ...landed, pos: e.ball, vel: { x: 0, y: 0 } }
     events.push(...e.events)
   }
   if (match.builder && match.builder !== state.match.builder) {
@@ -227,5 +225,5 @@ export function step(
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
   if (possession.shooter !== state.possession.shooter || fired || ended) clock = { ...clock, expiries: 0 }
   if (expired || fired || ended || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
-  return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, ball: out }, events }
+  return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, ball: landed }, events }
 }
