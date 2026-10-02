@@ -4,7 +4,7 @@ import { defaultConfig as c, initialState, step, type SimInput, type SimState } 
 import { WALL_HP, type Wall } from './wall'
 
 const wall = (id: number, owner: 1 | 2, gy: number): Wall => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 8, gy }, id, hp: WALL_HP })
-const setup = (objects: Wall[] = [], ball = { x: 5, y: 100 }): SimState => ({ ...initialState(), objects, ball: { pos: ball, vel: { x: 0, y: 0 }, rolled: 0 } })
+const setup = (objects: Wall[] = [], ball = { x: 5, y: 100 }): SimState => ({ ...initialState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, objects, ball: { pos: ball, vel: { x: 0, y: 0 }, rolled: 0 } })
 const fire = (s: SimState, blast: SimInput['blast']) => step(s, { blast }, c)
 const hpOf = (s: SimState, id: number) => s.objects.find((o) => o.id === id)?.hp
 

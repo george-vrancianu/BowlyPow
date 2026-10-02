@@ -68,7 +68,7 @@ describe('tower damage', () => {
 })
 
 describe('tower and blasts', () => {
-  const state = (t: TowerSpec): SimState => ({ ...initialState(), objects: [{ ...t, id: 1, hp: TOWER_HP }] })
+  const state = (t: TowerSpec): SimState => ({ ...initialState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, objects: [{ ...t, id: 1, hp: TOWER_HP }] })
   it('a blast cannot start inside or on a tower, but can start beside it', () => {
     const s = state(tower(5, 40))
     expect(canBlastFrom(1, { x: 11, y: 81 }, s, defaultConfig)).toBe(false)

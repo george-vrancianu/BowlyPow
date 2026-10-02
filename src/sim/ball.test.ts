@@ -77,12 +77,10 @@ describe('ball', () => {
     expect(r.state.ball.vel.y).toBeCloseTo(-30, 3)
     expect(r.state.ball.pos.y).toBeLessThan(81)
   })
-  it('rolls the distance travelled and comes to rest inside the net', () => {
-    const s = ticks(at(20, 1, 0, -3), 600).s
-    expect(s.ball.pos.y).toBeLessThan(0)
-    expect(s.ball.pos.y).toBeGreaterThan(-4)
-    expect(s.ball.vel).toEqual({ x: 0, y: 0 })
-    expect(s.ball.rolled).toBeGreaterThan(1)
+  it('a slow ball rolling over the goal line scores and the round restarts', () => {
+    const r = ticks(at(20, 1, 0, -3), 600)
+    expect(r.events).toContainEqual(expect.objectContaining({ type: 'goal' }))
+    expect(r.s.ball.pos).toEqual({ x: 20, y: 54 })
   })
   it('is deterministic: the same inputs give identical state twice', () => {
     const play = () => {

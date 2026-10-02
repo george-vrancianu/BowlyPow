@@ -1,8 +1,9 @@
-import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { goalCrossed, HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { coinFlip, endRound, newMatch, startingPossession, type Match } from './match'
 import { initialPlayers, type Player } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
-import { canPlaceBall, resolveRest, type Possession } from './possession'
+import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
 import { canPlace, damageWall, maxHp, type Structure, type StructureSpec } from './wall'
 
 /** Anything that lives on the pitch (balls, walls, towers) will join this union in later tickets. */
@@ -17,6 +18,10 @@ export type SimEvent =
   | { type: 'refused' }
   | { type: 'blast-fired'; player: PlayerId; origin: Point; power: number }
   | { type: 'possession-changed'; shooter: PlayerId; inHand: boolean }
+  | { type: 'goal'; scorer: PlayerId; at: Point }
+  /** `scorer` null = the shot cap ended the round. */
+  | { type: 'round-ended'; round: number; scorer: PlayerId | null }
+  | { type: 'match-ended'; winner: PlayerId }
 
 export type SimState = {
   tick: number
@@ -27,6 +32,7 @@ export type SimState = {
   nextId: number
   ball: Ball
   possession: Possession
+  match: Match
 }
 
 /** Per-tick input from both players; filled out by later tickets. `demolish.wall` is a wall id. */
@@ -54,6 +60,9 @@ export type SimConfig = {
   destroyedSpeedFactor: number
   /** Shots per possession. */
   shots: number
+  rounds: number
+  /** Shots in a round before it ends scoreless (not in sudden death). */
+  shotCap: number
 }
 
 export const defaultConfig: SimConfig = {
@@ -66,10 +75,12 @@ export const defaultConfig: SimConfig = {
   damageFraction: 0.5,
   destroyedSpeedFactor: 0.5,
   shots: 3,
+  rounds: 5,
+  shotCap: 30,
 }
 
-export function initialState(): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: { shooter: 1, shots: defaultConfig.shots, inHand: false, live: false } }
+export function initialState(seed = 1): SimState {
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: 10, 2: 10 }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), defaultConfig), match: newMatch(seed) }
 }
 
 /** Pure and deterministic: no DOM, no randomness. */
@@ -78,7 +89,9 @@ export function step(
   input: SimInput,
   config: SimConfig,
 ): { state: SimState; events: SimEvent[] } {
+  if (state.match.winner) return { state, events: [] }
   let { objects, points, nextId } = state
+  let { match } = state
   const events: SimEvent[] = []
   if (input.placeWall) {
     if (canPlace(objects, input.placeWall)) objects = [...objects, { ...input.placeWall, id: nextId++, hp: maxHp(input.placeWall) }]
@@ -115,6 +128,7 @@ export function step(
     if (blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config)) {
       events.push({ type: 'blast-fired', ...blast })
       possession = { ...possession, live: true }
+      match = { ...match, roundShots: match.roundShots + 1 }
       const vel = blastPush(ball.pos, blast.origin, blast.power, blast.player, config)
       if (vel) ball = { ...ball, vel }
       for (const { wall, loss, at } of blastDamage(objects, blast.origin, blast.power, blast.player, config)) {
@@ -128,10 +142,22 @@ export function step(
   }
   const rolled = rollBall(ball, objects, config)
   events.push(...rolled.events)
-  if (possession.live && !rolled.ball.vel.x && !rolled.ball.vel.y) {
-    const r = resolveRest(possession, rolled.ball.pos.y, config)
+  let out = rolled.ball
+  const conceder = goalCrossed(ball.pos, out.pos)
+  let rested = false
+  if (conceder) events.push({ type: 'goal', scorer: opponent(conceder), at: out.pos })
+  else if (possession.live && !out.vel.x && !out.vel.y) {
+    rested = true
+    const r = resolveRest(possession, out.pos.y, config)
     possession = r.possession
     events.push(...r.events)
   }
-  return { state: { ...state, possession, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: rolled.ball }, events }
+  if (conceder || (rested && match.roundShots >= config.shotCap && match.round <= config.rounds)) {
+    const e = endRound(match, conceder && opponent(conceder), config)
+    match = e.match
+    possession = e.possession
+    out = { ...out, pos: e.ball, vel: { x: 0, y: 0 } }
+    events.push(...e.events)
+  }
+  return { state: { ...state, possession, match, tick: state.tick + 1, objects: rolled.objects, points, nextId, ball: out }, events }
 }
