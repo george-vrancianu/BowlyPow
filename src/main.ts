@@ -1,5 +1,5 @@
 import { showConnectScreen } from './net/connectScreen'
-import { applyEvents, newFx, reducedMotion } from './render/feedback'
+import { applyEvents, newFx, reducedMotion, STEAL_MS } from './render/feedback'
 import { createScreens } from './screens/screens'
 import { configFrom } from './sim/settings'
 import { createHud } from './hud/hud'
@@ -73,11 +73,11 @@ const snap = (e: PointerEvent) => {
   return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
 }
 const cost = (g: StructureSpec) => (g.kind === 'wall' ? wallCost(g.shape) : TOWER_COST)
-const spawn = (shape: WallShape | 'repulsor') => {
+const spawn = (shape: WallShape | 'repulsor' | 'steal') => {
   const b = state.match.builder!
   demolishing = false
   const at = ghost?.at ?? { gx: 10, gy: b === 1 ? 40 : 14 }
-  ghost = shape === 'repulsor' ? { kind: 'tower', owner: b, power: 'repulsor', at } : { kind: 'wall', owner: b, shape, rotation: ghost?.kind === 'wall' ? ghost.rotation : 0, at }
+  ghost = shape === 'repulsor' || shape === 'steal' ? { kind: 'tower', owner: b, power: shape, at } : { kind: 'wall', owner: b, shape, rotation: ghost?.kind === 'wall' ? ghost.rotation : 0, at }
 }
 const rotate = () => ghost?.kind === 'wall' && (ghost = { ...ghost, rotation: ((ghost.rotation + 1) % 4) as Rotation })
 const confirmWall = () => {
@@ -224,6 +224,7 @@ function frame(now: number) {
     turn(r.events)
     applyEvents(fx, r.events, state.objects, now)
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
+      else if (ev.type === 'steal-triggered') fragments.push(...shatter(ev.tower, ev.at, now + STEAL_MS))
       else if (ev.type === 'blast-fired') {
         waves.push({ origin: ev.origin, radius: blastRadius(ev.power, config), born: now })
       }
@@ -246,7 +247,8 @@ function frame(now: number) {
   const buttons = b
     ? [
         ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, selected: ghost?.kind === 'wall' && ghost.shape === shape, disabled: state.points[b] < wallCost(shape), onClick: () => spawn(shape) })),
-        { label: `Repulsor ×${state.players[b].inventory.repulsor}`, selected: ghost?.kind === 'tower', disabled: state.players[b].inventory.repulsor < 1, onClick: () => spawn('repulsor') },
+        { label: `Repulsor ×${state.players[b].inventory.repulsor}`, selected: ghost?.kind === 'tower' && ghost.power === 'repulsor', disabled: state.players[b].inventory.repulsor < 1, onClick: () => spawn('repulsor') },
+        { label: `Steal ×${state.players[b].inventory.steal}`, selected: ghost?.kind === 'tower' && ghost.power === 'steal', disabled: state.players[b].inventory.steal < 1, onClick: () => spawn('steal') },
         { label: 'Rotate', disabled: ghost?.kind !== 'wall', onClick: rotate },
         { label: 'Confirm', disabled: !ghost || !canPlace(state.objects, ghost) || state.points[b] < cost(ghost), onClick: confirmWall },
         { label: 'Demolish 1', selected: demolishing, disabled: state.points[b] < 1, onClick: () => ((demolishing = !demolishing), (ghost = undefined)) },

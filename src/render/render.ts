@@ -5,7 +5,7 @@ import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE, NO_BUILD_RADIUS } from '../sim/pitch'
 import { viewOf, type Camera } from './camera'
-import { DIM_FLASH_MS, FLASH_MS, GLOW_MS, PARTICLE_MS, TRAIL_MS, shakeOffset, type Fx } from './feedback'
+import { DIM_FLASH_MS, FLASH_MS, GLOW_MS, PARTICLE_MS, STEAL_MS, TRAIL_MS, shakeOffset, type Fx } from './feedback'
 import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerSpec } from '../sim/wall'
 
 const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d', illegal: '#ef4444', ownTint: '#7f1d1d' }
@@ -47,6 +47,7 @@ export const fragmentAlive = (f: Fragment, now: number) => now - f.born < SHATTE
 
 function drawFragment(ctx: CanvasRenderingContext2D, f: Fragment, now: number): void {
   const t = (now - f.born) / SHATTER_MS
+  if (t < 0) return
   const [cx, cy] = [(f.a.x + f.b.x) / 2, (f.a.y + f.b.y) / 2]
   const [dx, dy] = [cx - f.from.x, cy - f.from.y]
   const d = Math.hypot(dx, dy) || 1
@@ -110,6 +111,12 @@ function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; 
     }
     ctx.globalAlpha = 1
   }
+  if (t.power === 'steal') {
+    // Vortex: a spiral of two turns.
+    ctx.beginPath()
+    for (let a = 0; a <= Math.PI * 4; a += 0.2) ctx.lineTo(x + CELL_SIZE / 2 + Math.cos(a) * a * 0.1, y + CELL_SIZE / 2 + Math.sin(a) * a * 0.1)
+    ctx.stroke()
+  }
   if (t.hp !== undefined) drawCracks(ctx, t as Structure)
 }
 
@@ -132,7 +139,7 @@ function drawPulse(ctx: CanvasRenderingContext2D, t: TowerSpec, age: number): vo
 }
 
 /** Disc with a speed-scaled fading trail behind it and a dot that rolls with the distance travelled. */
-function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState['ball'], bright = false): void {
+function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState['ball'], bright = false, scale = 1): void {
   const speed = Math.hypot(vel.x, vel.y)
   if (speed > 0) {
     const tail = { x: pos.x - vel.x * 0.08, y: pos.y - vel.y * 0.08 }
@@ -148,14 +155,14 @@ function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState[
     ctx.stroke()
   }
   ctx.beginPath()
-  ctx.arc(pos.x, pos.y, 1, 0, Math.PI * 2)
+  ctx.arc(pos.x, pos.y, scale, 0, Math.PI * 2)
   ctx.fillStyle = '#f4f4f0'
   ctx.fill()
   ctx.strokeStyle = COLORS.outline
   ctx.lineWidth = 0.12
   ctx.stroke()
   ctx.beginPath()
-  ctx.arc(pos.x + Math.cos(rolled) * 0.55, pos.y + Math.sin(rolled) * 0.55, 0.2, 0, Math.PI * 2)
+  ctx.arc(pos.x + Math.cos(rolled) * 0.55 * scale, pos.y + Math.sin(rolled) * 0.55 * scale, 0.2 * scale, 0, Math.PI * 2)
   ctx.fillStyle = COLORS.outline
   ctx.fill()
 }
@@ -286,7 +293,15 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
       }
     }
   }
-  drawBall(ctx, state.ball, !!fx?.pulses.some((p) => now - p.born < TRAIL_MS))
+  const steals = fx?.steals ?? []
+  for (const s of steals) {
+    // The tower is already gone from the sim: draw it until the collapse, with the ball sinking into its centre.
+    const k = Math.min((now - s.born) / STEAL_MS, 1)
+    const c = { x: (s.tower.at.gx + 0.5) * CELL_SIZE, y: (s.tower.at.gy + 0.5) * CELL_SIZE }
+    drawWall(ctx, s.tower)
+    drawBall(ctx, { pos: { x: s.at.x + (c.x - s.at.x) * k, y: s.at.y + (c.y - s.at.y) * k }, vel: { x: 0, y: 0 }, rolled: state.ball.rolled }, false, 1 - k)
+  }
+  if (!steals.length) drawBall(ctx, state.ball, !!fx?.pulses.some((p) => now - p.born < TRAIL_MS))
   if (armed) {
     ctx.beginPath()
     ctx.arc(state.ball.pos.x, state.ball.pos.y, 1.5 + 0.25 * Math.sin(now / 120), 0, Math.PI * 2)

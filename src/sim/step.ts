@@ -23,6 +23,8 @@ export type SimEvent =
   | { type: 'round-ended'; round: number; scorer: PlayerId | null }
   | { type: 'match-ended'; winner: PlayerId }
   | { type: 'shot-clock-expired'; player: PlayerId }
+  /** An opponent's ball hit a Steal tower: the ball stopped and the tower (hp 0) is gone. */
+  | { type: 'steal-triggered'; tower: Structure; owner: PlayerId; at: Point }
   | { type: 'repulsor-fired'; tower: number; at: Point }
 
 export type SimState = {
@@ -194,9 +196,14 @@ export function step(
     if (done === match.builder) match = { ...match, builder: done === firstBuilder(match.seed, match.round) ? opponent(done) : null }
     else events.push({ type: 'refused' })
   }
-  const rolled = rollBall(ball, objects, config, breaker)
+  const rolled = rollBall(ball, objects, config, breaker, possession.shooter)
   events.push(...rolled.events)
   let out = rolled.ball
+  const stolen = rolled.events.find((e) => e.type === 'steal-triggered')
+  if (stolen) {
+    possession = { shooter: stolen.owner, shots: config.shots, inHand: true, live: false }
+    events.push({ type: 'possession-changed', shooter: stolen.owner, inHand: true })
+  }
   // A Repulsor rearms when the ball rests.
   if (!out.vel.x && !out.vel.y && rolled.objects.some((o) => o.kind === 'tower' && o.spent)) rolled.objects = rolled.objects.map((o) => (o.kind === 'tower' && o.spent ? { ...o, spent: false } : o))
   const conceder = goalCrossed(ball.pos, out.pos)

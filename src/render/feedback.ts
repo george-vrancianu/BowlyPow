@@ -1,6 +1,7 @@
 import type { PlayerId, Point } from '../sim/pitch'
 import { PLAYER_COLORS } from '../sim/player'
 import type { SimEvent } from '../sim/step'
+import type { Structure } from '../sim/wall'
 
 /** Events other tickets add to the sim; power is 0..1.. */
 type LaterEvent = { type: 'goal' } | { type: 'charge-full' }
@@ -18,8 +19,11 @@ export type Flash = { wall: number; dim: boolean; born: number }
 export type Pulse = { tower: number; born: number }
 export const GLOW_MS = 300
 export const TRAIL_MS = 500
-export type Fx = { particles: Particle[]; flashes: Flash[]; shake: { amp: number; born: number }; pulses: Pulse[] }
-export const newFx = (): Fx => ({ particles: [], flashes: [], shake: { amp: 0, born: 0 }, pulses: [] })
+/** A Steal trigger: the ball shrinks into the tower for STEAL_MS, then the tower collapses. */
+export type Steal = { tower: Structure; at: Point; born: number }
+export const STEAL_MS = 300
+export type Fx = { particles: Particle[]; flashes: Flash[]; shake: { amp: number; born: number }; pulses: Pulse[]; steals: Steal[] }
+export const newFx = (): Fx => ({ particles: [], flashes: [], shake: { amp: 0, born: 0 }, pulses: [], steals: [] })
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -68,9 +72,11 @@ export function applyEvents(fx: Fx, events: FxEvent[], walls: { id: number; owne
       fx.particles.push({ at: b.at, vel: { x: Math.cos(a) * s, y: Math.sin(a) * s }, color: b.color, born: now })
     }
   for (const e of events) if (e.type === 'repulsor-fired') fx.pulses.push({ tower: e.tower, born: now })
+  for (const e of events) if (e.type === 'steal-triggered') fx.steals.push({ tower: e.tower, at: e.at, born: now })
   for (const amp of r.shakes) fx.shake = { amp, born: now }
   for (const v of r.vibrations) navigator.vibrate?.(v)
   fx.particles = fx.particles.filter((p) => now - p.born < PARTICLE_MS)
   fx.flashes = fx.flashes.filter((f) => now - f.born < FLASH_MS)
   fx.pulses = fx.pulses.filter((p) => now - p.born < TRAIL_MS)
+  fx.steals = fx.steals.filter((s) => now - s.born < STEAL_MS)
 }

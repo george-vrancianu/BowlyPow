@@ -13,7 +13,7 @@ export type WallSpec = { kind: 'wall'; owner: PlayerId; shape: WallShape; rotati
 export type Wall = WallSpec & { id: number; hp: number }
 
 /** A one-cell obstacle; `at` is the cell's top-left grid vertex. Follows every wall rule. */
-export type TowerSpec = { kind: 'tower'; owner: PlayerId; at: Vertex; /** The inventory power-up it spends; absent = plain tower. */ power?: 'repulsor' }
+export type TowerSpec = { kind: 'tower'; owner: PlayerId; at: Vertex; /** The inventory power-up it spends; absent = plain tower. */ power?: 'repulsor' | 'steal' }
 /** `spent`: a Repulsor that has fired this shot; cleared when the ball rests. */
 export type Tower = TowerSpec & { id: number; hp: number; spent?: boolean }
 /** Anything placeable, and its placed form; walls and towers share legality, reachability, collision and damage. */
@@ -23,7 +23,7 @@ export type Structure = Wall | Tower
 export const WALL_HP = 3
 export const TOWER_HP = 3
 export const TOWER_COST = 0
-export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? TOWER_HP : WALL_HP)
+export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? (s.power === 'steal' ? 1 : TOWER_HP) : WALL_HP)
 
 /** Each arm is a run of cells from the pivot, in grid units, before rotation. */
 const ARMS: Record<WallShape, [number, number][]> = {

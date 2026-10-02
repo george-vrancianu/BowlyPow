@@ -1,4 +1,4 @@
-import { BOARD, GOAL_LEFT, GOAL_RIGHT, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH, type Point } from './pitch'
+import { BOARD, GOAL_LEFT, GOAL_RIGHT, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import type { SimConfig, SimEvent } from './step'
 import { damageWall, wallSegments, type Segment, type Structure } from './wall'
 
@@ -46,7 +46,7 @@ function sweep(p: Point, d: Point, { a, b }: Segment, r: number): { t: number; n
 
 /** One tick of ball motion: friction, then swept movement with bounces; walls hit hard enough lose hp. */
 /** With `breaker`, the first structure touched is destroyed outright and the ball keeps its speed. */
-export function rollBall(ball: Ball, objects: Structure[], c: SimConfig, breaker = false): { ball: Ball; objects: Structure[]; events: SimEvent[]; breaker: boolean } {
+export function rollBall(ball: Ball, objects: Structure[], c: SimConfig, breaker = false, shooter: PlayerId = 1): { ball: Ball; objects: Structure[]; events: SimEvent[]; breaker: boolean } {
   const dt = 1 / c.tickHz
   const decay = 0.5 ** (dt / c.halfLife)
   let { pos, vel, rolled } = ball
@@ -81,6 +81,13 @@ export function rollBall(ball: Ball, objects: Structure[], c: SimConfig, breaker
         objects = objects.filter((w) => w.id !== gone.id)
         events.push({ type: 'wall-destroyed', wall: gone, at: pos, breaker: true })
         continue
+      }
+      if (best.wall.kind === 'tower' && best.wall.power === 'steal' && best.wall.owner !== shooter) {
+        const tower = { ...best.wall, hp: 0 }
+        objects = objects.filter((w) => w.id !== tower.id)
+        events.push({ type: 'steal-triggered', tower, owner: tower.owner, at: pos })
+        vel = { x: 0, y: 0 }
+        break
       }
       if (speed > c.damageFraction * c.maxSpeed) {
         const r = damageWall(objects, best.wall.id, pos)
