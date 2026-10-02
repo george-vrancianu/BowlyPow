@@ -1,4 +1,5 @@
 import type { Point } from '../sim/pitch'
+import { PLAYER_COLORS } from '../sim/player'
 import { GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 import type { SimState } from '../sim/step'
 import { wallSegments, type Wall } from '../sim/wall'
@@ -6,7 +7,7 @@ import { wallSegments, type Wall } from '../sim/wall'
 const BOARD = 1
 const NET_DEPTH = 3
 const VIEW_WIDTH = PITCH_WIDTH + 2 * BOARD
-const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: '#22d3ee', p2: '#fb923c', net: '#1d2740', outline: '#05070d' }
+const COLORS = { bg: '#0b0f1a', board: '#3a4258', pitch: '#121a2b', line: '#2c3a57', p1: PLAYER_COLORS[1], p2: PLAYER_COLORS[2], net: '#1d2740', outline: '#05070d' }
 
 const view = ({ width, height }: { width: number; height: number }) => {
   const scale = width / VIEW_WIDTH
@@ -68,6 +69,13 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, ghost?: W
   ctx.fillRect(-BOARD, -BOARD, VIEW_WIDTH, PITCH_HEIGHT + 2 * BOARD)
   ctx.fillStyle = COLORS.pitch
   ctx.fillRect(0, 0, PITCH_WIDTH, PITCH_HEIGHT)
+  // Faint owner tint per half.
+  ctx.globalAlpha = 0.05
+  ctx.fillStyle = COLORS.p2
+  ctx.fillRect(0, 0, PITCH_WIDTH, HALF_HEIGHT)
+  ctx.fillStyle = COLORS.p1
+  ctx.fillRect(0, HALF_HEIGHT, PITCH_WIDTH, HALF_HEIGHT)
+  ctx.globalAlpha = 1
 
   // Nets behind each goal, then the gap in the board.
   for (const [y, dir, color] of [[0, -1, COLORS.p2], [PITCH_HEIGHT, 1, COLORS.p1]] as const) {
