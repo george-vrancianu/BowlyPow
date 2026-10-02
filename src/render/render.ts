@@ -3,7 +3,7 @@ import { PLAYER_COLORS } from '../sim/player'
 import { BOARD, NET_DEPTH, GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
 import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import { defaultConfig, type SimState } from '../sim/step'
-import { CELL_SIZE } from '../sim/pitch'
+import { CELL_SIZE, NO_BUILD_RADIUS } from '../sim/pitch'
 import { viewOf, type Camera } from './camera'
 import { DIM_FLASH_MS, FLASH_MS, PARTICLE_MS, shakeOffset, type Fx } from './feedback'
 import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerSpec } from '../sim/wall'
@@ -228,6 +228,20 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
 
   ctx.fillStyle = COLORS.line
   ctx.fillRect(0, HALF_HEIGHT - 0.15, PITCH_WIDTH, 0.3)
+
+  const { builder } = state.match
+  if (builder) {
+    ctx.fillStyle = COLORS.line
+    for (let x = 0; x <= PITCH_WIDTH; x += CELL_SIZE) for (let y = 0; y <= PITCH_HEIGHT; y += CELL_SIZE) ctx.fillRect(x - 0.08, y - 0.08, 0.16, 0.16)
+    const [goalY, from] = builder === 1 ? [PITCH_HEIGHT, Math.PI] : [0, 0]
+    ctx.beginPath()
+    ctx.arc(PITCH_WIDTH / 2, goalY, NO_BUILD_RADIUS, from, from + Math.PI)
+    ctx.setLineDash([0.8, 0.6])
+    ctx.strokeStyle = COLORS[builder === 1 ? 'p1' : 'p2']
+    ctx.lineWidth = 0.15
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
 
   const inRange = new Map(charge && charge.power > 0 ? blastDamage(state.objects, charge.origin, charge.power, charge.player, defaultConfig).map((h) => [h.wall.id, h.wall.owner === charge.player ? COLORS.ownTint : COLORS.illegal]) : [])
   for (const o of state.objects) {

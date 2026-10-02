@@ -25,6 +25,8 @@ export type HudModel = {
   shotsLeft: number
   shotsMax: number
   phase: string
+  /** Phase buttons (build palette, Rotate, Confirm, Done) shown under the shared strip; rebuilt only when labels or state change. */
+  buttons?: ButtonSpec[]
 }
 
 export type HudActions = { onMap(): void; onRecenter(): void; onPowerUp?(p: PowerUp): void }
@@ -79,8 +81,10 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     { label: 'Map', onClick: () => actions.onMap() },
     { label: 'Recenter', onClick: () => actions.onRecenter() },
   ])
+  const phaseRow = el('div')
+  let phaseKey = ''
   const shared = el('div', `${FONT}display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;color:#e8eaf0;`)
-  shared.append(round, clockNum, dots, phase, buttons)
+  shared.append(round, clockNum, dots, phase, buttons, phaseRow)
   const near = el('div', 'position:fixed;display:flex;flex-direction:column;justify-content:space-around;gap:8px;')
   const far = el('div', 'position:fixed;display:flex;flex-direction:column;justify-content:center;')
   root.append(near, far)
@@ -110,6 +114,11 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     clockNum.style.transform = urgent ? `scale(${1 + 0.15 * Math.abs(Math.sin(Math.PI * m.clock!.seconds))})` : ''
     dots.replaceChildren(...Array.from({ length: m.shotsMax }, (_, i) => el('span', `width:12px;height:12px;border-radius:50%;border:2px solid #e8eaf0;background:${i < m.shotsLeft ? '#e8eaf0' : 'none'};`)))
     phase.textContent = m.phase
+    const key = JSON.stringify((m.buttons ?? []).map(({ label, selected, disabled }) => [label, selected, disabled]))
+    if (key !== phaseKey) {
+      phaseKey = key
+      phaseRow.replaceChildren(...(m.buttons?.length ? [buttonRow(m.buttons)] : []))
+    }
   }
   return { update }
 }

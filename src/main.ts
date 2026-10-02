@@ -5,10 +5,10 @@ import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/g
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
-import { CELL_SIZE, halfOf, type Point } from './sim/pitch'
+import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
 import { canPlaceBall } from './sim/possession'
-import { defaultConfig, initialState, step, type SimInput } from './sim/step'
-import { wallSegments, type Segment, type Wall } from './sim/wall'
+import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
+import { canPlace, wallCost, wallSegments, type Segment, type StructureSpec, type WallShape, type WallSpec } from './sim/wall'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
@@ -35,8 +35,10 @@ addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') toggleMap()
   else if (e.key === 'Escape') toggleMap(false)
 })
-// Dev page: the ghost follows the pointer; a click drops it through the sim as a placeWall input.
-let ghost: Omit<Wall, 'id' | 'hp'> | undefined
+// Build turn: pick a shape, drag the ghost, Rotate, Confirm drops it through the sim as a placeWall input.
+let ghost: WallSpec | undefined
+let demolishing = false
+let draggingGhost = false
 let fragments: Fragment[] = []
 const fx = newFx()
 let pending: SimInput = {}
@@ -55,16 +57,22 @@ const snap = (e: PointerEvent) => {
   const p = screenToWorld(canvas, camera, e.offsetX * (canvas.width / canvas.clientWidth), e.offsetY * (canvas.height / canvas.clientHeight))
   return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
 }
-const spawn = (shape: Wall['shape']) => (ghost = { kind: 'wall', owner: ghost?.owner ?? 1, shape, rotation: ghost?.rotation ?? 0, at: ghost?.at ?? { gx: 10, gy: 27 } })
-document.querySelectorAll<HTMLButtonElement>('[data-shape]').forEach((b) => (b.onclick = () => spawn(b.dataset.shape as Wall['shape'])))
-document.getElementById('rotate')!.onclick = () => ghost && (ghost = { ...ghost, rotation: ((ghost.rotation + 1) % 4) as Wall['rotation'] })
-document.getElementById('damage')!.onclick = () => (ghost = undefined)
-const ownerBtn = document.getElementById('owner')!
-ownerBtn.onclick = () => {
-  const owner = ghost?.owner === 2 ? 1 : 2
-  ownerBtn.textContent = `Owner: ${owner}`
-  if (ghost) ghost = { ...ghost, owner }
+const spawn = (shape: WallShape) => {
+  const b = state.match.builder!
+  demolishing = false
+  ghost = { kind: 'wall', owner: b, shape, rotation: ghost?.rotation ?? 0, at: ghost?.at ?? { gx: 10, gy: b === 1 ? 40 : 14 } }
 }
+const rotate = () => ghost && (ghost = { ...ghost, rotation: ((ghost.rotation + 1) % 4) as WallSpec['rotation'] })
+const confirmWall = () => {
+  if (!ghost || !canPlace(state.objects, ghost) || state.points[ghost.owner] < wallCost(ghost.shape)) return
+  pending = { placeWall: ghost }
+  ghost = undefined
+}
+addEventListener('keydown', (e) => {
+  if (!state.match.builder) return
+  if (e.key === 'r' || e.key === 'R') rotate()
+  else if (e.key === 'Enter') confirmWall()
+})
 // Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
 const pointers = new Map<number, Point>()
 let panOnly = false
@@ -81,11 +89,12 @@ canvas.onpointermove = (e) => {
     if (pointers.size > 1) panBy(dy / pointers.size)
     else if (panOnly || (charge && gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now()).mode === 'pan')) panBy(dy)
   }
-  if (ghost) ghost = { ...ghost, at: snap(e) }
+  if (draggingGhost && ghost) ghost = { ...ghost, at: snap(e) }
   if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
 }
 canvas.onpointerup = (e) => {
   draggingBall = false
+  draggingGhost = false
   if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= 12) ballGhost = toWorld(e)
   tap = undefined
   pointers.delete(e.pointerId)
@@ -113,7 +122,19 @@ canvas.onpointerdown = (e) => {
     charge = undefined
     return
   }
-  if (state.possession.inHand && !ghost) {
+  const builder = state.match.builder
+  if (builder) {
+    const at = toWorld(e)
+    const near = (w: StructureSpec | undefined, r: number) => w && wallSegments(w).some((sg) => distToSegment(at, sg) < r)
+    const hit = demolishing ? state.objects.find((w) => w.owner === builder && near(w, 1)) : undefined
+    if (hit) pending = { demolish: { player: builder, wall: hit.id } }
+    else if (!demolishing && near(ghost, 3)) {
+      draggingGhost = true
+      canvas.setPointerCapture(e.pointerId)
+    } else panOnly = true
+    return
+  }
+  if (state.possession.inHand) {
     const at = toWorld(e)
     if (ballGhost && Math.hypot(at.x - ballGhost.x, at.y - ballGhost.y) <= 2 * defaultConfig.ballRadius) {
       draggingBall = true
@@ -124,8 +145,8 @@ canvas.onpointerdown = (e) => {
     }
     return
   }
-  if (!ghost) {
-    // Dev page: with no ghost, tapping a wall damages it.
+  // Dev page: tapping a wall damages it.
+  {
     const at = toWorld(e)
     const hit = state.objects.find((w) => wallSegments(w).some((s) => distToSegment(at, s) < 1))
     const player = halfOf(at.y)
@@ -134,13 +155,10 @@ canvas.onpointerdown = (e) => {
       canvas.setPointerCapture(e.pointerId)
       charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
     } else panOnly = true
-    return
   }
-  ghost = { ...ghost, at: snap(e) }
-  pending = { placeWall: ghost }
-  recenter(camera)
 }
 const hud = createHud(document.body, { onMap: () => toggleMap(), onRecenter: () => recenter(camera) })
+let turn: SimState['match']['builder'] | undefined
 let acc = 0
 let last = performance.now()
 let lastFrame = last
@@ -153,7 +171,14 @@ function frame(now: number) {
     const r = step(state, power > 0 && charge ? { charging: { origin: charge.origin, power }, ...pending } : pending, defaultConfig)
     state = r.state
     if (!state.possession.inHand) ballGhost = undefined
-    if (pending.placeWall || r.events.length) recenter(camera)
+    if (!state.match.builder && r.events.length) recenter(camera)
+    if (state.match.builder !== turn) {
+      turn = state.match.builder
+      ghost = undefined
+      demolishing = false
+      if (turn) pan(camera, (turn === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight)
+      else recenter(camera)
+    }
     pending = {}
     applyEvents(fx, r.events, state.objects, now)
     for (const ev of r.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
@@ -164,13 +189,24 @@ function frame(now: number) {
 
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
-  confirm.hidden = !state.possession.inHand
+  confirm.hidden = !state.possession.inHand || !!state.match.builder
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
   fragments = fragments.filter((f) => fragmentAlive(f, now))
+  const b = state.match.builder
+  const buttons = b
+    ? [
+        ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, selected: ghost?.shape === shape, disabled: state.points[b] < wallCost(shape), onClick: () => spawn(shape) })),
+        { label: 'Rotate', disabled: !ghost, onClick: rotate },
+        { label: 'Confirm', disabled: !ghost || !canPlace(state.objects, ghost) || state.points[b] < wallCost(ghost.shape), onClick: confirmWall },
+        { label: 'Demolish 1', selected: demolishing, disabled: state.points[b] < 1, onClick: () => ((demolishing = !demolishing), (ghost = undefined)) },
+        { label: 'Done', onClick: () => (pending = { done: b }) },
+      ]
+    : undefined
+  const { score } = state.match
   hud.update(
-    { players: { 1: { score: 0, inventory: state.players[1].inventory }, 2: { score: 0, inventory: state.players[2].inventory } }, active: 1, round: 1, rounds: 5, clock: { seconds: state.clock.left / defaultConfig.tickHz, fraction: state.clock.left / (defaultConfig.shotClock * defaultConfig.tickHz) }, shotsLeft: 3, shotsMax: 3, phase: 'Build' },
+    { players: { 1: { score: score[1], inventory: state.players[1].inventory }, 2: { score: score[2], inventory: state.players[2].inventory } }, active: b ?? state.possession.shooter, round: state.match.round, rounds: defaultConfig.rounds, clock: b ? null : { seconds: state.clock.left / defaultConfig.tickHz, fraction: state.clock.left / (defaultConfig.shotClock * defaultConfig.tickHz) }, shotsLeft: state.possession.shots, shotsMax: defaultConfig.shots, phase: b ? `Build · ${state.points[b]} pts` : 'Play', buttons },
     { width: canvas.clientWidth, height: canvas.clientHeight },
   )
   waves = waves.filter((w) => waveAlive(w, now))
