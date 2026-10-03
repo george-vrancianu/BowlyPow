@@ -1,7 +1,7 @@
 import { rules, type Tier } from '../../config/rules'
 import { visual } from '../../config/visual'
 import { predictPath } from '../../sim/predict'
-import { splashRadius } from '../../sim/splash'
+import { splashPower, splashRadius } from '../../sim/splash'
 import type { Point } from '../../sim/pitch'
 import type { SimConfig, SimState } from '../../sim/step'
 import { Entity } from './Entity'
@@ -30,7 +30,7 @@ function cut(points: Point[], scale: number): Point[] {
   return out
 }
 
-/** The aim's Ghost (the ball's predicted path) and the expanding ring of a fired shot. */
+/** The aim's Ghost (the ball's predicted path) and the expanding Splash ring of a fired Power shot. */
 export class Aim extends Entity {
   aim?: AimLine
   private state?: SimState
@@ -44,9 +44,10 @@ export class Aim extends Entity {
     this.config = config
   }
 
-  /** A shot fired: a ring expands from `origin` to its radius over `visual.aim.waveMs`. */
-  wave(origin: Point, power: number): void {
-    if (this.config) this.waves.push({ origin, radius: splashRadius(power, this.config), born: this.clock })
+  /** A shot fired from `origin`: for a splash tier, a ring expands to the Splash radius over `visual.aim.waveMs`. */
+  splash(origin: Point, tier: number, power: number): void {
+    const splash = splashPower(tier, power)
+    if (this.config && splash !== null) this.waves.push({ origin, radius: splashRadius(splash, this.config), born: this.clock })
   }
 
   /** A new match: no rings, no aim. */
@@ -55,7 +56,8 @@ export class Aim extends Entity {
     this.aim = this.predicted = undefined
   }
 
-  get waveCount(): number {
+  /** Splash rings still expanding. */
+  get splashCount(): number {
     return this.waves.length
   }
 

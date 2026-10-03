@@ -61,11 +61,17 @@ describe('routeEvents', () => {
     const w = setup([])
     const shot: SimEvent = { type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 1, power: 1 }
     w.route([shot], [])
-    expect(w.aim.waveCount).toBe(1)
+    expect(w.aim.splashCount).toBe(1)
     expect(w.camera.shakeNow).not.toEqual({ x: 0, y: 0 })
     expect(w.vibrate).toHaveBeenCalledTimes(1)
     const calm = setup([])
     calm.route([shot], [], true)
-    expect([calm.aim.waveCount, calm.camera.shakeNow, calm.vibrate.mock.calls.length]).toEqual([1, { x: 0, y: 0 }, 0])
+    expect([calm.aim.splashCount, calm.camera.shakeNow, calm.vibrate.mock.calls.length]).toEqual([1, { x: 0, y: 0 }, 0])
+  })
+
+  it('a Touch shot sets off no Splash ring', () => {
+    const w = setup([])
+    w.route([{ type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 0, power: 0.5 }], [])
+    expect(w.aim.splashCount).toBe(0)
   })
 })
