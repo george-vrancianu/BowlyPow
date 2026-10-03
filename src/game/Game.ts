@@ -118,7 +118,7 @@ export class Game implements Sink {
     this.camera.add(this.structures)
     this.camera.add(this.ball)
     this.camera.add(this.aim)
-    this.camera.add(this.structures.overlay)
+    this.camera.add(this.structures.fx)
     this.input = new InputController({
       canvas,
       camera: this.camera,

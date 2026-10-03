@@ -122,9 +122,9 @@ describe('Game', () => {
     expect(game.fog.blind).toBeUndefined()
   })
 
-  it('draws the overlay layer last, above the ball and aim', () => {
+  it('draws the fx layer last, above the ball and aim', () => {
     const game = make()
-    expect(game.camera.children.slice(-3)).toEqual([game.ball, game.aim, game.structures.overlay])
+    expect(game.camera.children.slice(-3)).toEqual([game.ball, game.aim, game.structures.fx])
   })
 
   it('the reveal shows the whole pitch through the map camera with the fog lifted, then returns to the main camera', () => {
@@ -177,7 +177,7 @@ describe('Game', () => {
     expect(calls).toEqual(['start'])
     frame(performance.now())
     expect(calls).toContain('update')
-    game.actions.confirmBall()
+    expect(calls).toContain('send charging')
     game.destroy()
   })
 

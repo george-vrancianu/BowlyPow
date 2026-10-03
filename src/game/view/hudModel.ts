@@ -13,8 +13,8 @@ import { structuresOf, type Structure } from '../../sim/wall'
 export type ButtonSpec = { label: string; onClick(): void; disabled?: boolean; pressed?: boolean }
 
 export type HudModel = {
-  players: Record<PlayerId, { /** What the strip's big digit shows (Rounds: the score; Siege: remaining structures); null hides it. */ digit: string | null; inventory: Record<PowerUp, number> }>
-  /** Whose turn it is; their strip goes to the bottom. */
+  players: Record<PlayerId, { /** What the big digit shows (Rounds: the score; Siege: remaining structures); null hides it. */ digit: string | null; inventory: Record<PowerUp, number> }>
+  /** Whose turn it is; their controls go to the bottom. */
   active: PlayerId
   /** Null in modes without rounds. */
   round: number | null
@@ -24,13 +24,13 @@ export type HudModel = {
   shotsLeft: number
   shotsMax: number
   phase: string
-  /** Phase buttons (Done in a build turn; Repair and Rearrange on a defence choice) shown under the shared strip. The row is rebuilt only when a label or `disabled` flag changes, so handlers must read live state at click time (see `ButtonSpec`). */
+  /** Phase buttons (Done in a build turn; Repair and Rearrange on a defence choice) shown above the HUD row. The row is rebuilt only when a label or `disabled` flag changes, so handlers must read live state at click time (see `ButtonSpec`). */
   buttons?: ButtonSpec[]
   /** Breaker is armed (highlighted) and whether the active player may tap it now. */
   breaker: { armed: boolean; tappable: boolean }
 }
 
-/** What the game knows that the sim state does not. `viewer` is the local player (online: the peer's own seat; hot-seat: whoever holds the device), not necessarily the strip shown at the bottom. */
+/** What the game knows that the sim state does not. `viewer` is the local player (online: the peer's own seat; hot-seat: whoever holds the device), not necessarily the seat shown at the bottom. */
 export type HudInputs = { active: PlayerId; viewer: PlayerId; buttons?: ButtonSpec[]; armed: boolean; tappable: boolean }
 
 /** The round number for modes that have rounds, else null; the first-play hints show on round 1. */
@@ -45,7 +45,7 @@ export function roundOf(m: Match): number | null {
   }
 }
 
-/** What the strip's big digit shows, per mode. A new mode adds a case; the `never` arm makes the compiler point at this spot. `null` = the mode has no such thing, so the HUD drops it. */
+/** What the big digit shows, per mode. A new mode adds a case; the `never` arm makes the compiler point at this spot. `null` = the mode has no such thing, so the HUD drops it. */
 function digitsOf(m: Match, objects: readonly Structure[]): Record<PlayerId, string> | null {
   switch (m.mode) {
     case 'rounds':

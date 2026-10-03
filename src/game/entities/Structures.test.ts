@@ -79,12 +79,12 @@ const ctx = new Proxy({}, { get: () => () => {}, set: () => true }) as unknown a
 const spyDraws = (s: Structures) => ({ shatter: vi.spyOn(s, 'drawShatter'), particles: vi.spyOn(s, 'drawParticles'), pieces: vi.spyOn(s, 'drawPieces') })
 
 describe('draw order', () => {
-  it('fragments, particles, the landing piece and the build ghost are drawn by the overlay, not by the structures', () => {
+  it('fragments, particles, the landing piece and the build ghost are drawn by `fx`, not by the structures', () => {
     const s = new Structures()
     const spies = spyDraws(s)
     s.draw(ctx)
     for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled()
-    s.overlay.draw(ctx)
+    s.fx.draw(ctx)
     for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1)
   })
 })

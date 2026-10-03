@@ -12,7 +12,7 @@ export type PhaseSeam = {
   choosable?: boolean
 }
 
-/** The phase buttons under the shared strip: Done in a build turn, Repair and Rearrange when the scorer owes a defence choice. */
+/** The phase buttons in the HUD shell: Done in a build turn, Repair and Rearrange when the scorer owes a defence choice. */
 export function phaseButtons(s: SimState, config: SimConfig, h: PhaseSeam): ButtonSpec[] | undefined {
   const { builder, choosing } = s.match
   if (builder && h.mine(builder)) {

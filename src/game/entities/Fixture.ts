@@ -125,7 +125,7 @@ export abstract class Fixture<D extends FixtureData = FixtureData> extends Entit
     if (this.hidden) return
     ctx.globalAlpha = this.alpha
     const s = this.shattering
-    // Once it breaks the body is gone; the fragments are drawn by the overlay, above the ball.
+    // Once it breaks the body is gone; the fragments are drawn by `fx`, above the ball.
     if (!s || s.age < s.delay) {
       this.drawBody(ctx, this.tint)
       if (!s) this.drawMarks(ctx)
@@ -133,7 +133,7 @@ export abstract class Fixture<D extends FixtureData = FixtureData> extends Entit
     ctx.globalAlpha = 1
   }
 
-  /** The flying fragments of a shattered structure, once its delay is over. Drawn in the overlay layer. */
+  /** The flying fragments of a shattered structure, once its delay is over. Drawn in the `fx` layer. */
   drawShatter(ctx: CanvasRenderingContext2D): void {
     const s = this.shattering
     if (!this.hidden && s && s.age >= s.delay) this.drawFragments(ctx, s)
