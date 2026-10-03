@@ -9,10 +9,12 @@ import { hudModel } from './hud/model'
 import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
 import { createFab } from './hud/fab'
 import { createOverlay } from './hud/overlay'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
+import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, revealing } from './hud/transition'
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
+import { blindSeat, openingBuild } from './sim/match'
+import { buildPhase } from './sim/mode'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
@@ -34,6 +36,9 @@ stage.append(canvas)
 const ONLINE_BUILD_SECONDS = 30
 let net: { me: PlayerId; peer: Peer; sync: ReturnType<typeof lockstep> } | undefined
 const mine = (p: PlayerId | null | undefined) => !net || p === net.me
+// Siege blind build: the seat whose half is the only one this screen may show. Hot-seat: whoever builds; online: my own seat, also while I wait.
+const viewer = (): PlayerId => (net ? net.me : (state.match.builder ?? transition.shown))
+const blind = () => blindSeat(state.match, viewer())
 const canvasPx = () => canvas.width / canvas.clientWidth
 const toWorld = (e: PointerEvent) => screenToWorld(canvas, camera, e.offsetX * canvasPx(), e.offsetY * canvasPx())
 let state = initialState()
@@ -119,7 +124,7 @@ addEventListener('keydown', (e) => {
 // Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
 const pointers = new Map<number, Point>()
 let panOnly = false
-const panBy = (dyPx: number) => pan(camera, (transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight)
+const panBy = (dyPx: number) => pan(camera, (transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight, blind())
 canvas.onwheel = (e) => (e.preventDefault(), panBy(-e.deltaY))
 addEventListener('keydown', (e) => e.code === 'Space' && (e.preventDefault(), recenter(camera)))
 canvas.onpointermove = (e) => {
@@ -150,7 +155,7 @@ canvas.onpointerup = (e) => {
 }
 canvas.onpointerdown = (e) => {
   if (mapOpen) {
-    pan(camera, screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y, layout(canvas).visibleHeight)
+    pan(camera, screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y, layout(canvas).visibleHeight, blind())
     toggleMap(false)
     return
   }
@@ -245,7 +250,7 @@ function edgeScroll(builder: PlayerId, dt: number) {
   const { visibleHeight } = layout(canvas)
   const dy = edgeScrollDy(camera.y, visibleHeight, builder, pxToWorld(drag!.px, drag!.py).y, dt)
   if (!dy) return
-  pan(camera, dy, visibleHeight)
+  pan(camera, dy, visibleHeight, blind())
   dragTo(drag!.px, drag!.py)
 }
 const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && mine(state.possession.shooter) && canArm(state, state.possession.shooter) && (armed = !armed) })
@@ -282,9 +287,8 @@ const showMatchEnd = (m: SimState['match'], winner: PlayerId, objects: SimState[
 function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
-  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
-  const phase = state.match.builder ? (state.match.mode === 'siege' && !state.match.opening ? 'Rearrange' : 'Build') : 'Play'
-  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
+  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold, reveal or turn card.
+  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase: buildPhase(state.match), opening: openingBuild(state.match), events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
     if (blocking(transition)) {
       pending = {}
@@ -316,7 +320,7 @@ function frame(now: number) {
       lastBuilder = state.match.builder
       selection = landing = drag = undefined
       menuOpen = false
-      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight)
+      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight, blind())
       else recenter(camera)
     }
     if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
@@ -336,7 +340,7 @@ function frame(now: number) {
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
   overlay.update(overlayView(transition, now))
   if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
-  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight, blind())
   lastFrame = now
   if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner, state.objects))
   confirm.hidden = !state.possession.inHand || !!state.match.choosing || !!state.match.builder || !mine(state.possession.shooter)
@@ -350,11 +354,12 @@ function frame(now: number) {
   const building = b && mine(b) ? b : undefined
   // The defence turn: the scorer is offered Repair or Rearrange once the GOAL banner is gone.
   const choosing = state.match.choosing && mine(state.match.choosing) && !blocking(transition) ? state.match.choosing : undefined
-  hud.update(hudModel(state, config, { active: transition.shown, buttons: (building && [{ label: 'Done', disabled: !canFinishBuild(state, config), onClick: () => (pending = { done: building }) }]) || (choosing && (['repair', 'rearrange'] as const).map((choice) => ({ label: choice === 'repair' ? 'Repair' : 'Rearrange', onClick: () => (pending = { defence: { player: choosing, choice } }) }))), armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons: (building && [{ label: 'Done', disabled: !canFinishBuild(state, config), onClick: () => (pending = { done: building }) }]) || (choosing && (['repair', 'rearrange'] as const).map((choice) => ({ label: choice === 'repair' ? 'Repair' : 'Rearrange', onClick: () => (pending = { defence: { player: choosing, choice } }) }))), armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
-  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
+  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen || revealing(transition) ? mapCam : camera, {
+    blind: blind(),
     ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
     landing: mapOpen ? undefined : landing?.spec,
     hidden: mapOpen ? [] : [selection?.movable ? selection.id : undefined, landing?.id].filter((id) => id !== undefined),

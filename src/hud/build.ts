@@ -1,7 +1,6 @@
-import { modeFor } from '../sim/mode'
 import { nearestOnWall } from '../sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from '../sim/pitch'
-import type { SimInput, SimState } from '../sim/step'
+import { canEdit, type SimInput, type SimState } from '../sim/step'
 import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../sim/wall'
 import type { ButtonSpec } from './hud'
 
@@ -79,7 +78,7 @@ const POWER_LABEL: Record<TowerPower, string> = { repulsor: 'Repulsor', steal: '
 export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selection?: Selection; /** A confirmed piece is still on its way to the sim. */ landing?: boolean }, a: BuildActions): BuildMenu | undefined {
   const sel = v.selection
   // A turn that may only move pieces (Rearrange) has no palette and no demolish.
-  const edit = modeFor(s.match).mayEdit(s.match)
+  const edit = canEdit(s)
   if (!sel && !edit) return undefined
   if (!sel) {
     const points = s.points[b]

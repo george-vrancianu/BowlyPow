@@ -23,6 +23,7 @@ _Avoid_: Bonus turn, power-up
 **Repair**:
 The defence-turn choice that restores every surviving structure the scorer owns to full HP; destroyed structures stay gone.
 _Avoid_: Heal, rebuild
+
 **Rearrange**:
 The defence-turn choice that opens a build-style turn for the scorer in which every structure they own can be moved and rotated to any legal spot on their half, HP unchanged. Placing and demolishing are refused, so the structure count can only fall. Done ends it, and Done with nothing moved is the escape hatch. The choice is final: there is no way back to Repair.
 _Avoid_: Reposition, rebuild
@@ -30,3 +31,15 @@ _Avoid_: Reposition, rebuild
 **Wipe-out**:
 Siege's end condition: a player owns no structures (towers included) when the ball comes to rest or a goal is scored, never mid-flight. If both players are at zero, the shooter loses.
 _Avoid_: Elimination, knockout
+
+**Blind build**:
+Siege's opening build, during which each viewer sees only their own half; the opponent's structure count, tower stock and build points are hidden. Hiding is renderer and HUD only, the sim state is complete.
+_Avoid_: Hidden build, secret build
+
+**Reveal**:
+The 1.5 s hold after the second Done of a Siege opening build: the fog lifts and the map camera shows both layouts at once, then play begins. Same hold under reduced motion; Rounds and Rearrange have none.
+_Avoid_: Unveil, showdown
+
+**Fog**:
+The renderer's cover over the opponent's half (up to the halfway line, boards and nets included) during a blind build, in the main view and the map.
+_Avoid_: Mask, blackout

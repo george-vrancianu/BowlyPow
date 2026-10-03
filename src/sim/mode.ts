@@ -142,3 +142,6 @@ export const modeNamed = (name: GameModeName): GameMode => {
       return siege
   }
 }
+
+/** The phase label of the match right now: a build turn that may only move pieces is a Rearrange. */
+export const buildPhase = (m: Match): 'Build' | 'Rearrange' | 'Play' => (m.builder === null ? 'Play' : modeFor(m).mayEdit(m) ? 'Build' : 'Rearrange')

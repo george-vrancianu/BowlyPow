@@ -15,6 +15,9 @@ export function canFinishBuild(s: SimState, config: SimConfig): boolean {
   return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession, s.possession.shooter), config) !== null
 }
 
+/** Whether the current build turn may place and demolish (false in a Rearrange turn, which only moves pieces). */
+export const canEdit = (s: SimState): boolean => modeFor(s.match).mayEdit(s.match)
+
 export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
   /** Carries the removed wall (hp 0) so the renderer can shatter it. */

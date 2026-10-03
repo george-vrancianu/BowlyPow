@@ -65,6 +65,8 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 - There is no shot cap: shots never end anything.
 - The HUD shows each player's remaining structure count, towers included, in place of the score digit, and no round label.
 - Wipe-out: the match ends when a player owns no structures, towers included (a Steal tower consumed as the last piece counts). The check runs only when the ball comes to rest or a goal is scored, never mid-flight, so fragments fly and the ball settles before the winner banner. If both players are at zero, the shooter loses. After `match-ended` the sim ignores input. The end screen shows the winner and their surviving structure count instead of a score.
+- The opening build is blind: while it runs, the viewer's opponent's half is fogged out in the main view and the map, including the strip above the halfway line the camera can still show (the 64-unit view is taller than a 54-unit half). The camera clamp range is the viewer's half plus the halfway line, so panning cannot bring the opponent's half into view. The viewer's own half, structures, grid and no-build arc draw as before. The opponent's HUD structure count reads "?" until play starts, and their tower stock and build points are not shown (stock reads as the starting stock). Online, the waiting player is blind too (the fog follows the viewer, not the builder). Rounds stays open information.
+- Hiding is renderer and HUD only: the sim state stays complete and deterministic, so lockstep is untouched.
 - Wall points default to 10; a value to tune after play-testing.
 
 ### Rounds
@@ -221,6 +223,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - Handover flip: animated 180-degree rotation over 400 ms, with the turn overlay fading in during the second half so nobody sees the pitch upside-down.
 - Goal: 1.5 s hold with a full-width "GOAL" banner in the scorer's colour, the scoreboard digit flipping, the ball resting in the net. Then the normal handover.
 - Build and play: a 1 s "BUILD" or "PLAY" label sweeping across the pitch. In Siege a Repair adds a "REPAIRED" label of the same kind, and a Rearrange a "REARRANGE" label; in hot-seat the handover waits until it has finished.
+- Reveal (Siege only): when the second builder taps Done in the opening build, the fog lifts into a 1.5 s "REVEAL" hold on the map camera, so both layouts show at once. It replaces the opening PLAY sweep, and its label is pinned to the top edge with no band so every structure stays visible. It blocks input and the sim like the goal hold, then the normal handover goes to the ball-in-hand player. Reduced motion: the same 1.5 s hold (it has no animation to drop). Online, each peer sees it from their own orientation; it is wall-clock only, like the goal hold. Rounds and Rearrange turns have none.
 - All interstitials are one overlay component. In round 1 only, turn overlays carry short hints ("Hold on the pitch to charge a blast").
 
 ### HUD
@@ -247,7 +250,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - WebRTC between two browsers. Signaling via a tiny server or a pasted connection string, to be decided then.
 - Each peer runs the same deterministic sim and exchanges one input per shot or placement. Inputs are small integers thanks to the grid; a blast is an origin point and a power value.
 - Each player sees the pitch with themselves at the bottom.
-- Add a build-phase timer for P2P. A hidden-walls mode is possible only in P2P and is a later idea.
+- Add a build-phase timer for P2P. Siege's blind build hides the layout in the renderer and HUD only: a modified client could read the peer's layout from its own sim state. True hidden information (commit-and-reveal of the layout) is a later idea.
 
 ## Deferred ideas
 

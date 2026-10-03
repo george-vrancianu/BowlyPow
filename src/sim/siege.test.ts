@@ -394,6 +394,20 @@ describe('Siege defence turn: Rearrange', () => {
     expect(s.objects).toHaveLength(n)
   })
 
+  it('refuses a move that would seal the goal, and accepts the near miss with HP kept', () => {
+    const w = (id: number, gx: number, gy: number, rotation: 0 | 1 = 0, hp = 3, owner: 1 | 2 = 1): Structure => ({ kind: 'wall', owner, shape: 'straight', rotation, at: { gx, gy }, id, hp })
+    const init = initialState(1, siege)
+    const objects = [w(1, 0, 40), w(2, 4, 40), w(3, 8, 40, 0, 2), w(4, 12, 40), w(5, 16, 46, 0, 1), w(6, 2, 10, 0, 3, 2)]
+    const pre: SimState = { ...init, match: { ...init.match, builder: null, opening: false, choosing: 1 } as SimState['match'], objects, nextId: 7, possession: { shooter: 2, shots: 3, inHand: true, live: false } }
+    const s = step(pre, choose, siege).state
+    const sealed = step(s, move(5, 16, 40), siege)
+    expect(sealed.events).toEqual([{ type: 'refused' }])
+    expect(sealed.state.objects).toEqual(s.objects)
+    const ok = step(s, move(5, 15, 40, 1), siege)
+    expect(ok.events).toEqual([])
+    expect(ok.state.objects.find((o) => o.id === 5)).toMatchObject({ at: { gx: 15, gy: 40 }, rotation: 1, hp: 1 })
+  })
+
   it('marks the opening build until play begins, and not the rearrange turn', () => {
     const first = firstBuilder(1, 1)
     let s = step(step(initialState(1, siege), { placeWall: piece(first) }, siege).state, { done: first }, siege).state
