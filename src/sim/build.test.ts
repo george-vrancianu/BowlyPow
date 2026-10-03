@@ -84,3 +84,52 @@ describe('pitch bounds', () => {
     expect(placed({ kind: 'wall', owner: 1, shape: 'straight', rotation: 2, at: { gx: 4, gy: 40 } })).toBe(true)
   })
 })
+
+describe('moving and refunding this turn\'s items', () => {
+  const moved = { gx: 6, gy: 40 }
+  it('records ids placed this build turn and forgets them when the turn ends', () => {
+    let s = run(buildState(1), { placeWall: wall(1) })
+    expect(s.built).toEqual([1])
+    s = run(s, { done: 1 })
+    expect(s.built).toEqual([])
+  })
+  it('moves an item placed this turn for free, keeping id and hp', () => {
+    const s = run(buildState(1), { placeWall: wall(1) })
+    const r = step(s, { moveStructure: { player: 1, id: 1, at: moved, rotation: 1 } }, c)
+    expect(r.events).toEqual([])
+    expect(r.state.objects).toEqual([{ ...wall(1), id: 1, hp: s.objects[0].hp, at: moved, rotation: 1 }])
+    expect(r.state.points[1]).toBe(s.points[1])
+  })
+  it('a move may overlap the item\'s own old spot', () => {
+    const s = run(buildState(1), { placeWall: wall(1) })
+    expect(step(s, { moveStructure: { player: 1, id: 1, at: { gx: 11, gy: 40 }, rotation: 0 } }, c).events).toEqual([])
+  })
+  it('refuses moving an older item, another player\'s item, or to an illegal spot', () => {
+    const s = run(buildState(1), { placeWall: wall(1) })
+    const older = { ...s, built: [] }
+    expect(step(older, { moveStructure: { player: 1, id: 1, at: moved, rotation: 0 } }, c).events).toEqual([{ type: 'refused' }])
+    expect(step(s, { moveStructure: { player: 2, id: 1, at: moved, rotation: 0 } }, c).events).toEqual([{ type: 'refused' }])
+    expect(step(s, { moveStructure: { player: 1, id: 1, at: { gx: 19, gy: 40 }, rotation: 0 } }, c).events).toEqual([{ type: 'refused' }])
+    expect(step(s, { moveStructure: { player: 1, id: 1, at: { gx: 10, gy: 10 }, rotation: 0 } }, c).events).toEqual([{ type: 'refused' }])
+  })
+  it('demolishing an item placed this turn refunds its points and costs nothing', () => {
+    let s = run(buildState(1), { placeWall: wall(1, 'L') })
+    s = { ...s, points: { ...s.points, 1: 0 } }
+    const r = step(s, { demolish: { player: 1, wall: 1 } }, c)
+    expect(r.events).toEqual([])
+    expect(r.state.objects).toEqual([])
+    expect(r.state.points[1]).toBe(3)
+    expect(r.state.built).toEqual([])
+  })
+  it('demolishing a tower placed this turn returns its charge', () => {
+    const tower: TowerSpec = { kind: 'tower', owner: 1, power: 'repulsor', at: { gx: 10, gy: 40 } }
+    const s = run(buildState(1), { placeWall: tower })
+    const before = buildState(1).players[1].inventory.repulsor
+    expect(s.players[1].inventory.repulsor).toBe(before - 1)
+    expect(run(s, { demolish: { player: 1, wall: 1 } }).players[1].inventory.repulsor).toBe(before)
+  })
+  it('demolishing an older item still costs 1 point', () => {
+    const s = { ...run(buildState(1), { placeWall: wall(1) }), built: [] }
+    expect(run(s, { demolish: { player: 1, wall: 1 } }).points[1]).toBe(s.points[1] - 1)
+  })
+})

@@ -1,0 +1,84 @@
+import { nearestOnWall } from '../sim/blast'
+import { CELL_SIZE, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from '../sim/pitch'
+import type { SimInput, SimState } from '../sim/step'
+import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../sim/wall'
+import type { ButtonSpec } from './hud'
+
+/**
+ * The builder's selection: a new piece (no `id`), or one of their structures (`id`). Only this turn's structures can be
+ * dragged; an older one is selected just to demolish it.
+ */
+export type Selection = { spec: StructureSpec; id?: number; movable: boolean }
+
+export type Piece = WallShape | TowerPower
+
+/** Grid rows (vertices) a piece anchored on `owner`'s half may use. */
+const rows = (owner: PlayerId) => (owner === 1 ? [HALF_HEIGHT / CELL_SIZE, PITCH_HEIGHT / CELL_SIZE - 1] : [0, HALF_HEIGHT / CELL_SIZE - 1])
+
+/** A new piece at the vertex nearest the view centre, clamped to the owner's half. */
+export function spawn(piece: Piece, owner: PlayerId, viewY: number): Selection {
+  const [lo, hi] = rows(owner)
+  const at = { gx: PITCH_WIDTH / CELL_SIZE / 2, gy: Math.min(Math.max(Math.round(viewY / CELL_SIZE), lo), hi) }
+  const spec: StructureSpec = piece === 'repulsor' || piece === 'steal' ? { kind: 'tower', owner, power: piece, at } : { kind: 'wall', owner, shape: piece, rotation: 0, at }
+  return { spec, movable: true }
+}
+
+/** Whether `at` lands on `spec`, within `tolerance` world units of its segments. */
+export const onPiece = (spec: StructureSpec, at: Point, tolerance: number) => nearestOnWall(spec, at).dist <= tolerance
+
+/** The builder's own structure under `at`, nearest first, selected as it stands. */
+export function pick(s: SimState, builder: PlayerId, at: Point, tolerance: number): Selection | undefined {
+  const hits = s.objects.filter((o) => o.owner === builder).map((o) => ({ o, d: nearestOnWall(o, at).dist })).filter((h) => h.d <= tolerance)
+  const near = hits.sort((a, b) => a.d - b.d)[0]?.o
+  if (!near) return undefined
+  const spec: StructureSpec = near.kind === 'wall' ? { kind: 'wall', owner: near.owner, shape: near.shape, rotation: near.rotation, at: near.at } : { kind: 'tower', owner: near.owner, power: near.power, at: near.at }
+  return { spec, id: near.id, movable: s.built.includes(near.id) }
+}
+
+export const rotated = (sel: Selection): Selection => (sel.spec.kind === 'wall' ? { ...sel, spec: { ...sel.spec, rotation: ((sel.spec.rotation + 1) % 4) as Rotation } } : sel)
+
+/** Legal where it stands (ignoring itself when moved) and, for a new piece, affordable. */
+export function legal(s: SimState, sel: Selection): boolean {
+  const others = s.objects.filter((o) => o.id !== sel.id)
+  return canPlace(others, sel.spec) && (sel.id !== undefined || s.points[sel.spec.owner] >= structureCost(sel.spec))
+}
+
+/** The sim input ✓ sends: place a new piece or move a structure. Undefined when there is nothing to send. */
+export function commit(sel: Selection): SimInput | undefined {
+  const { spec, id } = sel
+  if (id === undefined) return { placeWall: spec }
+  if (!sel.movable) return undefined
+  return { moveStructure: { player: spec.owner, id, at: spec.at, rotation: spec.kind === 'wall' ? spec.rotation : 0 } }
+}
+
+/** What the build menu shows: the closed or open icon, or the selection's controls. */
+export type BuildMenu = { kind: 'menu'; open: boolean; items: ButtonSpec[] } | { kind: 'selected'; buttons: ButtonSpec[] }
+
+export type BuildActions = { toggle(): void; spawn(p: Piece): void; confirm(): void; cancel(): void; rotate(): void; remove(): void }
+
+const POWER_LABEL: Record<TowerPower, string> = { repulsor: 'Repulsor', steal: 'Steal' }
+
+export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selection?: Selection }, a: BuildActions): BuildMenu {
+  const sel = v.selection
+  if (!sel) {
+    const points = s.points[b]
+    return {
+      kind: 'menu',
+      open: v.open,
+      items: [
+        ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, disabled: points < wallCost(shape), onClick: () => a.spawn(shape) })),
+        ...(Object.keys(POWER_LABEL) as TowerPower[]).map((power) => ({ label: `${POWER_LABEL[power]} ×${s.players[b].inventory[power]}`, disabled: s.players[b].inventory[power] < 1, onClick: () => a.spawn(power) })),
+      ],
+    }
+  }
+  const fresh = sel.id !== undefined && sel.movable
+  return {
+    kind: 'selected',
+    buttons: [
+      ...(sel.id !== undefined ? [{ label: '🗑', disabled: !fresh && s.points[b] < 1, onClick: a.remove }] : []),
+      ...(sel.movable && sel.spec.kind === 'wall' ? [{ label: '↻', onClick: a.rotate }] : []),
+      { label: '✕', onClick: a.cancel },
+      ...(sel.movable ? [{ label: '✓', disabled: !legal(s, sel), onClick: a.confirm }] : []),
+    ],
+  }
+}

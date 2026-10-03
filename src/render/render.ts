@@ -124,6 +124,25 @@ function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; 
   if (t.hp !== undefined) drawCracks(ctx, t as Structure)
 }
 
+/** A thin outline around a structure's footprint, in its owner's colour. */
+function drawOutline(ctx: CanvasRenderingContext2D, w: StructureSpec, dash: number[] = [], pad = 0.6): void {
+  ctx.beginPath()
+  if (w.kind === 'tower') ctx.rect(w.at.gx * CELL_SIZE - pad, w.at.gy * CELL_SIZE - pad, CELL_SIZE + 2 * pad, CELL_SIZE + 2 * pad)
+  else for (const { a, b } of wallSegments(w)) ctx.rect(Math.min(a.x, b.x) - pad, Math.min(a.y, b.y) - pad, Math.abs(b.x - a.x) + 2 * pad, Math.abs(b.y - a.y) + 2 * pad)
+  ctx.setLineDash(dash)
+  ctx.strokeStyle = PLAYER_COLORS[w.owner]
+  ctx.lineWidth = 0.15
+  ctx.stroke()
+  ctx.setLineDash([])
+}
+
+/** The selection highlight: an outline that breathes. */
+function drawPulseOutline(ctx: CanvasRenderingContext2D, w: StructureSpec, now: number): void {
+  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 150)
+  drawOutline(ctx, w, [], 0.8 + 0.15 * Math.sin(now / 150))
+  ctx.globalAlpha = 1
+}
+
 /** Fire effect: a glow over the tower and rings bursting outward from its centre. */
 function drawPulse(ctx: CanvasRenderingContext2D, t: TowerSpec, age: number): void {
   const k = age / GLOW_MS
@@ -232,6 +251,10 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
 export type Overlays = {
   ghost?: StructureSpec
+  /** The builder's selection: a structure being moved (hidden; the ghost stands in for it) or an older one picked to demolish (pulses). */
+  selected?: { id: number; moving: boolean }
+  /** Structures the builder placed this turn, outlined dashed. */
+  movable?: number[]
   fragments?: Fragment[]
   now?: number
   charge?: Charge
@@ -242,7 +265,7 @@ export type Overlays = {
   armed?: PlayerId
 }
 
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, { ghost, fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed }: Overlays = {}): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, { ghost, selected, movable = [], fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed }: Overlays = {}): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
@@ -296,7 +319,10 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
 
   const inRange = new Map(charge && charge.power > 0 ? blastDamage(state.objects, charge.origin, charge.power, charge.player, defaultConfig).map((h) => [h.wall.id, h.wall.owner === charge.player ? COLORS.ownTint : COLORS.illegal]) : [])
   for (const o of state.objects) {
+    if (selected?.moving && selected.id === o.id) continue
     drawWall(ctx, o, inRange.get(o.id))
+    if (movable.includes(o.id)) drawOutline(ctx, o, [0.4, 0.4])
+    if (selected?.id === o.id) drawPulseOutline(ctx, o, now)
     const pulse = fx?.pulses.find((p) => p.tower === o.id)
     if (pulse && o.kind === 'tower') drawPulse(ctx, o, now - pulse.born)
     const flash = fx?.flashes.find((f) => f.wall === o.id)
@@ -347,7 +373,9 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
   ctx.globalAlpha = 1
   if (ghost) {
     ctx.globalAlpha = 0.5
-    drawWall(ctx, ghost, canPlace(state.objects, ghost) ? undefined : COLORS.illegal)
+    drawWall(ctx, ghost, canPlace(state.objects.filter((o) => o.id !== selected?.id), ghost) ? undefined : COLORS.illegal)
+    ctx.globalAlpha = 1
+    drawPulseOutline(ctx, ghost, now)
   }
   if (ballGhost) {
     ctx.globalAlpha = 0.5

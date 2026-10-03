@@ -25,7 +25,7 @@ export type HudModel = {
   shotsLeft: number
   shotsMax: number
   phase: string
-  /** Phase buttons (build palette, Rotate, Confirm, Done) shown under the shared strip; rebuilt only when labels or state change. */
+  /** Phase buttons (Done in a build turn) shown under the shared strip; rebuilt only when labels or state change. */
   buttons?: ButtonSpec[]
   /** Breaker is armed (highlighted) and whether the active player may tap it now. */
   breaker: { armed: boolean; tappable: boolean }
@@ -44,7 +44,7 @@ export const el = (tag: string, css = '', text = '') => {
 }
 export const FONT = 'font:700 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-transform:uppercase;font-variant-numeric:tabular-nums;'
 
-/** One row of buttons, shared by the build palette/Rotate/Confirm/Done and ball-in-hand Confirm. */
+/** One row of buttons, shared by the phase buttons and the strip. */
 export function buttonRow(specs: ButtonSpec[]): HTMLElement {
   const row = el('div', 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;')
   for (const s of specs) {
