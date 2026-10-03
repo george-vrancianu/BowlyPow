@@ -20,6 +20,8 @@ export type InputHost = {
   config(): SimConfig
   /** Whose end of the pitch is at the bottom of the screen. */
   shown(): PlayerId
+  /** Whether a seat is played on this device: every seat in hot-seat, only the peer's own online. */
+  mine(p: PlayerId): boolean
   mapOpen(): boolean
   /** A flip, goal hold, turn card, reveal or REPAIRED sweep is up: the board is not the player's to act on yet. */
   blocked(): boolean
@@ -285,14 +287,14 @@ export class InputController {
       }
       return
     }
-    // Press on the ball to aim (hot-seat: whoever holds the device is the shooter); anywhere else pans.
+    // Press on the ball to aim, when this device plays the shooter (hot-seat: always); anywhere else pans.
     const ball = camera.toCanvas(canvas, state.ball.pos)
     const gesture = aimPress({
       at: { x: e.offsetX, y: e.offsetY },
       now: performance.now(),
       ball: { x: ball.x / this.canvasPx, y: ball.y / this.canvasPx },
       ballRadiusPx: this.host.config().ballRadius * this.pxPerUnit,
-      canShoot: !state.possession.live,
+      canShoot: !state.possession.live && this.host.mine(state.possession.shooter),
       size: { w: canvas.clientWidth, h: canvas.clientHeight },
     })
     if (gesture.phase === 'pan') {

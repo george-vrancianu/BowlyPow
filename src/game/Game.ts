@@ -126,6 +126,7 @@ export class Game implements Sink {
       state: () => this.state,
       config: () => this.config,
       shown: () => this.transition.shown,
+      mine,
       mapOpen: () => this.mapOpen,
       blocked: this.blocked,
       toggleMap: (open) => this.toggleMap(open),
