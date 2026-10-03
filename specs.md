@@ -62,7 +62,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 - If the build timer runs out while the builder owns nothing, the sim places a fallback piece (a straight wall at a fixed cell on the builder's half, or a Repulsor if the wall is unaffordable) and then finishes the turn, with no `refused` event. The build clock never goes below 0.
 - A goal emits the goal event, resets the ball to the pitch center and gives the conceder ball-in-hand with a fresh shot counter. Own goals count for the opponent.
 - There is no shot cap: shots never end anything.
-- The HUD shows no score digit and no round label.
+- The HUD shows each player's remaining structure count, towers included, in place of the score digit, and no round label.
 - The match has no end condition yet.
 - Wall points default to 10; a value to tune after play-testing.
 
