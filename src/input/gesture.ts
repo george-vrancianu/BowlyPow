@@ -1,7 +1,6 @@
 import { visual } from '../config/visual'
 import type { Point } from '../sim/pitch'
 
-
 /** `charge` while still, `pan` once moved during the dwell (camera ticket), `dead` once moved during the ramp. */
 export type Gesture = { start: Point; t0: number; mode: 'charge' | 'pan' | 'dead' }
 
@@ -9,7 +8,7 @@ export type Gesture = { start: Point; t0: number; mode: 'charge' | 'pan' | 'dead
 export const gestureStart = (start: Point, now: number): Gesture => ({ start, t0: now, mode: 'charge' })
 
 export function gestureMove(g: Gesture, at: Point, now: number): Gesture {
-  if (g.mode !== 'charge' || Math.hypot(at.x - g.start.x, at.y - g.start.y) <= visual.aim.slopPx) return g
+  if (g.mode !== 'charge' || Math.hypot(at.x - g.start.x, at.y - g.start.y) <= visual.input.slopPx) return g
   return { ...g, mode: now - g.t0 < visual.aim.dwellMs ? 'pan' : 'dead' }
 }
 

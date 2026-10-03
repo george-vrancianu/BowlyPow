@@ -23,16 +23,21 @@ const base = {
   onlineBuildSeconds: 30,
   /** Blast radius is `radiusBase * ballRadius * (1 + radiusGrowth * power)`; pressure above `heavy` / `light` costs more hp. */
   blast: { radiusBase: 2, radiusGrowth: 4, heavy: 0.8, light: 0.4 },
-}
+} as const
+
+const mapTop = -base.board - base.netDepth
+const mapHeight = base.pitchHeight + 2 * (base.board + base.netDepth)
 
 /** Every rule and geometry value; derived values are computed from the base. */
 export const rules = {
   ...base,
   halfHeight: base.pitchHeight / 2,
+  /** The middle of each player's half, where their ball goes and the build view starts. */
+  halfCentre: { 1: (3 * base.pitchHeight) / 4, 2: base.pitchHeight / 4 } as Record<1 | 2, number>,
   goalLeft: (base.pitchWidth - base.goalWidth) / 2,
   goalRight: (base.pitchWidth + base.goalWidth) / 2,
-  /** World y range of everything drawn: boards and nets included. */
-  mapTop: -base.board - base.netDepth,
-  mapHeight: base.pitchHeight + 2 * (base.board + base.netDepth),
-  mapY: base.pitchHeight / 2,
-}
+  /** World y range of everything drawn: boards and nets included, and its centre. */
+  mapTop,
+  mapHeight,
+  mapY: mapTop + mapHeight / 2,
+} as const

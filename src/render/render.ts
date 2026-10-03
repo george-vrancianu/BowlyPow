@@ -7,7 +7,6 @@ import { viewOf, type Camera } from './camera'
 import { shakeOffset, type Fx } from './feedback'
 import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerPower, type TowerSpec } from '../sim/wall'
 
-
 /** Canvas pixel position to world units through the camera. */
 export function screenToWorld(canvas: { width: number; height: number }, cam: Camera, px: number, py: number): Point {
   const { sx, sy, pane } = viewOf(canvas, cam)
@@ -71,7 +70,7 @@ function drawWall(ctx: CanvasRenderingContext2D, w: { owner: StructureSpec['owne
   ctx.lineWidth = 1
   ctx.stroke()
   ctx.strokeStyle = fill ?? (w.owner === 2 ? hatch(ctx) : visual.player.colors[1])
-  ctx.lineWidth = 0.7
+  ctx.lineWidth = 2 * rules.wallHalf
   ctx.stroke()
   if ('hp' in w) drawCracks(ctx, w as Structure)
 }
@@ -112,7 +111,7 @@ function drawTower(ctx: CanvasRenderingContext2D, t: TowerSpec & { hp?: number; 
   const [x, y] = [t.at.gx * rules.cellSize, t.at.gy * rules.cellSize]
   ctx.fillStyle = fill ?? (t.owner === 2 ? hatch(ctx) : visual.player.colors[1])
   ctx.fillRect(x, y, rules.cellSize, rules.cellSize)
-  ctx.strokeStyle = visual.wall.outline
+  ctx.strokeStyle = visual.tower.outline
   ctx.lineWidth = 0.3
   ctx.strokeRect(x, y, rules.cellSize, rules.cellSize)
   ctx.lineWidth = 0.1
@@ -164,8 +163,8 @@ function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState[
   if (speed > 0) {
     const tail = { x: pos.x - vel.x * visual.ball.trailLength, y: pos.y - vel.y * visual.ball.trailLength }
     const g = ctx.createLinearGradient(pos.x, pos.y, tail.x, tail.y)
-    g.addColorStop(0, bright ? visual.tower.glow : 'rgba(255,255,255,0.5)')
-    g.addColorStop(1, 'rgba(255,255,255,0)')
+    g.addColorStop(0, bright ? visual.ball.trailBright : visual.ball.trail)
+    g.addColorStop(1, visual.ball.trailClear)
     ctx.beginPath()
     ctx.moveTo(pos.x, pos.y)
     ctx.lineTo(tail.x, tail.y)
@@ -178,12 +177,12 @@ function drawBall(ctx: CanvasRenderingContext2D, { pos, vel, rolled }: SimState[
   ctx.arc(pos.x, pos.y, scale, 0, Math.PI * 2)
   ctx.fillStyle = visual.ball.fill
   ctx.fill()
-  ctx.strokeStyle = visual.wall.outline
+  ctx.strokeStyle = visual.ball.outline
   ctx.lineWidth = 0.12
   ctx.stroke()
   ctx.beginPath()
   ctx.arc(pos.x + Math.cos(rolled) * 0.55 * scale, pos.y + Math.sin(rolled) * 0.55 * scale, 0.2 * scale, 0, Math.PI * 2)
-  ctx.fillStyle = visual.wall.outline
+  ctx.fillStyle = visual.ball.outline
   ctx.fill()
 }
 
@@ -193,7 +192,7 @@ export type Charge = { origin: Point; power: number; player: PlayerId }
 export type Wave = { origin: Point; radius: number; born: number }
 export const waveAlive = (w: Wave, now: number) => now - w.born < visual.aim.waveMs
 
-const lerpRed = (t: number) => `rgb(${Math.round(255 * t + 90 * (1 - t))},${Math.round(90 * (1 - t) + 40 * t)},${Math.round(90 * (1 - t) + 40 * t)})`
+const chargeColor = (t: number) => `rgb(${visual.aim.chargeFrom.map((from, i) => Math.round(from * (1 - t) + visual.aim.chargeTo[i] * t)).join(',')})`
 
 function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, power, player }: Charge, now: number, config: SimConfig): void {
   ctx.lineWidth = 0.15
@@ -207,7 +206,7 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
     return
   }
   const r = blastRadius(power, config)
-  const color = lerpRed(power)
+  const color = chargeColor(power)
   ctx.beginPath()
   ctx.arc(origin.x, origin.y, r, 0, Math.PI * 2)
   ctx.globalAlpha = 0.15
@@ -238,7 +237,7 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
       ctx.lineTo(tip.x - Math.cos(ang + s * 0.5) * 0.8, tip.y - Math.sin(ang + s * 0.5) * 0.8)
     }
     ctx.globalAlpha = 0.6
-    ctx.strokeStyle = visual.ball.fill
+    ctx.strokeStyle = visual.aim.arrow
     ctx.stroke()
     ctx.globalAlpha = 1
   }
@@ -330,7 +329,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
       const t = (now - flash.born) / (flash.dim ? visual.wall.dimFlashMs : visual.wall.flashMs)
       if (t < 1) {
         ctx.globalAlpha = (flash.dim ? visual.wall.dimFlashAlpha : 1) * (1 - t)
-        drawWall(ctx, o, visual.tower.glow)
+        drawWall(ctx, o, visual.wall.flash)
         ctx.globalAlpha = 1
       }
     }
@@ -364,7 +363,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
   }
   for (const f of fragments) drawFragment(ctx, f, now)
   for (const p of fx?.particles ?? []) {
-    const t = (now - p.born) / visual.fx.particleMs
+    const t = (now - p.born) / visual.wall.particles.ms
     if (t >= 1) continue
     ctx.globalAlpha = 1 - t
     ctx.fillStyle = p.color
@@ -386,7 +385,7 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
     ctx.globalAlpha = 0.5
     ctx.beginPath()
     ctx.arc(ballGhost.at.x, ballGhost.at.y, config.ballRadius, 0, Math.PI * 2)
-    ctx.fillStyle = ballGhost.legal ? visual.ball.fill : visual.wall.illegal
+    ctx.fillStyle = ballGhost.legal ? visual.ball.fill : visual.ball.illegal
     ctx.fill()
     ctx.globalAlpha = 1
   }

@@ -5,7 +5,6 @@ export type PlayerId = 1 | 2
 export type Point = { x: number; y: number }
 export type Cell = { cx: number; cy: number }
 
-
 /** The player whose half contains y, or null exactly on the halfway line. */
 export function halfOf(y: number): PlayerId | null {
   if (y === rules.halfHeight) return null
@@ -21,7 +20,7 @@ export function worldToCell({ x, y }: Point): Cell {
   return { cx: Math.floor(x / rules.cellSize), cy: Math.floor(y / rules.cellSize) }
 }
 
-/** Inside the semicircle of radius 15 around either goal mouth. */
+/** Inside the semicircle of the no-build radius around either goal mouth. */
 export function inNoBuildZone({ x, y }: Point): boolean {
   const dy = Math.min(y, rules.pitchHeight - y)
   return (x - rules.pitchWidth / 2) ** 2 + dy ** 2 <= rules.noBuildRadius ** 2

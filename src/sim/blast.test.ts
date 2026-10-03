@@ -1,5 +1,5 @@
-import { rules } from '../config/rules'
 import { describe, expect, it } from 'vitest'
+import { rules } from '../config/rules'
 import { blastRadius, canBlastFrom } from './blast'
 import { defaultConfig as c, step, type SimInput, type SimState } from './step'
 import { playState } from './testkit'

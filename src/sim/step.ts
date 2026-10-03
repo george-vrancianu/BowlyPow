@@ -193,7 +193,7 @@ export function step(
         events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
       } else {
         if (possession.inHand) {
-          ball = { ...ball, pos: { x: rules.pitchWidth / 2, y: shooter === 1 ? 1.5 * rules.halfHeight : rules.halfHeight / 2 }, vel: { x: 0, y: 0 } }
+          ball = { ...ball, pos: { x: rules.pitchWidth / 2, y: rules.halfCentre[shooter] }, vel: { x: 0, y: 0 } }
           possession = { ...possession, inHand: false }
         }
         const r = resolveRest(possession, ball.pos.y, config)

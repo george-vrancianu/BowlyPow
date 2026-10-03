@@ -10,7 +10,6 @@ export type Player = {
   inventory: Record<PowerUp, number>
 }
 
-
 export function initialPlayers(): Record<PlayerId, Player> {
   const make = (id: PlayerId): Player => ({ id, color: visual.player.colors[id], inventory: { breaker: rules.startInventory, repulsor: rules.startInventory, steal: rules.startInventory } })
   return { 1: make(1), 2: make(2) }

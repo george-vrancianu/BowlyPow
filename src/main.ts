@@ -139,7 +139,7 @@ canvas.onpointercancel = (e) => canvas.onpointerup!(e)
 canvas.onpointerup = (e) => {
   draggingBall = false
   if (drag?.id === e.pointerId) drag = undefined
-  if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= visual.aim.tapSlopPx) ballGhost = toWorld(e)
+  if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= visual.input.tapSlopPx) ballGhost = toWorld(e)
   tap = undefined
   pointers.delete(e.pointerId)
   panOnly = false
@@ -252,7 +252,7 @@ let last = performance.now()
 let lastFrame = last
 
 function frame(now: number) {
-  acc += Math.min((now - last) / 1000, 0.25)
+  acc += Math.min((now - last) / 1000, visual.frame.maxDtS)
   last = now
   // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
   const phase = state.match.builder ? 'Build' : 'Play'
@@ -288,7 +288,7 @@ function frame(now: number) {
       lastBuilder = state.match.builder
       selection = landing = drag = undefined
       menuOpen = false
-      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * rules.halfHeight - camera.y, layout(canvas).visibleHeight)
+      if (lastBuilder) pan(camera, rules.halfCentre[lastBuilder] - camera.y, layout(canvas).visibleHeight)
       else recenter(camera)
     }
     if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
@@ -307,8 +307,8 @@ function frame(now: number) {
   if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), recenter(camera)
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
   overlay.update(overlayView(transition, now))
-  if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
-  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, visual.frame.maxDtS))
+  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, visual.frame.maxDtS), layout(canvas).visibleHeight)
   lastFrame = now
   if (state.match.winner && !matchShown) (matchShown = true, screens.matchEnd(state.match.winner, state.match.score, !!net))
   confirm.hidden = !state.possession.inHand || !!state.match.builder || !mine(state.possession.shooter)
@@ -340,7 +340,7 @@ function frame(now: number) {
   })
   if (mapOpen) {
     const o = viewOutline(canvas, mapCam, camera)
-    ctx.strokeStyle = visual.map.outline
+    ctx.strokeStyle = visual.camera.mapOutline
     ctx.lineWidth = 2 * dpr
     ctx.strokeRect(o.x, o.y, o.w, o.h)
   }

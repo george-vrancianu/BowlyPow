@@ -1,5 +1,5 @@
-import { rules } from '../config/rules'
 import { describe, expect, it } from 'vitest'
+import { rules } from '../config/rules'
 import { canPlaceBall } from './possession'
 import { defaultConfig as c, step, type SimState } from './step'
 import { playState } from './testkit'

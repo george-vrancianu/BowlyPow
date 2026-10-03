@@ -57,7 +57,7 @@ export function buttonRow(specs: ButtonSpec[]): HTMLElement {
   return row
 }
 
-const ring = (f: number, color = visual.hud.ink) => `conic-gradient(${color} ${f * 360}deg,${visual.hud.track} 0)`
+const ring = (f: number, color: string = visual.hud.ink) => `conic-gradient(${color} ${f * 360}deg,${visual.hud.track} 0)`
 
 /** DOM overlay mounted over the canvas; call `update` every frame with the current model and canvas size. */
 export function createHud(root: HTMLElement, actions: HudActions) {
@@ -121,9 +121,9 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     }
     round.textContent = `Round ${m.round} / ${m.rounds}`
     clockNum.textContent = m.clock ? String(Math.ceil(m.clock.seconds)) : '-'
-    const urgent = !!m.clock && m.clock.seconds <= 5
+    const urgent = !!m.clock && m.clock.seconds <= visual.hud.urgentSeconds
     clockNum.style.background = ring(m.clock?.fraction ?? 0, urgent ? visual.hud.urgent : undefined)
-    clockNum.style.transform = urgent ? `scale(${1 + 0.15 * Math.abs(Math.sin(Math.PI * m.clock!.seconds))})` : ''
+    clockNum.style.transform = urgent ? `scale(${1 + visual.hud.urgentPulse * Math.abs(Math.sin(Math.PI * m.clock!.seconds))})` : ''
     dots.replaceChildren(...Array.from({ length: m.shotsMax }, (_, i) => el('span', `width:12px;height:12px;border-radius:50%;border:2px solid ${visual.hud.ink};background:${i < m.shotsLeft ? visual.hud.ink : 'none'};`)))
     phase.textContent = m.phase
     const key = JSON.stringify((m.buttons ?? []).map(({ label, disabled }) => [label, disabled]))

@@ -1,8 +1,6 @@
 import { visual } from '../config/visual'
-import { rules } from '../config/rules'
 import type { PlayerId, Point } from '../sim/pitch'
 import type { SimEvent } from '../sim/step'
-
 
 type Overlay = { kind: 'turn' | 'goal' | 'sweep'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point }
 /** `shown` is whose end of the pitch is at the bottom of the screen; `due` = a handover is waiting (e.g. for the goal hold to end). */
