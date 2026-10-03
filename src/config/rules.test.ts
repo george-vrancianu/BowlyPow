@@ -1,0 +1,11 @@
+import { describe, expect, it } from 'vitest'
+import { rules } from './rules'
+
+describe('rules', () => {
+  it('derives the halfway line, goal mouth and map extents from the base geometry', () => {
+    expect(rules.halfHeight).toBe(54)
+    expect(rules.halfCentre).toEqual({ 1: 81, 2: 27 })
+    expect([rules.goalLeft, rules.goalRight]).toEqual([15, 25])
+    expect([rules.mapTop, rules.mapHeight, rules.mapY]).toEqual([-4, 116, 54])
+  })
+})

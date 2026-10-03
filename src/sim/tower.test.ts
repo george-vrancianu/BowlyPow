@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { rules } from '../config/rules'
 import { defaultConfig, step, type SimInput, type SimState } from './step'
 import { buildState, place, playState } from './testkit'
 import { canBlastFrom } from './blast'
-import { canPlace, damageWall, isLegal, TOWER_COST, TOWER_HP, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
+import { canPlace, damageWall, isLegal, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
 
 const tower = (gx: number, gy: number, owner: TowerSpec['owner'] = 1): TowerSpec => ({ kind: 'tower', owner, power: 'repulsor', at: { gx, gy } })
 const straight = (gx: number, gy: number, rotation: WallSpec['rotation'] = 0): WallSpec => ({ kind: 'wall', owner: 1, shape: 'straight', rotation, at: { gx, gy } })
@@ -19,8 +20,8 @@ describe('tower shape', () => {
     ])
   })
   it('costs 0 wall points and has configurable hp', () => {
-    expect(TOWER_COST).toBe(0)
-    expect(TOWER_HP).toBe(3)
+    expect(rules.towerCost).toBe(0)
+    expect(rules.towerHp).toBe(3)
   })
 })
 
@@ -37,9 +38,9 @@ describe('tower placement', () => {
   it('refuses the own no-build zone', () => {
     expect(isLegal(tower(10, 52))).toBe(false)
   })
-  it('places through step with TOWER_HP and no point cost, refuses illegal ones', () => {
+  it('places through step with rules.towerHp and no point cost, refuses illegal ones', () => {
     const r = run(buildState(1), { placeWall: tower(5, 40) })
-    expect(r.state.objects).toMatchObject([{ kind: 'tower', id: 1, hp: TOWER_HP }])
+    expect(r.state.objects).toMatchObject([{ kind: 'tower', id: 1, hp: rules.towerHp }])
     expect(r.state.points).toEqual(playState().points)
     expect(run(buildState(1), { placeWall: tower(5, 10) }).events).toEqual([{ type: 'refused' }])
   })
@@ -72,7 +73,7 @@ describe('tower damage', () => {
 })
 
 describe('tower and blasts', () => {
-  const state = (t: TowerSpec): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, objects: [{ ...t, id: 1, hp: TOWER_HP }] })
+  const state = (t: TowerSpec): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, objects: [{ ...t, id: 1, hp: rules.towerHp }] })
   it('a blast cannot start inside or on a tower, but can start beside it', () => {
     const s = state(tower(5, 40))
     expect(canBlastFrom(1, { x: 11, y: 81 }, s, defaultConfig)).toBe(false)
@@ -82,6 +83,6 @@ describe('tower and blasts', () => {
   it('takes blast damage by the same pressure rule: enemy tower loses 1 hp above 0.4', () => {
     // Tower square y 48..50; origin 5 away at full power (radius 10) gives pressure 0.5.
     const r = step(state(tower(10, 24, 2)), { blast: { player: 1, origin: { x: 21, y: 55 }, power: 1 } }, defaultConfig)
-    expect(r.state.objects[0].hp).toBe(TOWER_HP - 1)
+    expect(r.state.objects[0].hp).toBe(rules.towerHp - 1)
   })
 })

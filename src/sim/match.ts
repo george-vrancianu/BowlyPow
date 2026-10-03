@@ -1,4 +1,5 @@
-import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { rules } from '../config/rules'
+import { type PlayerId, type Point } from './pitch'
 import { opponent, type Possession } from './possession'
 import type { SimConfig, SimEvent } from './step'
 
@@ -30,7 +31,7 @@ export function endRound(m: Match, scorer: PlayerId | null, c: SimConfig): { mat
   return {
     match: { ...m, score, round, roundShots: 0, winner, builder: winner ? null : firstBuilder(m.seed, round) },
     possession: startingPossession(shooter, c),
-    ball: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT },
+    ball: { x: rules.pitchWidth / 2, y: rules.halfHeight },
     events,
   }
 }

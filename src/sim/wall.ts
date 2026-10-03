@@ -1,7 +1,8 @@
-import { CELL_SIZE, cellToWorld, GOAL_LEFT, GOAL_RIGHT, halfOf, inNoBuildZone, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { rules } from '../config/rules'
+import { cellToWorld, halfOf, inNoBuildZone, type PlayerId, type Point } from './pitch'
 import type { SimEvent } from './step'
 
-/** A grid vertex: world position is (gx, gy) * CELL_SIZE. */
+/** A grid vertex: world position is (gx, gy) * rules.cellSize. */
 export type Vertex = { gx: number; gy: number }
 export type Segment = { a: Point; b: Point }
 export type WallShape = 'straight' | 'L'
@@ -22,26 +23,15 @@ export type Structure = Wall | Tower
 
 export type TowerPower = TowerSpec['power']
 
-export const WALL_HP = 3
-export const TOWER_HP = 3
-export const TOWER_COST = 0
-/** A Steal tower is fragile; the rest take TOWER_HP. */
-const POWER_HP: Record<TowerPower, number> = { repulsor: TOWER_HP, steal: 1 }
-export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? POWER_HP[s.power] : WALL_HP)
+const POWER_HP: Record<TowerPower, number> = { repulsor: rules.towerHp, steal: rules.stealHp }
+export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? POWER_HP[s.power] : rules.wallHp)
 
-/** Each arm is a run of cells from the pivot, in grid units, before rotation. */
-const ARMS: Record<WallShape, [number, number][]> = {
-  straight: [[4, 0]],
-  L: [[3, 0], [0, 3]],
-}
-const COST: Record<WallShape, number> = { straight: 2, L: 3 }
-
-export const wallCost = (shape: WallShape): number => COST[shape]
+export const wallCost = (shape: WallShape): number => rules.wallCost[shape]
 /** Wall points a placement spends; towers cost inventory instead. */
-export const structureCost = (s: StructureSpec): number => (s.kind === 'wall' ? wallCost(s.shape) : TOWER_COST)
+export const structureCost = (s: StructureSpec): number => (s.kind === 'wall' ? wallCost(s.shape) : rules.towerCost)
 
 function arms({ shape, rotation }: WallSpec): [number, number][] {
-  return ARMS[shape].map(([x, y]) => {
+  return rules.arms[shape].map(([x, y]) => {
     for (let i = 0; i < rotation; i++) [x, y] = [-y, x]
     return [x, y]
   })
@@ -66,14 +56,14 @@ export function wallCells(w: StructureSpec): { a: Vertex; b: Vertex }[] {
 
 /** Legal when every cell lies inside the pitch, on the owner's half (a cell on the halfway line belongs to neither) and outside the owner's no-build zone. */
 export function isLegal(w: StructureSpec): boolean {
-  const goalY = w.owner === 2 ? 0 : PITCH_HEIGHT
+  const goalY = w.owner === 2 ? 0 : rules.pitchHeight
   // A tower is judged as the whole square (a diagonal pair spans its box), so an edge resting on the halfway line is fine.
   const parts = w.kind === 'tower' ? [{ a: w.at, b: { gx: w.at.gx + 1, gy: w.at.gy + 1 } }] : wallCells(w)
   return parts.every(({ a, b }) => {
-    const [x0, x1] = [a.gx, b.gx].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
-    const [y0, y1] = [a.gy, b.gy].map((g) => g * CELL_SIZE).sort((p, q) => p - q)
-    const nearestToGoal = { x: Math.min(Math.max(PITCH_WIDTH / 2, x0), x1), y: Math.min(Math.max(goalY, y0), y1) }
-    return x0 >= 0 && x1 <= PITCH_WIDTH && y0 >= 0 && y1 <= PITCH_HEIGHT && halfOf((y0 + y1) / 2) === w.owner && !inNoBuildZone(nearestToGoal)
+    const [x0, x1] = [a.gx, b.gx].map((g) => g * rules.cellSize).sort((p, q) => p - q)
+    const [y0, y1] = [a.gy, b.gy].map((g) => g * rules.cellSize).sort((p, q) => p - q)
+    const nearestToGoal = { x: Math.min(Math.max(rules.pitchWidth / 2, x0), x1), y: Math.min(Math.max(goalY, y0), y1) }
+    return x0 >= 0 && x1 <= rules.pitchWidth && y0 >= 0 && y1 <= rules.pitchHeight && halfOf((y0 + y1) / 2) === w.owner && !inNoBuildZone(nearestToGoal)
   })
 }
 
@@ -82,11 +72,11 @@ export function isLegal(w: StructureSpec): boolean {
  * Flood fill over the owner's half in cells; a wall cell blocks the step across its edge, so a gap must be a full cell wide.
  */
 function goalReachable(walls: StructureSpec[], owner: PlayerId): boolean {
-  const [cols, rows] = [PITCH_WIDTH / CELL_SIZE, PITCH_HEIGHT / CELL_SIZE]
+  const [cols, rows] = [rules.pitchWidth / rules.cellSize, rules.pitchHeight / rules.cellSize]
   const edge = (ax: number, ay: number, bx: number, by: number) => `${ax},${ay},${bx},${by}`
   const blocked = new Set(walls.flatMap(wallCells).map(({ a, b }) => (a.gx + a.gy < b.gx + b.gy ? edge(a.gx, a.gy, b.gx, b.gy) : edge(b.gx, b.gy, a.gx, a.gy))))
   const [first, last] = owner === 1 ? [rows / 2, rows - 1] : [rows / 2 - 1, 0]
-  const goalMouth = (cx: number) => { const { x } = cellToWorld({ cx, cy: 0 }); return x >= GOAL_LEFT && x <= GOAL_RIGHT }
+  const goalMouth = (cx: number) => { const { x } = cellToWorld({ cx, cy: 0 }); return x >= rules.goalLeft && x <= rules.goalRight }
   const key = (cx: number, cy: number) => cx * rows + cy
   const seen = new Set<number>()
   const stack: [number, number][] = Array.from({ length: cols }, (_, cx) => [cx, first])
@@ -118,9 +108,9 @@ export function canPlace(existing: StructureSpec[], w: StructureSpec): boolean {
 
 /** Zero-thickness collision segments in world units, one per arm. */
 export function wallSegments(w: StructureSpec): Segment[] {
-  if (w.kind === 'tower') return wallCells(w).map(({ a, b }) => ({ a: { x: a.gx * CELL_SIZE, y: a.gy * CELL_SIZE }, b: { x: b.gx * CELL_SIZE, y: b.gy * CELL_SIZE } }))
-  const a = { x: w.at.gx * CELL_SIZE, y: w.at.gy * CELL_SIZE }
-  return arms(w).map(([x, y]) => ({ a, b: { x: a.x + x * CELL_SIZE, y: a.y + y * CELL_SIZE } }))
+  if (w.kind === 'tower') return wallCells(w).map(({ a, b }) => ({ a: { x: a.gx * rules.cellSize, y: a.gy * rules.cellSize }, b: { x: b.gx * rules.cellSize, y: b.gy * rules.cellSize } }))
+  const a = { x: w.at.gx * rules.cellSize, y: w.at.gy * rules.cellSize }
+  return arms(w).map(([x, y]) => ({ a, b: { x: a.x + x * rules.cellSize, y: a.y + y * rules.cellSize } }))
 }
 
 /** One jagged crack per lost hit point, as world-space polylines. Deterministic in (id, hp) so peers draw the same cracks. */
@@ -131,10 +121,10 @@ export function crackLines(w: Structure): Point[][] {
     let seed = (w.id * 31 + (maxHp(w) - 1 - k)) * 2654435761
     const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) >>> 0) / 2 ** 32)
     const { a, b } = cells[Math.floor(rnd() * cells.length)]
-    const [cx, cy] = [((a.gx + b.gx) / 2) * CELL_SIZE, ((a.gy + b.gy) / 2) * CELL_SIZE]
+    const [cx, cy] = [((a.gx + b.gx) / 2) * rules.cellSize, ((a.gy + b.gy) / 2) * rules.cellSize]
     // Across the wall: perpendicular to the cell's direction.
     const [nx, ny] = [Math.abs(b.gy - a.gy), Math.abs(b.gx - a.gx)]
-    const along = (rnd() - 0.5) * CELL_SIZE * 0.6
+    const along = (rnd() - 0.5) * rules.cellSize * 0.6
     return [-0.4, -0.13, 0.13, 0.4].map((t) => {
       const j = (rnd() - 0.5) * 0.5
       return { x: cx + nx * t + ny * (along + j), y: cy + ny * t + nx * (along + j) }
