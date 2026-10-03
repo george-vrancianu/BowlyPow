@@ -36,6 +36,11 @@ export class Ball extends Entity {
     return !!this.sinking && this.sinking.age < visual.ball.stealMs
   }
 
+  /** A new match: no pulse, no steal sink, no ghost. */
+  reset(): void {
+    this.pulseAge = this.sinking = this.placement = this.armed = undefined
+  }
+
   override update(dt: number): void {
     super.update(dt)
     if (this.pulseAge !== undefined) this.pulseAge += dt * 1000

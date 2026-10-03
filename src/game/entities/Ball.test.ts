@@ -24,3 +24,13 @@ describe('Ball', () => {
     expect(b.stealing).toBe(false)
   })
 })
+
+describe('Ball reset', () => {
+  it('forgets a pulse and a steal sink in progress', () => {
+    const b = new Ball()
+    b.pulse()
+    b.steal({ x: 0, y: 0 }, { x: 5, y: 5 })
+    b.reset()
+    expect([b.bright, b.stealing]).toEqual([false, false])
+  })
+})

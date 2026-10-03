@@ -26,6 +26,12 @@ export class Aim extends Entity {
     if (this.config) this.waves.push({ origin, radius: blastRadius(power, this.config), born: this.clock })
   }
 
+  /** A new match: no rings, no charge. */
+  reset(): void {
+    this.waves = []
+    this.charge = undefined
+  }
+
   get waveCount(): number {
     return this.waves.length
   }

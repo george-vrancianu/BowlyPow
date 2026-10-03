@@ -31,7 +31,7 @@ const game = new Game(canvas, (v: HudView) => {
   fab.update(v.menu, game.actions.build.toggle, v.size, v.flipped)
   confirm.hidden = !v.confirm
   mapUi.style.display = v.mapOpen ? 'flex' : 'none'
-  if (v.winner && !matchShown) (matchShown = true, screens.matchEnd(v.winner, v.score))
+  if (v.winner && !matchShown) (matchShown = true, screens.matchEnd(v.winner, v.result))
 })
 confirm.onclick = game.actions.confirmBall
 document.getElementById('map-close')!.onclick = () => game.actions.map(false)

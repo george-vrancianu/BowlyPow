@@ -61,9 +61,8 @@ export class Tower extends Fixture {
 
   protected override drawEffect(ctx: CanvasRenderingContext2D): void {
     const d = this.data
-    if (d.kind !== 'tower' || this.pulseAge === undefined) return
-    if (!this.glowing) return
-    const k = this.pulseAge / visual.tower.glowMs
+    if (d.kind !== 'tower' || !this.glowing) return
+    const k = this.pulseAge! / visual.tower.glowMs
     const [cx, cy] = [(d.at.gx + 0.5) * rules.cellSize, (d.at.gy + 0.5) * rules.cellSize]
     ctx.globalAlpha = 1 - k
     ctx.fillStyle = visual.tower.glow

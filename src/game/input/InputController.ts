@@ -3,7 +3,7 @@ import { visual } from '../../config/visual'
 import { canBlastFrom } from '../../sim/blast'
 import { halfOf, type PlayerId, type Point } from '../../sim/pitch'
 import { canArm, canPlaceBall } from '../../sim/possession'
-import type { SimConfig, SimEvent, SimInput, SimState } from '../../sim/step'
+import type { SimConfig, SimInput, SimState } from '../../sim/step'
 import { layout, type Camera } from '../entities/Camera'
 import type { Charge } from '../entities/Aim'
 import { commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type BuildActions, type Piece, type Selection } from '../view/buildMenu'
@@ -19,6 +19,8 @@ export type InputHost = {
   /** Whose end of the pitch is at the bottom of the screen. */
   shown(): PlayerId
   mapOpen(): boolean
+  /** A flip, goal hold, turn card, reveal or REPAIRED sweep is up: the board is not the player's to act on yet. */
+  blocked(): boolean
   toggleMap(open?: boolean): void
   send(input: SimInput): void
 }
@@ -78,7 +80,7 @@ export class InputController {
 
   confirmBall = () => {
     const { shooter } = this.host.state().possession
-    if (this.ballGhost && canPlaceBall(shooter, this.ballGhost, this.host.state().objects, this.host.config())) this.host.send({ placeBall: { player: shooter, at: this.ballGhost } })
+    if (!this.host.blocked() && !this.host.state().match.choosing && this.ballGhost && canPlaceBall(shooter, this.ballGhost, this.host.state().objects, this.host.config())) this.host.send({ placeBall: { player: shooter, at: this.ballGhost } })
   }
 
   /** Tap on the Breaker icon. */
@@ -120,10 +122,16 @@ export class InputController {
   }
 
   /** After each sim tick: drop what the new state has made stale. */
-  settle(state: SimState, events: SimEvent[]): void {
+  settle(state: SimState, refused: boolean): void {
     if (!canArm(state, state.possession.shooter)) this.armed = false
-    if (!state.possession.inHand) this.ballGhost = undefined
-    if (this.landing && (landed(state, this.landing) || events.some((ev) => ev.type === 'refused'))) this.landing = undefined
+    if (!state.possession.inHand || state.match.choosing) this.ballGhost = undefined
+    if (this.landing && (landed(state, this.landing) || refused)) this.landing = undefined
+  }
+
+  /** Drops a ghost ball and any half-made gesture. */
+  cancelGestures(): void {
+    this.ballGhost = this.tap = this.charge = undefined
+    this.draggingBall = false
   }
 
   /** The build turn changed hands or ended: a new piece is gone, a moved one never left its spot in the sim. */
@@ -194,6 +202,8 @@ export class InputController {
 
   private down(e: PointerEvent): void {
     const { canvas, camera, mapCam } = this.host
+    // The Map and Close buttons still work; everything else is ignored behind a blocking hold, so a tap there cannot carry into the next player's turn.
+    if (this.host.blocked() && !this.host.mapOpen()) return
     if (this.host.mapOpen()) {
       camera.pan(mapCam.toWorld(canvas, e.offsetX * this.canvasPx, e.offsetY * this.canvasPx).y - camera.y)
       this.host.toggleMap(false)
@@ -218,6 +228,11 @@ export class InputController {
         this.drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY, id: e.pointerId, from: { x: e.offsetX, y: e.offsetY }, moved: false }
         canvas.setPointerCapture(e.pointerId)
       } else this.panOnly = true
+      return
+    }
+    // A defence choice is pending: the board is for looking at, not for placing the ball.
+    if (state.match.choosing) {
+      this.panOnly = true
       return
     }
     // Ball-in-hand: tap a point to place the ghost ball, drag it to move (dragging elsewhere pans), Confirm fixes it.

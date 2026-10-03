@@ -60,7 +60,7 @@ describe('Structures', () => {
     s.sync([wall(1), wall(2)])
     s.hidden = [1]
     s.movable = [2]
-    s.update(0)
+    s.mark()
     expect([s.get(1)?.hidden, s.get(2)?.hidden, s.get(1)?.movable, s.get(2)?.movable]).toEqual([true, false, false, true])
   })
 
@@ -68,9 +68,48 @@ describe('Structures', () => {
     const s = new Structures()
     s.sync([wall(1), wall(2)])
     s.preview = new Map([[1, true], [2, false]])
-    s.update(0)
+    s.mark()
     expect(s.get(1)?.tint).toBe(visual.wall.ownTint)
     expect(s.get(2)?.tint).toBe(visual.wall.illegal)
+  })
+})
+
+/** A context that counts every call by name; assignments are swallowed. */
+const counter = () => {
+  const calls: Record<string, number> = {}
+  const ctx = new Proxy({} as Record<string, unknown>, {
+    get: (_t, k: string) => (k === 'canvas' ? {} : (..._a: unknown[]) => ((calls[k] = (calls[k] ?? 0) + 1), { addColorStop() {} })),
+    set: () => true,
+  })
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls }
+}
+
+describe('draw order', () => {
+  it('shatter fragments are drawn by the overlay, which sits above the ball and aim, not by the structures', () => {
+    const s = new Structures()
+    s.sync([wall(1)])
+    s.shatter(1, from)
+    run(s, 100)
+    const under = counter()
+    s.draw(under.ctx)
+    expect(under.calls.stroke ?? 0).toBe(0)
+    const over = counter()
+    s.overlay.draw(over.ctx)
+    expect(over.calls.stroke).toBeGreaterThan(0)
+  })
+
+  it('particles, the landing piece and the build ghost are drawn by the overlay too', () => {
+    const s = new Structures()
+    s.burst(from, 'red', 3)
+    s.landing = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 10, gy: 40 } }
+    s.ghost = { kind: 'tower', owner: 1, power: 'steal', at: { gx: 4, gy: 40 } }
+    const under = counter()
+    s.draw(under.ctx)
+    expect(under.calls.fillRect ?? 0).toBe(0)
+    const over = counter()
+    s.overlay.draw(over.ctx)
+    expect(over.calls.fillRect).toBeGreaterThanOrEqual(3)
+    expect(over.calls.stroke).toBeGreaterThan(0)
   })
 })
 
@@ -84,5 +123,23 @@ describe('Tower pulse', () => {
     expect(t.glowing).toBe(true)
     run(s, 2)
     expect(t.glowing).toBe(false)
+  })
+})
+
+describe('Structures reset', () => {
+  it('drops every child, shattering ones too, so a new match\'s ids start clean', () => {
+    const s = new Structures()
+    s.sync([wall(1), wall(2)])
+    s.shatter(1, from)
+    s.burst(from, 'red', 3)
+    s.ghost = wall(3)
+    s.reset()
+    expect([s.count, s.children.length, s.ghost]).toEqual([0, 0, undefined])
+    s.sync([tower(1)])
+    expect(s.get(1)).toBeInstanceOf(Tower)
+    run(s, visual.wall.particles.ms)
+    const c = counter()
+    s.drawParticles(c.ctx)
+    expect(c.calls.fillRect ?? 0).toBe(0)
   })
 })

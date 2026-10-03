@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SimState } from './step'
-import { place, playState } from './testkit'
+import { place } from './testkit'
 import { crackLines, damageWall, type WallSpec } from './wall'
 
 const spec = (shape: WallSpec['shape']): WallSpec => ({ kind: 'wall', owner: 1, shape, rotation: 0, at: { gx: 5, gy: 40 } })

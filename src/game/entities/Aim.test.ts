@@ -30,3 +30,14 @@ describe('Aim', () => {
     expect(a.preview()).toEqual([{ id: s.objects[0].id, own: true }])
   })
 })
+
+describe('Aim reset', () => {
+  it('forgets the rings and the charge of the last match', () => {
+    const a = new Aim()
+    a.sync(placed(), defaultConfig)
+    a.wave({ x: 20, y: 70 }, 0.5)
+    a.charge = { origin: { x: 21, y: 81 }, power: 1, player: 1 }
+    a.reset()
+    expect([a.waveCount, a.charge]).toEqual([0, undefined])
+  })
+})

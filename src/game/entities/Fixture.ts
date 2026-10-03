@@ -112,13 +112,18 @@ export abstract class Fixture extends Entity {
     if (this.hidden) return
     ctx.globalAlpha = this.alpha
     const s = this.shattering
-    if (s && s.age >= s.delay) {
-      this.drawFragments(ctx, s)
-    } else {
+    // Once it breaks the body is gone; the fragments are drawn by the overlay, above the ball.
+    if (!s || s.age < s.delay) {
       this.drawBody(ctx, this.tint)
       if (!s) this.drawMarks(ctx)
     }
     ctx.globalAlpha = 1
+  }
+
+  /** The flying fragments of a shattered structure, once its delay is over. Drawn in the overlay layer. */
+  drawShatter(ctx: CanvasRenderingContext2D): void {
+    const s = this.shattering
+    if (!this.hidden && s && s.age >= s.delay) this.drawFragments(ctx, s)
   }
 
   /** The structure itself, filled with `fill` or the owner colour. */

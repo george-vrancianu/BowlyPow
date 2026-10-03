@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultSettings } from '../sim/settings'
 import { Game, type HudView } from './Game'
 
 // No DOM in the test run: a canvas that is an EventTarget, a window that is one, a context that swallows every call.
@@ -77,5 +78,48 @@ describe('Game', () => {
     game.actions.map(false)
     frame(t)
     expect(onView.mock.lastCall![0].mapOpen).toBe(false)
+  })
+
+  it('ticks the entity clocks before the sim, and flags the entities before drawing, so effects keep their first frame', () => {
+    const game = make()
+    const order: string[] = []
+    const spy = <T extends object>(o: T, k: keyof T, tag: string) => {
+      const orig = (o[k] as (...a: unknown[]) => unknown).bind(o)
+      ;(o[k] as unknown) = (...a: unknown[]) => (order.push(tag), orig(...a))
+    }
+    spy(game.camera, 'update', 'camera.update')
+    spy(game['driver'], 'update', 'driver.update')
+    spy(game.structures, 'mark', 'mark')
+    spy(game.camera, 'draw', 'draw')
+    frame(performance.now())
+    expect(order).toEqual(['camera.update', 'driver.update', 'mark', 'draw'])
+  })
+
+  it('draws the open map with the main camera\'s shake', () => {
+    const game = make()
+    const t = performance.now()
+    frame(t)
+    game.actions.map(true)
+    const draw = vi.spyOn(game.mapCam, 'draw')
+    game.camera.shake(4)
+    frame(t + 16)
+    expect(draw.mock.lastCall![2]).toEqual(game.camera.shakeNow)
+  })
+
+  it('a Siege opening build is blind: the camera clamps to the builder\'s half and the fog hides the other', () => {
+    const game = make()
+    game.actions.start({ ...defaultSettings, mode: 'siege' })
+    const builder = game.state.match.builder!
+    expect([game.camera.blind, game.fog.blind]).toEqual([builder, builder])
+    game.actions.start({ ...defaultSettings, mode: 'rounds' })
+    expect(game.fog.blind).toBeUndefined()
+  })
+
+  it('a new match forgets the last one\'s visual state', () => {
+    const game = make()
+    game.camera.shake(4)
+    game.structures.burst({ x: 0, y: 0 }, 'red', 3)
+    game.actions.rematch()
+    expect(game.camera.shakeNow).toEqual({ x: 0, y: 0 })
   })
 })

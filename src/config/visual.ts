@@ -19,8 +19,8 @@ export const visual = {
     /** A blast of at least `minPower` shakes the view by `max * power` px, decaying over `ms`. */
     shake: { ms: 200, max: 4, minPower: 0.3, freqX: 0.11, freqY: 0.137 },
   },
-  /** The soft gradient at a pane edge where more pitch lies beyond. */
-  fog: { fadeFraction: 0.06, color: dark, clear: 'rgba(11,15,26,0)' },
+  /** The soft gradient at a pane edge where more pitch lies beyond, and how far the blind-build cover bleeds past the pitch sides. */
+  fog: { bleed: 1, fadeFraction: 0.06, color: dark, clear: 'rgba(11,15,26,0)' },
   pitch: {
     board: '#3a4258',
     pitch: '#121a2b',
@@ -92,7 +92,6 @@ export const visual = {
   aim: {
     dwellMs: 1000,
     rampMs: 1500,
-    chargeSteps: 20,
     /** Charge ring colour runs from `chargeFrom` to `chargeTo` (RGB) with power. */
     chargeFrom: [90, 90, 90],
     chargeTo: [255, 40, 40],
@@ -111,6 +110,6 @@ export const visual = {
     vibration: { blastBase: 10, blastPerPower: 40, goal: [60, 40, 60], chargeFull: 15 },
   },
   input: { slopPx: 12, tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, touchTargetPx: 22 },
-  transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000 },
-  hud: { ink, dark, panel: '#141a2a', track: '#3b4256', urgent: '#ff4d4d', urgentSeconds: 5, urgentPulse: 0.15, scrim: 'rgba(11,15,26,0.85)' },
+  transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000, revealMs: 1500 },
+  hud: { ink, dark, panel: '#141a2a', track: '#3b4256', urgent: '#ff4d4d', urgentSeconds: 5, urgentPulse: 0.15, scrim: 'rgba(11,15,26,0.85)', scrimLight: 'rgba(11,15,26,0.7)', pressed: '#2a3350', pressedBorder: white, scoreFlipMs: 400, shadow: '#0008' },
 } as const

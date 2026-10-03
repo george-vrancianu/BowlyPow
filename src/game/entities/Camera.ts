@@ -1,6 +1,6 @@
 import { rules } from '../../config/rules'
 import { visual } from '../../config/visual'
-import type { Point } from '../../sim/pitch'
+import type { PlayerId, Point } from '../../sim/pitch'
 import { Entity } from './Entity'
 
 type Pane = { x: number; y: number; w: number; h: number }
@@ -37,7 +37,18 @@ export function layout({ width, height }: Size) {
   return { scale, visibleHeight: visual.camera.maxVisibleHeight, pane: { x: (width - w) / 2, y: (height - h) / 2, w, h } }
 }
 
-const clampY = (y: number, visible: number) => Math.min(Math.max(y, -rules.board + visible / 2), rules.pitchHeight + rules.board - visible / 2)
+/** World y range of the opponent's half left out for a blind viewer sitting at `seat`: boards and net included, up to the halfway line. */
+export const fogOf = (seat: PlayerId): { top: number; bottom: number } => (seat === 1 ? { top: rules.mapTop, bottom: rules.halfHeight } : { top: rules.halfHeight, bottom: rules.mapTop + rules.mapHeight })
+
+/**
+ * Keeps the view on the boards; for a `blind` seat, on its half plus the halfway line. The view (64) is taller than a half (54 + board), so it rests on the far board and the strip it still shows above the halfway line is what the fog covers.
+ */
+export function clampY(y: number, visible: number, blind?: PlayerId): number {
+  const top = blind === 1 ? rules.halfHeight : -rules.board
+  const bottom = blind === 2 ? rules.halfHeight : rules.pitchHeight + rules.board
+  const [lo, hi] = [top + visible / 2, bottom - visible / 2]
+  return blind === 2 ? Math.max(Math.min(y, hi), lo) : Math.min(Math.max(y, lo), hi)
+}
 
 /** Screen offset in px at time `now` for a shake of `amp` px that started at `born`, decaying linearly to nothing. */
 export function shakeOffset(amp: number, born: number, now: number): Point {
@@ -53,7 +64,9 @@ export function shakeOffset(amp: number, born: number, now: number): Point {
  */
 export class Camera extends Entity {
   held = false
-  private shaking = { amp: 0, born: 0 }
+  /** The seat whose half is the only one this view may show (a blind opening build); pans and follows are clamped to it. */
+  blind?: PlayerId
+  private shaking = { amp: 0, born: -Infinity }
 
   constructor(public y: number, public map?: { stretch: boolean }) {
     super()
@@ -61,8 +74,15 @@ export class Camera extends Entity {
 
   /** Manual pan: moves the view and holds it off the ball until recenter() (sim events call it too). */
   pan(dy: number): void {
-    this.y = clampY(this.y + dy, visual.camera.maxVisibleHeight)
+    this.y = clampY(this.y + dy, visual.camera.maxVisibleHeight, this.blind)
     this.held = true
+  }
+
+  /** A new match: no shake, no hold, no blind clamp. */
+  reset(): void {
+    this.shaking = { amp: 0, born: -Infinity }
+    this.held = false
+    this.blind = undefined
   }
 
   recenter(): void {
@@ -71,7 +91,7 @@ export class Camera extends Entity {
 
   /** Eases toward `target` over about 150 ms, clamped to the boards. */
   follow(target: number, dt: number): void {
-    this.y = clampY(this.y + (target - this.y) * (1 - Math.exp(-dt / visual.camera.smoothingS)), visual.camera.maxVisibleHeight)
+    this.y = clampY(this.y + (target - this.y) * (1 - Math.exp(-dt / visual.camera.smoothingS)), visual.camera.maxVisibleHeight, this.blind)
   }
 
   shake(amp: number): void {
@@ -93,20 +113,23 @@ export class Camera extends Entity {
     return { x: (px - pane.x) / sx, y: this.y + (py - (pane.y + pane.h / 2)) / sy }
   }
 
-  /** Draws `content` through this camera, clipped to its pane. */
-  override draw(ctx: CanvasRenderingContext2D, content: Entity[] = this.children): void {
-    const { width, height } = ctx.canvas
+  /** Runs `paint` in world units through this camera, clipped to its pane and offset by `shake`. */
+  through(ctx: CanvasRenderingContext2D, shake: Point, paint: () => void): void {
     const { sx, sy, pane } = this.view(ctx.canvas)
-    ctx.fillStyle = visual.camera.bg
-    ctx.fillRect(0, 0, width, height)
     ctx.save()
     ctx.beginPath()
     ctx.rect(pane.x, pane.y, pane.w, pane.h)
     ctx.clip()
-    const shake = this.shakeNow
     ctx.translate(pane.x + shake.x, pane.y + pane.h / 2 - this.y * sy + shake.y)
     ctx.scale(sx, sy)
-    for (const c of content) c.draw(ctx)
+    paint()
     ctx.restore()
+  }
+
+  /** Draws `content` through this camera. `shake` defaults to its own; the map passes the main camera's, since only that one is in the update tree. */
+  override draw(ctx: CanvasRenderingContext2D, content: Entity[] = this.children, shake = this.shakeNow): void {
+    ctx.fillStyle = visual.camera.bg
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    this.through(ctx, shake, () => content.forEach((c) => c.draw(ctx)))
   }
 }

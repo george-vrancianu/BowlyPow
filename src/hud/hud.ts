@@ -31,8 +31,9 @@ export const FONT = 'font:700 14px system-ui,-apple-system,"Segoe UI",Roboto,san
 export function buttonRow(specs: ButtonSpec[]): HTMLElement {
   const row = el('div', 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;')
   for (const s of specs) {
-    const b = el('button', `${FONT}min-width:44px;min-height:44px;padding:0 14px;border-radius:8px;border:2px solid ${visual.hud.ink};color:${visual.hud.ink};background:${visual.hud.panel};opacity:${s.disabled ? 0.4 : 1};`, s.label) as HTMLButtonElement
+    const b = el('button', `${FONT}min-width:44px;min-height:44px;padding:0 14px;border-radius:8px;border:2px solid ${visual.hud.ink};color:${visual.hud.ink};background:${s.pressed ? visual.hud.pressed : visual.hud.panel};opacity:${s.disabled ? 0.4 : 1};${s.pressed ? `border-color:${visual.hud.pressedBorder};` : ''}`, s.label) as HTMLButtonElement
     b.disabled = !!s.disabled
+    if (s.pressed !== undefined) b.setAttribute('aria-pressed', String(s.pressed))
     b.onclick = s.onClick
     row.append(b)
   }
@@ -46,7 +47,7 @@ export function createHud(root: HTMLElement, actions: HudActions) {
   const mk = (id: PlayerId) => {
     const color = visual.player.colors[id]
     const strip = el('div', `${FONT}display:flex;align-items:center;justify-content:center;gap:16px;color:${color};`)
-    const score = el('div', 'font-size:40px;line-height:1;')
+    const score = el('div', 'font-size:40px;line-height:1;font-variant-numeric:tabular-nums;')
     const icons = (Object.keys(ICONS) as PowerUp[]).map((p) => {
       const b = el('button', `${FONT}position:relative;width:44px;height:44px;border-radius:50%;border:2px solid ${color};color:${color};background:none;`, ICONS[p]) as HTMLButtonElement
       const badge = el('span', `position:absolute;top:-6px;right:-6px;min-width:18px;border-radius:9px;background:${color};color:${visual.hud.dark};font-size:12px;`)
@@ -86,9 +87,11 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     for (const id of [1, 2] as const) {
       const s = strips[id]
       const p = m.players[id]
-      if (s.score.textContent !== String(p.score)) {
-        if (s.score.textContent) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], 400)
-        s.score.textContent = String(p.score)
+      s.score.style.display = p.digit === null ? 'none' : ''
+      const shown = p.digit ?? ''
+      if (s.score.textContent !== shown) {
+        if (s.score.textContent && shown) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], visual.hud.scoreFlipMs)
+        s.score.textContent = shown
       }
       for (const i of s.icons) {
         const n = p.inventory[i.p]
@@ -101,14 +104,15 @@ export function createHud(root: HTMLElement, actions: HudActions) {
         i.b.disabled = breaker && !live
       }
     }
-    round.textContent = `Round ${m.round} / ${m.rounds}`
+    round.style.display = m.round === null ? 'none' : ''
+    round.textContent = m.round === null ? '' : `Round ${m.round} / ${m.rounds}`
     clockNum.textContent = m.clock ? String(Math.ceil(m.clock.seconds)) : '-'
     const urgent = !!m.clock && m.clock.seconds <= visual.hud.urgentSeconds
     clockNum.style.background = ring(m.clock?.fraction ?? 0, urgent ? visual.hud.urgent : undefined)
     clockNum.style.transform = urgent ? `scale(${1 + visual.hud.urgentPulse * Math.abs(Math.sin(Math.PI * m.clock!.seconds))})` : ''
     dots.replaceChildren(...Array.from({ length: m.shotsMax }, (_, i) => el('span', `width:12px;height:12px;border-radius:50%;border:2px solid ${visual.hud.ink};background:${i < m.shotsLeft ? visual.hud.ink : 'none'};`)))
     phase.textContent = m.phase
-    const key = JSON.stringify((m.buttons ?? []).map(({ label, disabled }) => [label, disabled]))
+    const key = JSON.stringify((m.buttons ?? []).map(({ label, disabled, pressed }) => [label, disabled, pressed]))
     if (key !== phaseKey) {
       phaseKey = key
       phaseRow.replaceChildren(...(m.buttons?.length ? [buttonRow(m.buttons)] : []))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig as c, step, type SimState } from '../../sim/step'
+import { defaultConfig as c, initialState, step, type SimState } from '../../sim/step'
 import { buildState } from '../../sim/testkit'
 import type { WallSpec } from '../../sim/wall'
 import { buildMenu, commit, landed, edgeScrollDy, legal, pick, rotated, spawn, type BuildActions } from './buildMenu'
@@ -9,7 +9,7 @@ const actions: BuildActions = { toggle: noop, spawn: noop, confirm: noop, cancel
 const wall: WallSpec = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 10, gy: 40 } }
 const placed = (): SimState => step(buildState(1), { placeWall: wall }, c).state
 const labels = (s: SimState, v: Parameters<typeof buildMenu>[2]) => {
-  const m = buildMenu(s, 1, v, actions)
+  const m = buildMenu(s, 1, v, actions)!
   return m.kind === 'menu' ? m.items.map((i) => i.label) : m.buttons.map((b) => b.label)
 }
 
@@ -90,7 +90,19 @@ describe('landing', () => {
     expect(landed(s, rotated({ spec: wall, id: 1, movable: true }))).toBe(false)
   })
   it('✓ waits while a confirmed piece is landing', () => {
-    const m = buildMenu(buildState(1), 1, { open: false, selection: { spec: wall, movable: true }, landing: true }, actions)
+    const m = buildMenu(buildState(1), 1, { open: false, selection: { spec: wall, movable: true }, landing: true }, actions)!
     expect(m.kind === 'selected' && m.buttons.find((b) => b.label === '✓')?.disabled).toBe(true)
+  })
+})
+
+describe('rearrange turn', () => {
+  const siege = { ...c, mode: 'siege' as const }
+  const base = initialState(1, siege)
+  const s: SimState = { ...base, match: { ...base.match, builder: 1, opening: false } as SimState['match'], objects: [{ ...wall, id: 1, hp: 2 }], built: [1], points: { 1: 0, 2: 0 } }
+  it('has no palette when nothing is selected, and no demolish once a piece is', () => {
+    expect(buildMenu(s, 1, { open: true }, actions)).toBeUndefined()
+    const sel = pick(s, 1, { x: 21, y: 80.5 }, 1)!
+    expect(sel.movable).toBe(true)
+    expect(labels(s, { open: false, selection: sel })).toEqual(['↻', '✕', '✓'])
   })
 })

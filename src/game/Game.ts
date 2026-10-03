@@ -2,9 +2,11 @@ import { rules } from '../config/rules'
 import { visual } from '../config/visual'
 import type { PlayerId } from '../sim/pitch'
 import type { PowerUp } from '../sim/player'
+import { blindSeat, buildPhase, openingBuild } from '../sim/mode'
 import { canArm, canPlaceBall, whoActs } from '../sim/possession'
 import { configFrom, type Settings } from '../sim/settings'
 import { defaultConfig, type SimConfig, type SimEvent, type SimState } from '../sim/step'
+import { structuresOf } from '../sim/wall'
 import { LocalDriver, type Sink } from './driver'
 import { Aim } from './entities/Aim'
 import { Ball } from './entities/Ball'
@@ -18,7 +20,7 @@ import { InputController } from './input/InputController'
 import { buildMenu, type BuildActions, type BuildMenu } from './view/buildMenu'
 import { hudModel, type HudModel } from './view/hudModel'
 import { phaseButtons } from './view/phaseButtons'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, type OverlayView } from './view/transition'
+import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, revealing, type OverlayView } from './view/transition'
 
 /** Everything the HUD and screens draw from. Data only: pushed up through `onView` when it changes, never read back. */
 export type HudView = {
@@ -35,7 +37,8 @@ export type HudView = {
   confirm: boolean
   mapOpen: boolean
   winner?: PlayerId
-  score: Record<PlayerId, number>
+  /** The end screen's result line. */
+  result: string
 }
 
 /** How the HUD and screens drive the game. */
@@ -46,11 +49,36 @@ export type GameActions = {
   mapStretch(): void
   recenter(): void
   powerUp(p: PowerUp): void
-  done(): void
   confirmBall(): void
   /** Tap on the turn card. */
   dismiss(): void
   build: BuildActions
+}
+
+/** The round number for modes that have rounds; the first-play hints show on round 1. */
+const roundOf = (m: SimState['match']): number | undefined => {
+  switch (m.mode) {
+    case 'rounds':
+      return m.round
+    case 'siege':
+      return undefined
+    default:
+      return m satisfies never
+  }
+}
+
+/** The end screen's result line, per mode. */
+const resultOf = (m: SimState['match'], winner: PlayerId, objects: SimState['objects']): string => {
+  switch (m.mode) {
+    case 'rounds':
+      return `${m.score[1]} - ${m.score[2]}`
+    case 'siege': {
+      const left = structuresOf(objects, winner).length
+      return `${left} structure${left === 1 ? '' : 's'} left`
+    }
+    default:
+      return m satisfies never
+  }
 }
 
 const storedStretch = () => {
@@ -73,7 +101,7 @@ export class Game implements Sink {
   readonly structures = new Structures()
   readonly ball = new Ball()
   readonly aim = new Aim()
-  readonly fog = new Fog(() => (this.mapOpen ? this.mapCam : this.camera))
+  readonly fog = new Fog(() => this.viewCam(), () => this.camera.shakeNow)
   readonly actions: GameActions
   state!: SimState
   private config: SimConfig = defaultConfig
@@ -81,7 +109,7 @@ export class Game implements Sink {
   private input: InputController
   private ctx: CanvasRenderingContext2D
   private transition = newTransition(1)
-  private lastBuilder: SimState["match"]["builder"] | undefined
+  private lastBuilder: SimState['match']['builder'] | undefined
   private mapOpen = false
   private now = performance.now()
   private last = this.now
@@ -95,6 +123,7 @@ export class Game implements Sink {
     this.camera.add(this.structures)
     this.camera.add(this.ball)
     this.camera.add(this.aim)
+    this.camera.add(this.structures.overlay)
     this.input = new InputController({
       canvas,
       camera: this.camera,
@@ -103,6 +132,7 @@ export class Game implements Sink {
       config: () => this.config,
       shown: () => this.transition.shown,
       mapOpen: () => this.mapOpen,
+      blocked: this.blocked,
       toggleMap: (open) => this.toggleMap(open),
       send: (input) => this.driver.send(input),
     })
@@ -119,10 +149,6 @@ export class Game implements Sink {
       },
       recenter: () => this.camera.recenter(),
       powerUp: (p) => p === 'breaker' && this.input.toggleArm(),
-      done: () => {
-        const builder = this.state.match.builder
-        if (builder) this.driver.send({ done: builder })
-      },
       confirmBall: this.input.confirmBall,
       dismiss: () => (this.transition = dismiss(this.transition, performance.now())),
       build: this.input.build,
@@ -140,11 +166,23 @@ export class Game implements Sink {
 
   blocked = () => blocking(this.transition)
 
+  /** Whoever builds, else whoever has the device: online it would be the peer's own seat. */
+  private viewer = (): PlayerId => this.state.match.builder ?? this.transition.shown
+
+  /** The camera the pitch is drawn through: the whole-pitch map while it is open or during the reveal hold. */
+  private viewCam = (): Camera => (this.mapOpen || revealing(this.transition) ? this.mapCam : this.camera)
+
+  /** Siege blind build: the viewer sees only their own half. The camera clamps to it and the fog hides the rest. */
+  private seeBlind(): void {
+    this.camera.blind = this.fog.blind = blindSeat(this.state.match, this.viewer())
+  }
+
   /** One sim tick's state and events, from the driver. */
   apply(state: SimState, events: SimEvent[]): void {
     this.state = state
     const { camera, input } = this
-    input.settle(state, events)
+    this.seeBlind()
+    input.settle(state, events.some((ev) => ev.type === 'refused'))
     if (!state.match.builder && events.length) camera.recenter()
     if (state.match.builder !== this.lastBuilder) {
       this.lastBuilder = state.match.builder
@@ -161,6 +199,9 @@ export class Game implements Sink {
   // The seed varies per match; only the sim stays deterministic.
   private newMatch(seed = (Math.random() * 2 ** 31) | 0): void {
     const s = this.driver.start(this.config, seed)
+    // Sim ids restart, so the last match's visual state must not leak into this one.
+    for (const e of [this.camera, this.structures, this.ball, this.aim]) e.reset()
+    this.input.resetBuild()
     this.transition = newTransition(s.possession.shooter)
     this.camera.recenter()
     this.camera.y = s.ball.pos.y
@@ -174,7 +215,7 @@ export class Game implements Sink {
 
   private announce(events: SimEvent[]): void {
     const { state } = this
-    this.transition = advance(this.transition, { handover: true, active: whoActs(state), round: state.match.round, inHand: state.possession.inHand, phase: state.match.builder ? 'Build' : 'Play', events, now: this.now, reduced: reducedMotion() })
+    this.transition = advance(this.transition, { handover: true, active: whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase: buildPhase(state.match), opening: openingBuild(state.match), events, now: this.now, reduced: reducedMotion() })
   }
 
   private frame = (now: number): void => {
@@ -182,16 +223,20 @@ export class Game implements Sink {
     // The sim never waits on animations; the driver just stops stepping behind a flip, goal hold or turn card.
     const dt = Math.min((now - this.last) / 1000, visual.frame.maxDtS)
     this.last = this.now = now
+    // Clocks advance before the sim ticks, so an effect the tick starts is drawn at age 0.
+    this.camera.update(dt)
     this.driver.send({ charging: this.input.charging(now) })
     this.driver.update(dt)
     this.announce([])
+    this.seeBlind()
+    // A ghost ball or half-made gesture does not survive a blocking hold into the next player's turn.
+    if (this.blocked()) this.input.cancelGestures()
     const { state, transition, camera } = this
     const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
     if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), camera.recenter()
     this.input.edgeScroll(dt)
     if (!camera.held) camera.follow(state.ball.pos.y, dt)
     this.present()
-    camera.update(dt)
     this.draw()
     this.push()
     this.raf = requestAnimationFrame(this.frame)
@@ -208,8 +253,9 @@ export class Game implements Sink {
     structures.hidden = mapOpen ? [] : [sel?.movable ? sel.id : undefined, input.landing?.id].filter((id) => id !== undefined)
     structures.selected = !mapOpen && sel && !sel.movable ? sel.id : undefined
     structures.movable = builder && !mapOpen ? state.built : []
-    this.aim.charge = mapOpen ? undefined : input.chargeView(this.now)
     structures.preview = new Map(this.aim.preview().map((h) => [h.id, h.own]))
+    structures.mark()
+    this.aim.charge = mapOpen ? undefined : input.chargeView(this.now)
     this.pitch.builder = builder ?? undefined
     // During the goal hold the ball rests in the net (the sim has already reset it).
     const inNet = goalBall(this.transition)
@@ -223,7 +269,7 @@ export class Game implements Sink {
     const dpr = window.devicePixelRatio || 1
     canvas.width = canvas.clientWidth * dpr
     canvas.height = canvas.clientHeight * dpr
-    if (this.mapOpen) mapCam.draw(ctx, camera.children)
+    if (this.viewCam() === mapCam) mapCam.draw(ctx, camera.children, camera.shakeNow)
     else camera.draw(ctx)
     this.fog.draw(ctx)
     if (this.mapOpen) {
@@ -237,19 +283,20 @@ export class Game implements Sink {
   /** Calls `onView` with the HUD view, but only when it differs from the last one (functions in it are stable and not compared). */
   private push(): void {
     const { state, input, transition, now } = this
+    const blocked = this.blocked()
     const builder = state.match.builder
     const { shooter, inHand } = state.possession
     const view: HudView = {
       size: { width: this.canvas.clientWidth, height: this.canvas.clientHeight },
-      hud: hudModel(state, this.config, { active: transition.shown, buttons: phaseButtons(!!builder, this.actions.done), armed: input.armed, tappable: canArm(state, shooter) }),
-      menu: builder && !this.mapOpen ? buildMenu(state, builder, { open: input.menuOpen, selection: input.selection, landing: !!input.landing }, input.build) : undefined,
+      hud: hudModel(state, this.config, { active: transition.shown, buttons: phaseButtons(state, this.config, { mine: () => true, current: () => this.state, send: (i) => this.driver.send(i), choosable: !blocked }), viewer: this.viewer(), armed: input.armed, tappable: canArm(state, shooter) }),
+      menu: builder && !this.mapOpen && !blocked ? buildMenu(state, builder, { open: input.menuOpen, selection: input.selection, landing: !!input.landing }, input.build) : undefined,
       overlay: overlayView(transition, now),
       angle: angle(transition, now),
       flipped: transition.shown === 2,
-      confirm: inHand && !builder,
+      confirm: inHand && !builder && !state.match.choosing && !blocked,
       mapOpen: this.mapOpen,
       winner: state.match.winner ?? undefined,
-      score: state.match.score,
+      result: state.match.winner ? resultOf(state.match, state.match.winner, state.objects) : '',
     }
     const key = JSON.stringify(view)
     if (key === this.lastView) return

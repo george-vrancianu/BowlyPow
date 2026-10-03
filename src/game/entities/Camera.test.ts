@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Camera, layout, viewOf, viewOutline } from './Camera'
+import { Camera, clampY, fogOf, layout, viewOf, viewOutline } from './Camera'
 import { rules } from '../../config/rules'
 
 describe('manual pan', () => {
@@ -99,5 +99,64 @@ describe('map camera', () => {
   it('converts canvas pixels back to world units', () => {
     const cam = new Camera(54)
     expect(cam.toWorld(canvas, 200, 600)).toEqual({ x: 20, y: 54 })
+  })
+})
+
+describe('blind build', () => {
+  it('pan stays on the bottom viewer\'s half: the view bottom rests on the far board', () => {
+    const cam = new Camera(77)
+    cam.blind = 1
+    cam.pan(-1000)
+    expect(cam.y).toBe(77)
+    cam.pan(1000)
+    expect(cam.y).toBe(77)
+  })
+  it('pan stays on the top viewer\'s half: the view top rests on the far board', () => {
+    const cam = new Camera(31)
+    cam.blind = 2
+    cam.pan(1000)
+    expect(cam.y).toBe(31)
+    cam.pan(-1000)
+    expect(cam.y).toBe(31)
+  })
+  it('a view shorter than the half can move within it, never past the halfway line', () => {
+    expect(clampY(0, 20, 1) - 10).toBe(54)
+    expect(clampY(1000, 20, 1) + 10).toBe(109)
+  })
+  it('follow is clamped the same way', () => {
+    const cam = new Camera(77)
+    cam.blind = 1
+    cam.follow(0, 10)
+    expect(cam.y).toBe(77)
+  })
+  it('fogs the opponent\'s half up to the halfway line, boards and net included', () => {
+    expect(fogOf(1)).toEqual({ top: -4, bottom: 54 })
+    expect(fogOf(2)).toEqual({ top: 54, bottom: 112 })
+  })
+})
+
+describe('map shake', () => {
+  const ctxWith = (translate: (...a: unknown[]) => void) => ({ canvas: { width: 400, height: 640 }, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, fillRect() {}, scale() {}, translate }) as unknown as CanvasRenderingContext2D
+  it('draws the map through the main camera\'s shake offset', () => {
+    const main = new Camera(54)
+    main.shake(4)
+    main.update(0.05)
+    expect(main.shakeNow).not.toEqual({ x: 0, y: 0 })
+    const shaken: unknown[][] = []
+    const still: unknown[][] = []
+    new Camera(rules.mapY, { stretch: false }).draw(ctxWith((...a) => shaken.push(a)), [], main.shakeNow)
+    new Camera(rules.mapY, { stretch: false }).draw(ctxWith((...a) => still.push(a)), [])
+    expect(shaken[0]).not.toEqual(still[0])
+  })
+})
+
+describe('reset', () => {
+  it('ends a shake, the hold and the blind clamp', () => {
+    const cam = new Camera(54)
+    cam.shake(4)
+    cam.pan(1)
+    cam.blind = 1
+    cam.reset()
+    expect([cam.shakeNow, cam.held, cam.blind]).toEqual([{ x: 0, y: 0 }, false, undefined])
   })
 })

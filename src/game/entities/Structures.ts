@@ -12,7 +12,8 @@ const make = (d: FixtureData): Fixture => (d.kind === 'tower' ? new Tower(d) : n
 
 /**
  * Every wall and tower, keyed by sim id. `sync` creates a child as an object appears; one that leaves the sim is dropped at once,
- * unless it was told to `shatter`, in which case it stays until the shatter ends. Also draws the build overlays (ghost, landing) and hit particles.
+ * unless it was told to `shatter`, in which case it stays until the shatter ends. Holds the build overlays (ghost, landing) and hit particles too.
+ * What flies above the ball and aim (fragments, particles, landing, ghost) is drawn by `overlay`, which the game adds to the camera after them.
  */
 export class Structures extends Entity {
   /** The piece being dragged and a confirmed piece not yet in the sim, drawn half-transparent. */
@@ -26,6 +27,8 @@ export class Structures extends Entity {
   movable: number[] = []
   /** Blast preview: ids in range, and whether each is the shooter's own. */
   preview = new Map<number, boolean>()
+  /** Drawn above the ball and aim: the game adds it to the camera after them. */
+  readonly overlay = new Overlay(this)
   private fixtures = new Map<number, Fixture>()
   private particles: Particle[] = []
 
@@ -73,7 +76,18 @@ export class Structures extends Entity {
     }
   }
 
-  override update(dt: number): void {
+  /** A new match: sim ids restart, so nothing from the last one may linger, not even a shattering child. */
+  reset(): void {
+    for (const [id, f] of this.fixtures) this.drop(id, f)
+    this.particles = []
+    this.ghost = this.landing = this.selected = undefined
+    this.hidden = []
+    this.movable = []
+    this.preview = new Map()
+  }
+
+  /** Hands each child what this frame shows (build overlays, blast preview). Call before drawing. */
+  mark(): void {
     for (const [id, f] of this.fixtures) {
       f.hidden = this.hidden.includes(id)
       f.movable = this.movable.includes(id)
@@ -81,6 +95,9 @@ export class Structures extends Entity {
       const hit = this.preview.get(id)
       f.tint = hit === undefined ? undefined : hit ? visual.wall.ownTint : visual.wall.illegal
     }
+  }
+
+  override update(dt: number): void {
     super.update(dt)
     for (const [id, f] of this.fixtures) if (f.shattered) this.drop(id, f)
     this.particles = this.particles.filter((p) => this.clock - p.born < visual.wall.particles.ms)
@@ -91,10 +108,12 @@ export class Structures extends Entity {
     this.remove(f)
   }
 
-  protected override render(): void {}
+  /** Fragments of the structures that have broken. */
+  drawShatter(ctx: CanvasRenderingContext2D): void {
+    for (const f of this.fixtures.values()) f.drawShatter(ctx)
+  }
 
-  override draw(ctx: CanvasRenderingContext2D): void {
-    super.draw(ctx)
+  drawParticles(ctx: CanvasRenderingContext2D): void {
     ctx.save()
     const { ms, size } = visual.wall.particles
     for (const p of this.particles) {
@@ -104,6 +123,10 @@ export class Structures extends Entity {
       ctx.fillRect(p.at.x + p.vel.x * t - size / 2, p.at.y + p.vel.y * t - size / 2, size, size)
     }
     ctx.restore()
+  }
+
+  /** The confirmed piece on its way to the sim, then the one being dragged. */
+  drawPieces(ctx: CanvasRenderingContext2D): void {
     if (this.landing) this.drawGhost(ctx, this.landing, false)
     if (this.ghost) this.drawGhost(ctx, this.ghost, true)
   }
@@ -120,5 +143,18 @@ export class Structures extends Entity {
   /** The structures a ghost has to fit among: everything in the sim except what it stands in for. */
   private standing(): StructureSpec[] {
     return [...this.fixtures].filter(([id, f]) => !this.hidden.includes(id) && !f.isShattering).map(([, f]) => f.data)
+  }
+}
+
+/** Fragments, particles, the landing piece and the build ghost: the layer that draws over the ball and aim. */
+export class Overlay extends Entity {
+  constructor(private structures: Structures) {
+    super()
+  }
+
+  protected override render(ctx: CanvasRenderingContext2D): void {
+    this.structures.drawShatter(ctx)
+    this.structures.drawParticles(ctx)
+    this.structures.drawPieces(ctx)
   }
 }
