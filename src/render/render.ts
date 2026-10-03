@@ -3,7 +3,7 @@ import { visual } from '../config/visual'
 import type { PlayerId, Point } from '../sim/pitch'
 import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import type { SimConfig, SimState } from '../sim/step'
-import { viewOf, type Camera } from './camera'
+import { fogOf, viewOf, type Camera } from './camera'
 import { shakeOffset, type Fx } from './feedback'
 import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerPower, type TowerSpec } from '../sim/wall'
 
@@ -262,9 +262,11 @@ export type Overlays = {
   ballGhost?: { at: Point; legal: boolean }
   /** The shooter whose ball gets the Breaker outline. */
   armed?: PlayerId
+  /** Siege blind build: the seat whose half is the only one drawn; the other half is fogged out. */
+  blind?: PlayerId
 }
 
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, config: SimConfig, { ghost, landing, hidden = [], selected, movable = [], fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed }: Overlays = {}): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, config: SimConfig, { ghost, landing, hidden = [], selected, movable = [], fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed, blind }: Overlays = {}): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = visual.pitch.bg
@@ -388,6 +390,14 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
     ctx.fillStyle = ballGhost.legal ? visual.ball.fill : visual.ball.illegal
     ctx.fill()
     ctx.globalAlpha = 1
+  }
+  if (blind) {
+    // Over everything, so neither structures, grid, arc nor the ball betray the other half; the halfway line stays.
+    const { top, bottom } = fogOf(blind)
+    ctx.fillStyle = visual.pitch.bg
+    ctx.fillRect(-1, top, rules.pitchWidth + 2, bottom - top)
+    ctx.fillStyle = visual.pitch.line
+    ctx.fillRect(0, rules.halfHeight - 0.15, rules.pitchWidth, 0.3)
   }
   ctx.restore()
   edgeFade(ctx, pane, cam.y - visibleHeight / 2 > -rules.board, cam.y + visibleHeight / 2 < rules.pitchHeight + rules.board)

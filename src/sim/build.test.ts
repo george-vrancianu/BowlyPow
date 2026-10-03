@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { coinFlip } from './match'
 import { opponent } from './possession'
 import { defaultConfig as c, initialState, step, type SimInput, type SimState } from './step'
-import { buildState } from './testkit'
+import { buildState, roundsMatch } from './testkit'
 import type { TowerSpec, WallSpec } from './wall'
 
 const wall = (owner: 1 | 2, shape: 'straight' | 'L' = 'straight'): WallSpec => ({ kind: 'wall', owner, shape, rotation: 0, at: { gx: 10, gy: owner === 1 ? 40 : 10 } })
@@ -26,16 +26,16 @@ describe('build order', () => {
     const base = initialState()
     const goal = { ...base, match: { ...base.match, builder: null }, ball: { pos: { x: 20, y: 0.5 }, vel: { x: 0, y: -60 }, rolled: 0 }, possession: { shooter: 1 as const, shots: 3, inHand: false, live: true } }
     const s = run(goal, {})
-    expect(s.match.round).toBe(2)
+    expect(roundsMatch(s).round).toBe(2)
     expect(s.match.builder).toBe(opponent(loser))
     expect(s.points[opponent(loser)]).toBe(c.wallPoints)
   })
   it('unspent points are lost: the next build starts from the full budget', () => {
     const s = run(initialState(), { placeWall: wall(loser) }, { done: loser })
     expect(s.points[loser]).toBe(c.wallPoints - 2)
-    const next = run({ ...s, match: { ...s.match, builder: null, round: 1 } }, {})
+    const next = run({ ...s, match: { ...roundsMatch(s), builder: null, round: 1 } }, {})
     expect(next.points[loser]).toBe(c.wallPoints - 2)
-    const again = run({ ...next, match: { ...next.match, builder: opponent(loser), round: 2 } }, { done: opponent(loser) })
+    const again = run({ ...next, match: { ...roundsMatch(next), builder: opponent(loser), round: 2 } }, { done: opponent(loser) })
     expect(again.match.builder).toBe(loser)
     expect(again.points[loser]).toBe(c.wallPoints)
   })

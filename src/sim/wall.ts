@@ -24,6 +24,8 @@ export type Structure = Wall | Tower
 export type TowerPower = TowerSpec['power']
 
 const POWER_HP: Record<TowerPower, number> = { repulsor: rules.towerHp, steal: rules.stealHp }
+/** The structures `p` owns, towers included: the HUD count, the end screen and the Siege wipe-out all read this. */
+export const structuresOf = (objects: readonly Structure[], p: PlayerId): Structure[] => objects.filter((o) => o.owner === p)
 export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? POWER_HP[s.power] : rules.wallHp)
 
 export const wallCost = (shape: WallShape): number => rules.wallCost[shape]
@@ -72,7 +74,7 @@ export function isLegal(w: StructureSpec): boolean {
  * Flood fill over the owner's half in cells; a wall cell blocks the step across its edge, so a gap must be a full cell wide.
  */
 function goalReachable(walls: StructureSpec[], owner: PlayerId): boolean {
-  const [cols, rows] = [rules.pitchWidth / rules.cellSize, rules.pitchHeight / rules.cellSize]
+  const [cols, rows] = [rules.pitchWidth / rules.cellSize, rules.gridRows]
   const edge = (ax: number, ay: number, bx: number, by: number) => `${ax},${ay},${bx},${by}`
   const blocked = new Set(walls.flatMap(wallCells).map(({ a, b }) => (a.gx + a.gy < b.gx + b.gy ? edge(a.gx, a.gy, b.gx, b.gy) : edge(b.gx, b.gy, a.gx, a.gy))))
   const [first, last] = owner === 1 ? [rows / 2, rows - 1] : [rows / 2 - 1, 0]

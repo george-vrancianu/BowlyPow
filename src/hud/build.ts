@@ -2,7 +2,7 @@ import { visual } from '../config/visual'
 import { rules } from '../config/rules'
 import { nearestOnWall } from '../sim/blast'
 import { type PlayerId, type Point } from '../sim/pitch'
-import type { SimInput, SimState } from '../sim/step'
+import { canEdit, type SimInput, type SimState } from '../sim/step'
 import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../sim/wall'
 import type { ButtonSpec } from './hud'
 
@@ -15,7 +15,7 @@ export type Selection = { spec: StructureSpec; id?: number; movable: boolean }
 export type Piece = WallShape | TowerPower
 
 /** Grid rows (vertices) a piece anchored on `owner`'s half may use. */
-const rows = (owner: PlayerId) => (owner === 1 ? [rules.halfHeight / rules.cellSize, rules.pitchHeight / rules.cellSize - 1] : [0, rules.halfHeight / rules.cellSize - 1])
+const rows = (owner: PlayerId) => (owner === 1 ? [rules.gridRows / 2, rules.gridRows - 1] : [0, rules.gridRows / 2 - 1])
 
 /** A new piece at the vertex nearest the view centre, clamped to the owner's half. */
 export function spawn(piece: Piece, owner: PlayerId, viewY: number): Selection {
@@ -75,8 +75,11 @@ export type BuildActions = { toggle(): void; spawn(p: Piece): void; confirm(): v
 
 const POWER_LABEL: Record<TowerPower, string> = { repulsor: 'Repulsor', steal: 'Steal' }
 
-export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selection?: Selection; /** A confirmed piece is still on its way to the sim. */ landing?: boolean }, a: BuildActions): BuildMenu {
+export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selection?: Selection; /** A confirmed piece is still on its way to the sim. */ landing?: boolean }, a: BuildActions): BuildMenu | undefined {
   const sel = v.selection
+  // A turn that may only move pieces (Rearrange) has no palette and no demolish.
+  const edit = canEdit(s)
+  if (!sel && !edit) return undefined
   if (!sel) {
     const points = s.points[b]
     return {
@@ -91,7 +94,7 @@ export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selectio
   return {
     kind: 'selected',
     buttons: [
-      ...(sel.id !== undefined ? [{ label: '🗑', disabled: !sel.movable && s.points[b] < 1, onClick: a.remove }] : []),
+      ...(sel.id !== undefined && edit ? [{ label: '🗑', disabled: !sel.movable && s.points[b] < rules.demolishCost, onClick: a.remove }] : []),
       ...(sel.movable && sel.spec.kind === 'wall' ? [{ label: '↻', onClick: a.rotate }] : []),
       { label: '✕', onClick: a.cancel },
       ...(sel.movable ? [{ label: '✓', disabled: !!v.landing || !legal(s, sel), onClick: a.confirm }] : []),
