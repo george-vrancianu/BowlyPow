@@ -229,14 +229,14 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 ### HUD
 
-- System font stack, bold weights, uppercase labels, tabular numerals.
-- Each player's strip sits at their own end of the pitch in their colour: score as a large number (Siege: the remaining structure count; "?" for a hidden opponent), three power-up icons with count badges (dimmed at 0; Breaker tappable only during your own play phase).
-- Shared items sit in the larger letterbox band: round as "ROUND 2 / 5" (Rounds only), the clock as a number with a draining ring (the shot clock in play, the build window in a build turn or a pending defence choice, "-" when no clock runs, as in hot-seat builds), shots remaining as three dots that empty, phase label (Build, Rearrange or Play), map button and recenter button (grouped together, thumb-reachable on a phone). Under them sits the phase row: Done in your build turn (disabled while the mode would refuse it), Repair and Rearrange for a scorer owing a defence choice. On wide screens the strips move to the side bands.
-- The HUD rotates with the flip so the active player's strip is always at the bottom.
+- React components in `src/ui` take data and callbacks and never import the sim; `Game` pushes a view up and the HUD drives it through an actions handle. System font stack, bold weights, uppercase labels, tabular numerals.
+- All in-match controls sit in one shell at the bottom of the screen and show only the active viewer: the build menu, Confirm (ball-in-hand) and the map's Stretch and Close when due; the phase row (Done in your build turn, disabled while the mode would refuse it; Repair and Rearrange for a scorer owing a defence choice); round as "ROUND 2 / 5" (Rounds only), the clock as a number with a draining ring (the shot clock in play, the build window in a build turn or a pending defence choice, "-" when no clock runs), shots remaining as dots that empty, the phase label (Build, Rearrange or Play), and the map and recenter buttons; and each side's structure count or score as a large number (Siege: the remaining structure count; "?" for a hidden opponent) beside the viewer's three power-up icons with count badges (dimmed at 0; Breaker tappable only during your own play phase). There is no far band.
+- The shell sits inside the rotating stage, so the HUD turns with the flip and the active player's controls are always at the bottom of the screen.
+- Overlays (turn card, GOAL, sweeps, REVEAL, "Opponent is choosing") are their own layer, also inside the stage.
 
 ### Screens
 
-- Title screen (name, Play), settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Same flat style and font. No tutorial screen in v1.
+- Title screen (name, Play), settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Each is its own layer, outside the rotating stage. Same flat style and font. No tutorial screen in v1.
 
 ### Feedback and accessibility
 
@@ -258,7 +258,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 Online play is deferred to the next wave. The Siege rules work online in automated tests: the lockstep sim stays in step, and the choice timer works. But online is not properly implemented or verified as a product. Treat everything online as untested until this wave lands, then test it end to end.
 
 To implement:
-- Online P2 sees the whole screen upside down, HUD text included. P2 reuses the hot-seat 180° rotation of the whole stage (`main.ts`, `rot()` in `game/view/transition.ts`). Flip the world in the camera or renderer instead, and keep the DOM upright; pointer mapping must follow the flip.
+- Online P2 sees the whole screen upside down, HUD text included. P2 reuses the hot-seat 180° rotation of the whole stage (`ui/App.tsx`, `rot()` in `game/view/transition.ts`). Flip the world in the camera or renderer instead, and keep the DOM upright; pointer mapping must follow the flip.
 - After a disconnect, a build timeout can show REVEAL under the disconnect notice.
 - A Done from the player who isn't building can suppress the build timer.
 - A defence input from the wrong player on the choice-expiry tick delays the automatic Repair by one tick. It stays deterministic, and the UI cannot send one.

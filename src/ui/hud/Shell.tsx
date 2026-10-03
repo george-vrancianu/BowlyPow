@@ -1,0 +1,90 @@
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { visual } from '../../config/visual'
+import type { BuildMenu as BuildMenuView } from '../../game/view/buildMenu'
+import type { HudModel } from '../../game/view/hudModel'
+import type { PlayerId, PowerUp } from '../../game/view/settings'
+import { Button, ButtonRow, FONT } from '../ButtonRow'
+import { BuildMenu } from './BuildMenu'
+
+const ICONS: Record<PowerUp, string> = { breaker: 'B', repulsor: 'R', steal: 'S' }
+const noop = () => {}
+const ring = (f: number, color: string = visual.hud.ink) => `conic-gradient(${color} ${f * 360}deg,${visual.hud.track} 0)`
+
+/** The structure count (Siege) or score (Rounds); the digit flips when it changes. */
+function Digit({ value, color }: { value: string | null; color: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const last = useRef(value)
+  useEffect(() => {
+    if (last.current && value && last.current !== value) ref.current?.animate?.([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], visual.hud.scoreFlipMs)
+    last.current = value
+  }, [value])
+  return <div ref={ref} style={{ display: value === null ? 'none' : undefined, fontSize: 40, lineHeight: 1, color }}>{value}</div>
+}
+
+function Clock({ clock }: { clock: HudModel['clock'] }) {
+  const urgent = !!clock && clock.seconds <= visual.hud.urgentSeconds
+  return (
+    <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: visual.hud.dark, position: 'relative', background: ring(clock?.fraction ?? 0, urgent ? visual.hud.urgent : undefined), transform: urgent ? `scale(${1 + visual.hud.urgentPulse * Math.abs(Math.sin(Math.PI * clock.seconds))})` : undefined }}>
+      {clock ? Math.ceil(clock.seconds) : '-'}
+    </div>
+  )
+}
+
+export type ShellProps = {
+  hud: HudModel
+  menu?: BuildMenuView
+  confirm: boolean
+  mapOpen: boolean
+  /** Player 2 is at the bottom of the screen: the stage is turned, so the shell sits at the stage's top. */
+  flipped: boolean
+  onMap(): void
+  onRecenter(): void
+  onPowerUp(p: PowerUp): void
+  onConfirm(): void
+  onMapStretch(): void
+  onMapClose(): void
+  onBuildToggle?(): void
+  className?: string
+  style?: CSSProperties
+  children?: ReactNode
+}
+
+/** The in-match controls, in one shell at the bottom of the screen and only for the active viewer. Mount inside the rotating stage. */
+export function Shell({ hud: m, menu, confirm, mapOpen, flipped, onMap, onRecenter, onPowerUp, onConfirm, onMapStretch, onMapClose, onBuildToggle = noop, className, style, children }: ShellProps) {
+  const color = visual.player.colors[m.active]
+  const live = m.breaker.tappable
+  const row: CSSProperties = { ...FONT, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12 }
+  return (
+    <div className={className} style={{ position: 'absolute', left: 0, right: 0, [flipped ? 'top' : 'bottom']: 0, display: 'flex', flexDirection: flipped ? 'column-reverse' : 'column', gap: 8, padding: 8, pointerEvents: 'none', color: visual.hud.ink, ...style }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'auto' }}>
+        {menu && <BuildMenu menu={menu} onToggle={onBuildToggle} style={{ justifyContent: 'center' }} />}
+        {confirm && <ButtonRow specs={[{ label: 'Confirm', onClick: onConfirm }]} />}
+        {mapOpen && <ButtonRow specs={[{ label: 'Stretch', onClick: onMapStretch }, { label: 'Close', onClick: onMapClose }]} />}
+        {m.buttons?.length ? <ButtonRow specs={m.buttons} /> : null}
+        <div style={row}>
+          {m.round !== null && <div>{`Round ${m.round} / ${m.rounds}`}</div>}
+          <Clock clock={m.clock} />
+          <div style={{ display: 'flex', gap: 4 }}>
+            {Array.from({ length: m.shotsMax }, (_, i) => <span key={i} style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${visual.hud.ink}`, background: i < m.shotsLeft ? visual.hud.ink : 'none' }} />)}
+          </div>
+          <div>{m.phase}</div>
+          <ButtonRow specs={[{ label: 'Map', onClick: onMap }, { label: 'Recenter', onClick: onRecenter }]} />
+        </div>
+        <div style={{ ...row, gap: 16, color }}>
+          {([1, 2] as PlayerId[]).map((id) => <Digit key={id} value={m.players[id].digit} color={visual.player.colors[id]} />)}
+          {(Object.keys(ICONS) as PowerUp[]).map((p) => {
+            const n = m.players[m.active].inventory[p]
+            const armed = p === 'breaker' && m.breaker.armed
+            return (
+              <Button key={p} spec={{ label: ICONS[p], onClick: () => onPowerUp(p), disabled: p === 'breaker' && !live }} style={{ position: 'relative', width: 44, height: 44, padding: 0, borderRadius: '50%', border: `2px solid ${color}`, color: armed ? visual.hud.dark : color, background: armed ? color : 'none', opacity: n > 0 ? 1 : 0.35 }}>
+                {ICONS[p]}
+                <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 18, borderRadius: 9, background: color, color: visual.hud.dark, fontSize: 12 }}>{n}</span>
+              </Button>
+            )
+          })}
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
