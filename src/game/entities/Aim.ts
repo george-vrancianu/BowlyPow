@@ -4,8 +4,8 @@ import type { Point } from '../../sim/pitch'
 import type { SimConfig, SimState } from '../../sim/step'
 import { Entity } from './Entity'
 
-/** The aim in progress, as far as the line needs it: `dir` and `power` once the shooter is dragging. */
-export type AimLine = { tier: number; dir?: Point; power?: number }
+/** The aim in progress, as far as the line needs it: `dir` and `power` once the shooter is dragging; `cancel` while cancel-armed. */
+export type AimLine = { tier: number; dir?: Point; power?: number; cancel?: true }
 
 /** The aim's direction line from the ball, and the expanding ring of a fired shot. */
 export class Aim extends Entity {
@@ -43,20 +43,39 @@ export class Aim extends Entity {
     return { from, to: { x: from.x + aim.dir.x * len, y: from.y + aim.dir.y * len } }
   }
 
+  /** While cancel is armed: an ✕ on the ball, and the line drawn in the same grey. */
+  get cancel(): { at: Point; color: string } | undefined {
+    const { aim, state } = this
+    return aim?.cancel && state ? { at: state.ball.pos, color: visual.aim.cancel.color } : undefined
+  }
+
   override update(dt: number): void {
     super.update(dt)
     this.waves = this.waves.filter((w) => this.clock - w.born < visual.aim.waveMs)
   }
 
   protected override render(ctx: CanvasRenderingContext2D): void {
-    const { line } = this
+    const { line, cancel } = this
     if (line) {
       ctx.beginPath()
       ctx.moveTo(line.from.x, line.from.y)
       ctx.lineTo(line.to.x, line.to.y)
       ctx.lineCap = 'round'
-      ctx.strokeStyle = visual.aim.line.color
+      ctx.strokeStyle = cancel?.color ?? visual.aim.line.color
       ctx.lineWidth = visual.aim.line.width
+      ctx.stroke()
+    }
+    if (cancel) {
+      const { size, width } = visual.aim.cancel
+      const { x, y } = cancel.at
+      ctx.beginPath()
+      ctx.moveTo(x - size, y - size)
+      ctx.lineTo(x + size, y + size)
+      ctx.moveTo(x + size, y - size)
+      ctx.lineTo(x - size, y + size)
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = cancel.color
+      ctx.lineWidth = width
       ctx.stroke()
     }
     for (const w of this.waves) {

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimViewOf } from './gesture'
+import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimViewOf, cancelArmed } from './gesture'
 
 const p = (x = 0, y = 0) => ({ x, y })
-// A small ball at (100, 300) on screen; Touch is the tier a press starts in.
-const press = (at = p(100, 300), over: { ballRadiusPx?: number; canShoot?: boolean } = {}) => aimPress({ at, now: 0, ball: p(100, 300), ballRadiusPx: 4, canShoot: true, ...over })
+// A small ball at (100, 300) on a 400 x 800 px canvas; Touch is the tier a press starts in.
+const size = { w: 400, h: 800 }
+const press = (at = p(100, 300), over: { ballRadiusPx?: number; canShoot?: boolean } = {}) => aimPress({ at, now: 0, ball: p(100, 300), ballRadiusPx: 4, canShoot: true, size, ...over })
 
 describe('aim gesture press', () => {
   it('pans when the press is off the ball', () => {
@@ -39,9 +40,9 @@ describe('aim gesture drag', () => {
     expect(aimOf(dragTo(100, 300 + 8 + 106))!.power).toBeCloseTo(0.2375)
   })
   it('keeps steering at the edge power past the control radius', () => {
-    const aim = aimOf(dragTo(100 - 600, 300))!
+    const aim = aimOf(dragTo(100, 300 + 450))!
     expect(aim.power).toBeCloseTo(0.5)
-    expect(aim.dir).toEqual({ x: 1, y: 0 })
+    expect(aim.dir).toEqual({ x: 0, y: -1 })
   })
   it('is a Touch aim', () => {
     expect(aimOf(dragTo(100, 400))!.tier).toBe(0)
@@ -86,5 +87,32 @@ describe('aim gesture second finger', () => {
   it('abandons the aim and pans', () => {
     const g = aimSecondFinger(dragTo(100, 450))
     expect([g.phase, aimOf(g), aimRelease(g).type]).toEqual(['pan', null, 'pan'])
+  })
+})
+
+// Edge cancel: within 24 px of any canvas edge.
+describe('aim gesture edge cancel', () => {
+  const aimed = dragTo(100, 450)
+  it('arms cancel within 24 px of any edge, and not further in', () => {
+    const at = (x: number, y: number) => cancelArmed(aimMove(aimed, p(x, y), 200))
+    expect([at(23, 400), at(377, 400), at(200, 23), at(200, 777)]).toEqual([true, true, true, true])
+    expect([at(25, 400), at(375, 400), at(200, 25), at(200, 775)]).toEqual([false, false, false, false])
+  })
+  it('holds no aim while armed, so nothing fires on time out', () => {
+    expect(aimOf(aimMove(aimed, p(100, 790), 200))).toBeNull()
+  })
+  it('cancels a release in the edge zone', () => {
+    expect(aimRelease(aimMove(aimed, p(100, 790), 200)).type).toBe('cancelled')
+  })
+  it('shows the aim greyed while armed', () => {
+    const v = aimViewOf(aimMove(aimed, p(100, 790), 200))
+    expect(v).toMatchObject({ phase: 'aiming', cancel: true, dir: { x: 0, y: -1 } })
+  })
+  it('re-arms the same shot, tier unchanged, on moving back out', () => {
+    const back = aimMove(aimMove(aimed, p(100, 790), 200), p(100, 450), 300)
+    expect(cancelArmed(back)).toBe(false)
+    expect(aimViewOf(back)?.cancel).toBeUndefined()
+    expect(aimRelease(back)).toEqual({ type: 'shot', aim: aimOf(aimed) })
+    expect(aimOf(back)?.tier).toBe(0)
   })
 })

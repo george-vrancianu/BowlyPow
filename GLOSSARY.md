@@ -5,7 +5,7 @@ A two-player pitch game: build structures, then shoot a ball into the opponent's
 ## Language
 
 **Shot**:
-How the shooter moves the ball, pool-style: press on the ball, drag back, release. The ball goes in the opposite direction to the drag, with power from the drag length. Releasing without having dragged does nothing. It replaced the radial blast (ADR-0003).
+How the shooter moves the ball, pool-style: press on the ball, drag back, release. The ball goes in the opposite direction to the drag, with power from the drag length. Releasing without having dragged, or at the canvas edge (where the Ghost greys out with an ✕), does nothing. It replaced the radial blast (ADR-0003).
 _Avoid_: Blast, kick, charge
 
 **Ghost**:
