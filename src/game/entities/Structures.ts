@@ -1,5 +1,7 @@
 import { visual } from '../../config/visual'
 import type { Point } from '../../sim/pitch'
+import { splashDamage, splashOf } from '../../sim/splash'
+import type { SimConfig, SimState } from '../../sim/step'
 import { canPlace, type Structure, type StructureSpec } from '../../sim/wall'
 import { Entity } from './Entity'
 import { Fixture, type FixtureData } from './Fixture'
@@ -25,7 +27,7 @@ export class Structures extends Entity {
   selected?: number
   /** Ids placed this turn. */
   movable: number[] = []
-  /** Blast preview: ids in range, and whether each is the shooter's own. */
+  /** Splash preview: ids in range, and whether each is the shooter's own. */
   preview = new Map<number, boolean>()
   /** Drawn above the ball and aim: the game adds it to the camera after them. */
   readonly fx = new StructureFx(this)
@@ -91,7 +93,14 @@ export class Structures extends Entity {
     this.preview = new Map()
   }
 
-  /** Hands each child what this frame shows (build overlays, blast preview). Call before drawing. */
+  /** Sets the Splash preview to the structures in range of the Splash the aim would set off from the ball; empty for a non-splash tier or before the drag. */
+  previewSplash(state: Pick<SimState, 'objects' | 'ball' | 'possession'>, aim: { tier: number; power?: number } | undefined, config: SimConfig): void {
+    const splash = aim?.power === undefined ? null : splashOf(aim.tier, aim.power, config)
+    const { shooter } = state.possession
+    this.preview = new Map(splash === null ? [] : splashDamage(state.objects, state.ball.pos, splash, shooter).map((h) => [h.wall.id, h.wall.owner === shooter]))
+  }
+
+  /** Hands each child what this frame shows (build overlays, splash preview). Call before drawing. */
   mark(): void {
     for (const [id, f] of this.fixtures) {
       f.hidden = this.hidden.includes(id)

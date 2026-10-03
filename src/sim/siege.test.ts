@@ -13,7 +13,7 @@ const playing = (seed = 1, objects: Structure[] = [wall(1, 1), wall(2, 2)]): Sim
   const s = initialState(seed, siege)
   return { ...s, objects, match: { ...s.match, builder: null } }
 }
-/** `s` with `shooter` holding a ball at rest at `pos`, ready to blast. */
+/** `s` with `shooter` holding a ball at rest at `pos`, ready to shoot. */
 const ready = (s: SimState, shooter: PlayerId, pos: { x: number; y: number }): SimState => ({ ...s, ball: { ...s.ball, pos, vel: { x: 0, y: 0 } }, possession: { shooter, shots: 2, inHand: false, live: false } })
 /** Steps until the ball rests, returning the events of every tick. */
 const settle = (s: SimState) => {
@@ -26,6 +26,12 @@ const settle = (s: SimState) => {
   return { s, events }
 }
 const ended = (events: SimEvent[][]) => events.flat().filter((e) => e.type === 'match-ended')
+/** Fires a full-power shot straight up (`dy` -1) or down (1) and steps until the ball rests: the firing tick's events come first. */
+const fire = (s: SimState, dy: 1 | -1, breaker?: true) => {
+  const r = step(s, { shot: { player: s.possession.shooter, dir: { x: 0, y: dy }, tier: 1, power: 1, breaker } }, siege)
+  const rest = settle(r.state)
+  return { s: rest.s, events: [r.events, ...rest.events] }
+}
 const shot = (s: SimState, shooter: 1 | 2, y: number, vy: number): SimState => ({ ...s, ball: { ...s.ball, pos: { x: 20, y }, vel: { x: 0, y: vy } }, possession: { ...s.possession, shooter, inHand: false, live: true } })
 
 const piece = (owner: 1 | 2): WallSpec => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 10, gy: owner === 1 ? 40 : 10 } })
@@ -100,7 +106,7 @@ describe('Siege', () => {
     for (let i = 0; i < siege.shotCap + 5; i++) {
       // A full-power shot from near player 1's goal travels a long way across the pitch before resting.
       s = { ...s, possession: { ...s.possession, shooter: 1, shots: siege.shots, inHand: false, live: false }, ball: { ...s.ball, pos: { x: 20, y: 90 }, vel: { x: 0, y: 0 } } }
-      s = step(s, { blast: { player: 1, origin: { x: 20, y: 94 }, power: 1 } }, siege).state
+      s = step(s, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 } }, siege).state
       expect(Math.hypot(s.ball.vel.x, s.ball.vel.y)).toBeGreaterThan(0)
       let travelled = 0
       for (let t = 0; t < 2000 && s.possession.live; t++) {
@@ -127,10 +133,10 @@ describe('Siege defence turn: Repair', () => {
   }
   const repair = (player: 1 | 2) => ({ defence: { player, choice: 'repair' as const } })
 
-  it('waits for the scorer: blasts and ball placement are refused, and the clock does not run', () => {
+  it('waits for the scorer: shots and ball placement are refused, and the clock does not run', () => {
     let s = scored()
     expect(s.match).toMatchObject({ choosing: 1 })
-    for (const input of [{ blast: { player: 2 as const, origin: { x: 20, y: 70 }, power: 0.3 } }, { placeBall: { player: 2 as const, at: { x: 20, y: 80 } } }]) {
+    for (const input of [{ shot: { player: 2 as const, dir: { x: 0, y: 1 }, tier: 0, power: 0.3 } }, { placeBall: { player: 2 as const, at: { x: 20, y: 80 } } }]) {
       const r = step(s, input, siege)
       expect(r.events).toContainEqual({ type: 'refused' })
       expect(r.state.possession.inHand).toBe(true)
@@ -183,29 +189,29 @@ describe('Siege defence turn: Repair', () => {
 
 describe('Siege wipe-out', () => {
   it('destroying the opponent\'s last structure ends the match for the shooter once the ball rests', () => {
-    const s = ready(playing(1, [wall(1, 1), wall(2, 2, 1)]), 1, { x: 30, y: 90 })
-    const r = step(s, { blast: { player: 1, origin: { x: 11, y: 56 }, power: 1 } }, siege)
-    expect(r.events.some((e) => e.type === 'wall-destroyed')).toBe(true)
-    expect(r.events).toContainEqual({ type: 'match-ended', winner: 1 })
-    expect(r.state.match.winner).toBe(1)
+    // The ball runs straight up into player 2's 1 hp wall (y 52).
+    const r = fire(ready(playing(1, [wall(1, 1), wall(2, 2, 1)]), 1, { x: 14, y: 60 }), -1)
+    expect(r.events.flat().some((e) => e.type === 'wall-destroyed')).toBe(true)
+    expect(ended(r.events)).toEqual([{ type: 'match-ended', winner: 1 }])
+    expect(r.s.match.winner).toBe(1)
   })
 
-  it('destroying your own last structure with your blast loses the match', () => {
-    const s = ready(playing(1, [wall(1, 1, 1), wall(2, 2)]), 1, { x: 30, y: 90 })
-    const r = step(s, { blast: { player: 1, origin: { x: 14, y: 81.5 }, power: 1 } }, siege)
-    expect(r.events.some((e) => e.type === 'wall-destroyed')).toBe(true)
-    expect(r.state.match.winner).toBe(2)
+  it('destroying your own last structure with your shot loses the match', () => {
+    // The ball runs straight down into player 1's own 1 hp wall (y 80).
+    const r = fire(ready(playing(1, [wall(1, 1, 1), wall(2, 2)]), 1, { x: 14, y: 70 }), 1)
+    expect(r.events.flat().some((e) => e.type === 'wall-destroyed')).toBe(true)
+    expect(r.s.match.winner).toBe(2)
   })
 
   it('both players at zero on the same shot: the shooter loses', () => {
+    // A Breaker shot goes through the first wall it meets at full speed and breaks the 1 hp wall behind it.
     const s = playing(1, [wall(1, 1, 1, 28), wall(2, 2, 1)])
-    const r = step(ready(s, 1, { x: 30, y: 90 }), { blast: { player: 1, origin: { x: 14, y: 57.5 }, power: 1 } }, siege)
-    expect(r.state.objects).toHaveLength(0)
-    expect(r.state.match.winner).toBe(2)
-    const t = playing(1, [wall(1, 1, 1, 28), wall(2, 2, 1)])
-    const q = step(ready(t, 2, { x: 30, y: 20 }), { blast: { player: 2, origin: { x: 14, y: 50.5 }, power: 1 } }, siege)
-    expect(q.state.objects).toHaveLength(0)
-    expect(q.state.match.winner).toBe(1)
+    const r = fire(ready(s, 1, { x: 14, y: 60 }), -1, true)
+    expect(r.s.objects).toHaveLength(0)
+    expect(r.s.match.winner).toBe(2)
+    const q = fire(ready(s, 2, { x: 14, y: 48 }), 1, true)
+    expect(q.s.objects).toHaveLength(0)
+    expect(q.s.match.winner).toBe(1)
   })
 
   it('a Steal tower that triggers as its owner\'s last structure ends the match against its owner', () => {
@@ -225,14 +231,13 @@ describe('Siege wipe-out', () => {
   })
 
   it('destroying the last structure mid-flight ends the match only when the ball rests', () => {
-    // A blast at the ball's edge sends it rolling while also breaking player 2's last wall.
-    const s = ready(playing(1, [wall(1, 1), wall(2, 2, 1)]), 1, { x: 14, y: 60 })
-    const fired = step(s, { blast: { player: 1, origin: { x: 14, y: 56.5 }, power: 1 } }, siege)
-    expect(fired.events.some((e) => e.type === 'wall-destroyed')).toBe(true)
-    expect(fired.state.objects.some((o) => o.owner === 2)).toBe(false)
-    expect(fired.state.possession.live).toBe(true)
-    expect(fired.state.match.winner).toBeNull()
-    const r = settle(fired.state)
+    let s = ready(playing(1, [wall(1, 1), wall(2, 2, 1)]), 1, { x: 14, y: 60 })
+    s = step(s, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 } }, siege).state
+    for (let t = 0; t < 60 && s.objects.some((o) => o.owner === 2); t++) s = step(s, {}, siege).state
+    expect(s.objects.some((o) => o.owner === 2)).toBe(false)
+    expect(s.possession.live).toBe(true)
+    expect(s.match.winner).toBeNull()
+    const r = settle(s)
     expect(r.events.slice(0, -1).flat().some((e) => e.type === 'match-ended')).toBe(false)
     expect(r.events[r.events.length - 1]).toContainEqual({ type: 'match-ended', winner: 1 })
   })
@@ -249,7 +254,7 @@ describe('Siege wipe-out', () => {
 
   it('ignores further input once the match has ended', () => {
     const over = step(shot(playing(1, [wall(2, 2)]), 1, 0.5, -60), {}, siege).state
-    const r = step(over, { blast: { player: 1, origin: { x: 11, y: 90 }, power: 1 }, done: 1 }, siege)
+    const r = step(over, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 }, done: 1 }, siege)
     expect(r.state).toBe(over)
     expect(r.events).toEqual([])
   })

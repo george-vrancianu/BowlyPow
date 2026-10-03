@@ -1,6 +1,6 @@
 import { rules } from '../config/rules'
 import { halfOf, type PlayerId, type Point } from './pitch'
-import { insideTower, nearestOnWall } from './blast'
+import { insideTower, nearestOnWall } from './near'
 import type { SimConfig, SimEvent, SimState } from './step'
 import type { Structure } from './wall'
 

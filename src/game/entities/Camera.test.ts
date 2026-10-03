@@ -100,6 +100,11 @@ describe('map camera', () => {
     const cam = new Camera(54)
     expect(cam.toWorld(canvas, 200, 600)).toEqual({ x: 20, y: 54 })
   })
+  it('converts world units to canvas pixels', () => {
+    const cam = new Camera(54)
+    expect(cam.toCanvas(canvas, { x: 20, y: 54 })).toEqual({ x: 200, y: 600 })
+    expect(cam.toCanvas(canvas, { x: 30, y: 64 })).toEqual({ x: 300, y: 700 })
+  })
 })
 
 describe('blind build', () => {

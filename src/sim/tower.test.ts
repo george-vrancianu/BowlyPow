@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { rules } from '../config/rules'
 import { defaultConfig, step, type SimInput, type SimState } from './step'
 import { buildState, place, playState } from './testkit'
-import { canBlastFrom } from './blast'
+import { canPlaceBall } from './possession'
 import { canPlace, damageWall, isLegal, wallCells, wallSegments, type TowerSpec, type WallSpec } from './wall'
 
 const tower = (gx: number, gy: number, owner: TowerSpec['owner'] = 1): TowerSpec => ({ kind: 'tower', owner, power: 'repulsor', at: { gx, gy } })
@@ -72,17 +72,12 @@ describe('tower damage', () => {
   })
 })
 
-describe('tower and blasts', () => {
-  const state = (t: TowerSpec): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, objects: [{ ...t, id: 1, hp: rules.towerHp }] })
-  it('a blast cannot start inside or on a tower, but can start beside it', () => {
-    const s = state(tower(5, 40))
-    expect(canBlastFrom(1, { x: 11, y: 81 }, s, defaultConfig)).toBe(false)
-    expect(canBlastFrom(1, { x: 10, y: 81 }, s, defaultConfig)).toBe(false)
-    expect(canBlastFrom(1, { x: 13, y: 81 }, s, defaultConfig)).toBe(true)
-  })
-  it('takes blast damage by the same pressure rule: enemy tower loses 1 hp above 0.4', () => {
-    // Tower square y 48..50; origin 5 away at full power (radius 10) gives pressure 0.5.
-    const r = step(state(tower(10, 24, 2)), { blast: { player: 1, origin: { x: 21, y: 55 }, power: 1 } }, defaultConfig)
-    expect(r.state.objects[0].hp).toBe(rules.towerHp - 1)
+describe('tower and ball placement', () => {
+  it('the ball cannot be placed inside or on a tower, but can be beside it', () => {
+    const objects = [{ ...tower(5, 40), id: 1, hp: rules.towerHp }]
+    // Tower square x 10..12, y 80..82; the ball needs its radius plus half a wall of clearance.
+    expect(canPlaceBall(1, { x: 11, y: 81 }, objects, defaultConfig)).toBe(false)
+    expect(canPlaceBall(1, { x: 10, y: 81 }, objects, defaultConfig)).toBe(false)
+    expect(canPlaceBall(1, { x: 14, y: 81 }, objects, defaultConfig)).toBe(true)
   })
 })

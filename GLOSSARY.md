@@ -1,8 +1,28 @@
 # BreachBall
 
-A two-player pitch game: build structures, then blast a ball into the opponent's goal. A game mode decides how a match is won.
+A two-player pitch game: build structures, then shoot a ball into the opponent's goal. A game mode decides how a match is won.
 
 ## Language
+
+**Shot**:
+How the shooter moves the ball, pool-style: press on the ball, drag back, release. The ball goes in the opposite direction to the drag, with power from the drag length. Releasing without having dragged, or at the canvas edge (where the Ghost greys out with an ✕), does nothing. It replaced the radial blast (ADR-0003).
+_Avoid_: Blast, kick, charge
+
+**Tier**:
+The kind of Shot, picked by how long the shooter holds still on the ball before dragging; the first drag locks it. Each tier sets its control radius, power curve and range, and Ghost. **Touch** (drag right away) is weak and precise: a large radius, a longer drag is stronger, a full green Ghost. **Power** (hold 1 s) is strong: a small radius, a shorter drag is stronger, a short red Ghost.
+_Avoid_: Mode, level, charge
+
+**Ghost**:
+The ball's predicted path, drawn from the ball while aiming a Shot in its Tier's colour, showing where it will go. Only this is the Ghost: the translucent ball-in-hand disc is the placement, and the translucent piece dragged in a build turn is the build piece.
+_Avoid_: Preview, arrow, trajectory; "ghost" for the ball-in-hand placement or the build piece
+
+**Splash**:
+The burst every Power Shot sets off where the ball starts, damaging every structure in range, the shooter's own included and across the halfway line. It grows with power within the Tier; the shooter's own structures lose hit points only to its strongest part. It doesn't move the ball.
+_Avoid_: Blast, explosion, area damage
+
+**On time out**:
+The match setting, shown in every mode, for what an expiring shot clock does with the shooter's turn: **Shoot** (the default) fires the aim they are holding, or burns the shot if they hold none (not yet dragged, or cancel-armed at the edge); **Burn** always burns the shot. In code, `expiry: 'shoot' | 'burn'`.
+_Avoid_: Auto-fire, expiry mode, Fire
 
 **Rounds**:
 The game mode where a match is a series of rounds, each with its own build phase, decided by score after the configured number of rounds (a tie goes to sudden death).

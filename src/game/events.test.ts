@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { visual } from '../config/visual'
 import { defaultConfig } from '../sim/step'
+import { playState } from '../sim/testkit'
 import type { SimEvent } from '../sim/step'
 import type { Structure } from '../sim/wall'
 import { Aim } from './entities/Aim'
@@ -17,7 +18,7 @@ const tower: Structure = { id: 2, kind: 'tower', owner: 2, power: 'repulsor', at
 function setup(objects: Structure[]) {
   const t = { camera: new Camera(54), structures: new Structures(), ball: new Ball(), aim: new Aim(), vibrate: vi.fn() }
   t.structures.sync(objects)
-  t.aim.sync({ ball: t.ball.state, objects }, defaultConfig)
+  t.aim.sync({ ...playState(), ball: t.ball.state }, defaultConfig)
   const route = (events: SimEvent[], left: Structure[], reduced = false) => routeEvents(events, t, left, reduced)
   return { ...t, route }
 }
@@ -56,15 +57,21 @@ describe('routeEvents', () => {
     expect(w.structures.count).toBe(0)
   })
 
-  it('a strong blast shakes the camera, rings the aim and vibrates; reduced motion keeps only the ring', () => {
+  it('a strong shot shakes the camera, rings the aim and vibrates; reduced motion keeps only the ring', () => {
     const w = setup([])
-    const blast: SimEvent = { type: 'blast-fired', player: 1, origin: at, power: 1 }
-    w.route([blast], [])
-    expect(w.aim.waveCount).toBe(1)
+    const shot: SimEvent = { type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 1, power: 1 }
+    w.route([shot], [])
+    expect(w.aim.splashCount).toBe(1)
     expect(w.camera.shakeNow).not.toEqual({ x: 0, y: 0 })
     expect(w.vibrate).toHaveBeenCalledTimes(1)
     const calm = setup([])
-    calm.route([blast], [], true)
-    expect([calm.aim.waveCount, calm.camera.shakeNow, calm.vibrate.mock.calls.length]).toEqual([1, { x: 0, y: 0 }, 0])
+    calm.route([shot], [], true)
+    expect([calm.aim.splashCount, calm.camera.shakeNow, calm.vibrate.mock.calls.length]).toEqual([1, { x: 0, y: 0 }, 0])
+  })
+
+  it('a Touch shot sets off no Splash ring', () => {
+    const w = setup([])
+    w.route([{ type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 0, power: 0.4 }], [])
+    expect(w.aim.splashCount).toBe(0)
   })
 })

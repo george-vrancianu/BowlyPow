@@ -14,7 +14,7 @@ const base = {
   /** Wall points a tower costs; it spends inventory instead. */
   towerCost: 0,
   wallCost: { straight: 2, L: 3 },
-  /** Half the drawn wall thickness; a blast cannot start on it. */
+  /** Half the drawn wall thickness; the ball cannot be placed on it. */
   wallHalf: 0.35,
   /** Each arm is a run of cells from the pivot, before rotation. */
   arms: { straight: [[4, 0]], L: [[3, 0], [0, 3]] } as Record<'straight' | 'L', [number, number][]>,
@@ -23,9 +23,35 @@ const base = {
   startInventory: 3,
   /** Where a timed-out blind opening build drops its piece for P1, in grid vertices; P2's mirrors across the halfway line. */
   fallbackPiece: { gx: 10, gy: 40 },
-  /** Blast radius is `radiusBase * ballRadius * (1 + radiusGrowth * power)`; pressure above `heavy` / `light` costs more hp. */
-  blast: { radiusBase: 2, radiusGrowth: 4, heavy: 0.8, light: 0.4 },
+  /** Splash radius is `radiusBase * ballRadius * (1 + radiusGrowth * power)`; pressure above `heavy` / `light` costs more hp. */
+  splash: { radiusBase: 2, radiusGrowth: 4, heavy: 0.8, light: 0.4 },
 } as const
+
+/** The Shot tiers, by name; each needs a colour in `visual.aim.tierColors`. */
+export type TierName = 'Touch' | 'Power'
+
+/** A Shot tier. The sim reads only `power` and `splash`; the rest drives the aim gesture and the Ghost. */
+export type Tier = {
+  name: TierName
+  /** Hold still on the ball this long to reach the tier. */
+  holdMs: number
+  /** Control radius around the ball, in screen pixels. */
+  radiusPx: number
+  /** `direct`: a longer drag is stronger; `inverted`: a shorter one is. */
+  curve: 'direct' | 'inverted'
+  /** Final power range, 0-1 of maxSpeed. */
+  power: readonly [number, number]
+  /** How far the Ghost reaches, and the share of that path drawn. */
+  ghost: { until: { contacts: number } | 'rest'; scale: number }
+  /** Fires a Splash at the ball's launch position. */
+  splash: boolean
+}
+
+/** Tiers are data: a new tier is a new entry. Indexed by the Shot's `tier`. */
+const tiers: readonly Tier[] = [
+  { name: 'Touch', holdMs: 0, radiusPx: 220, curve: 'direct', power: [0.15, 0.45], ghost: { until: { contacts: 1 }, scale: 1 }, splash: false },
+  { name: 'Power', holdMs: 1000, radiusPx: 90, curve: 'inverted', power: [0.5, 1], ghost: { until: { contacts: 1 }, scale: 0.3 }, splash: true },
+]
 
 const mapTop = -base.board - base.netDepth
 const mapHeight = base.pitchHeight + 2 * (base.board + base.netDepth)
@@ -46,4 +72,5 @@ export const rules = {
   mapTop,
   mapHeight,
   mapY: mapTop + mapHeight / 2,
+  shot: { tiers },
 } as const

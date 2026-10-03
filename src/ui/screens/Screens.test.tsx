@@ -29,6 +29,19 @@ it('settings: the mode picker and sliders report changes, and Start fires', () =
   expect(start).toHaveBeenCalled()
 })
 
+it('settings: the On time out toggle shows in both modes and reports the choice', () => {
+  for (const mode of ['siege', 'rounds'] as const) {
+    const change = vi.fn()
+    render(<SettingsScreen settings={{ ...defaultSettings, mode }} onChange={change} onStart={() => {}} />)
+    expect(screen.getByText('On time out')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Shoot' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Burn' }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Burn' }))
+    expect(change).toHaveBeenLastCalledWith(expect.objectContaining({ mode, expiry: 'burn' }))
+    cleanup()
+  }
+})
+
 it('match end names the winner and offers rematch and menu', () => {
   const [rematch, menu] = [vi.fn(), vi.fn()]
   render(<MatchEndScreen winner={2} result="1 structure left" onRematch={rematch} onMenu={menu} />)

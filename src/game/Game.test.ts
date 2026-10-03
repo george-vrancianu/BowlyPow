@@ -177,7 +177,9 @@ describe('Game', () => {
     expect(calls).toEqual(['start'])
     frame(performance.now())
     expect(calls).toContain('update')
-    expect(calls).toContain('send charging')
+    game.actions.build.spawn('straight')
+    game.actions.build.confirm()
+    expect(calls).toContain('send placeWall')
     game.destroy()
   })
 

@@ -33,4 +33,21 @@ describe('LocalDriver', () => {
     driver.update(tick * 5)
     expect(ticks).toHaveLength(0)
   })
+
+  it('drops the held aim once the shot clock fires it: the next expiry burns', () => {
+    const { driver, ticks, start } = setup()
+    let s = start
+    const last = () => (s = ticks.at(-1)?.state ?? s)
+    while (last().match.builder) (driver.send({ done: s.match.builder! }), driver.update(tick))
+    const me = s.possession.shooter
+    if (s.possession.inHand) (driver.send({ placeBall: { player: me, at: { x: 20, y: me === 1 ? 80 : 28 } } }), driver.update(tick))
+    driver.send({ aiming: { dir: { x: 1, y: 0 }, tier: 0, power: 0.3 } })
+    const events = () => ticks.flatMap((t) => t.events)
+    const shots = () => events().filter((e) => e.type === 'shot-fired')
+    while (!shots().length) driver.update(tick)
+    while (last().possession.live) driver.update(tick)
+    for (let i = 0; i <= defaultConfig.shotClock * defaultConfig.tickHz; i++) driver.update(tick)
+    expect(shots()).toHaveLength(1)
+    expect(events().filter((e) => e.type === 'shot-clock-expired')).toHaveLength(2)
+  })
 })

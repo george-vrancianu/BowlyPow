@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { lockstep, type Frame } from './lockstep'
-import { canBlastFrom } from '../sim/blast'
 import { canPlaceBall } from '../sim/possession'
 import { defaultConfig, initialState, step, type SimConfig, type SimInput, type SimState } from '../sim/step'
 import type { PlayerId } from '../sim/pitch'
@@ -13,20 +12,19 @@ const DELAY = 4
 function bot(s: SimState, me: PlayerId): SimInput {
   if (s.tick % 20) return {}
   if (s.match.builder === me) return { done: me }
-  const { possession: p, ball } = s
+  const { possession: p } = s
   if (p.shooter !== me || s.match.builder || p.live) return {}
   if (p.inHand) {
     const at = { x: 20, y: me === 1 ? 80 : 28 }
     return canPlaceBall(me, at, s.objects, config) ? { placeBall: { player: me, at } } : {}
   }
-  const origin = { x: ball.pos.x, y: ball.pos.y + (me === 1 ? 4 : -4) }
-  return canBlastFrom(me, origin, s, config) ? { blast: { player: me, origin, power: 0.8 } } : {}
+  return { shot: { player: me, dir: { x: 0, y: me === 1 ? -1 : 1 }, tier: 1, power: 0.8 } }
 }
 
 /** Two peers over a link where each frame arrives `lag` rounds late; a peer missing a frame stalls. */
 function match(seed: number, lag: number, ticks: number, play: (s: SimState, me: PlayerId) => SimInput = bot, cfg: SimConfig = config, start: (seed: number) => SimState = (seed) => initialState(seed, cfg)) {
   let frames = 0
-  const blasts: unknown[] = []
+  const shots: unknown[] = []
   const inbox: { f: Frame; at: number }[][] = [[], []]
   let now = 0
   const peers = [1, 2].map((me, i) => lockstep((f) => (frames++, inbox[1 - i].push({ f, at: now + lag })), me as PlayerId, DELAY))
@@ -41,12 +39,13 @@ function match(seed: number, lag: number, ticks: number, play: (s: SimState, me:
       const input = net.advance(states[i].possession.shooter)
       if (input) {
         const r = step(states[i], input, cfg)
+        net.stepped(r.events)
         states[i] = r.state
-        if (i === 0) blasts.push(...r.events.filter((e) => e.type === 'blast-fired'))
+        if (i === 0) shots.push(...r.events.filter((e) => e.type === 'shot-fired'))
       }
     })
   }
-  return Object.assign(states, { frames, blasts })
+  return Object.assign(states, { frames, shots })
 }
 
 describe('lockstep', () => {
@@ -91,18 +90,68 @@ describe('lockstep', () => {
     expect(idle.frames).toBeLessThan(600 / 2)
   })
 
-  it('auto-fires a charging blast on shot-clock expiry at its current power, on both peers', () => {
-    // Once the build turns are over, the shooter holds a charge at power 0.6 and never releases.
+  describe('a held aim', () => {
+    const aiming = { dir: { x: 0, y: -1 }, tier: 1, power: 0.6 }
+    /** Player 1's peer beside a silent player 2: tick `t` submits `inputs[t]` (if any). Returns what advance gives shooter 1, with consecutive repeats collapsed. */
+    const held = (inputs: Record<number, SimInput>) => {
+      const a = lockstep(() => {}, 1, DELAY)
+      const runs: (SimInput | undefined)[] = []
+      for (let t = 0; t < 40; t++) {
+        if (inputs[t]) a.submit(inputs[t])
+        a.receive({ t: t + DELAY })
+        const i = a.advance(1)
+        if (JSON.stringify(i) !== JSON.stringify(runs.at(-1))) runs.push(i)
+      }
+      return runs
+    }
+    it('rides along every tick from when it lands until it is replaced', () => {
+      const other = { ...aiming, power: 0.3 }
+      expect(held({ 0: { aiming }, 3: { aiming: other } })).toEqual([{}, { aiming }, { aiming: other }])
+    })
+    it('is dropped once cleared', () => {
+      expect(held({ 0: { aiming }, 2: { aiming: null } })).toEqual([{}, { aiming }, {}])
+    })
+    it('is dropped once its owner fires', () => {
+      const shot = { player: 1 as const, ...aiming }
+      expect(held({ 0: { aiming }, 2: { shot } })).toEqual([{}, { aiming }, { shot }, {}])
+    })
+    it('only the shooter\'s rides along', () => {
+      const a = lockstep(() => {}, 1, DELAY)
+      a.submit({ aiming })
+      for (let t = 0; t <= DELAY; t++) (a.receive({ t: t + DELAY }), a.advance(1))
+      a.receive({ t: 2 * DELAY })
+      expect(a.advance(2)).toEqual({})
+    })
+  })
+
+  it('auto-fires a held aim on shot-clock expiry, on both peers', () => {
+    // Once the build turns are over, the shooter holds an aim at power 0.6 and never releases.
     const hold = (s: SimState, me: PlayerId): SimInput => {
       if (s.match.builder === me) return { done: me }
-      const { possession: p, ball } = s
+      const { possession: p } = s
       if (p.shooter !== me || s.match.builder || p.live) return {}
       if (p.inHand) return s.tick % 20 === 0 ? { placeBall: { player: me, at: { x: 20, y: me === 1 ? 80 : 28 } } } : {}
-      return s.tick % 20 === 0 ? { charging: { origin: { x: ball.pos.x, y: ball.pos.y + (me === 1 ? 4 : -4) }, power: 0.6 } } : {}
+      return s.tick % 20 === 0 ? { aiming: { dir: { x: 0, y: me === 1 ? -1 : 1 }, tier: 1, power: 0.6 } } : {}
     }
     const peers = match(5, 3, 1500, hold)
     expect(peers[0]).toEqual(peers[1])
-    expect(peers.blasts).toContainEqual(expect.objectContaining({ type: 'blast-fired', power: 0.6 }))
+    expect(peers.shots).toContainEqual(expect.objectContaining({ type: 'shot-fired', power: 0.6 }))
+  })
+
+  it('drops an aim the shot clock fired, on both peers: it does not fire again at the next expiry', () => {
+    // Player 1 holds an aim once and never sends another input; player 2 only ends build turns.
+    let aimed = false
+    const once = (s: SimState, me: PlayerId): SimInput => {
+      if (s.match.builder === me) return { done: me }
+      const { possession: p } = s
+      if (me !== 1 || p.shooter !== 1 || s.match.builder || p.live || aimed) return {}
+      if (p.inHand) return s.tick % 20 === 0 ? { placeBall: { player: 1, at: { x: 20, y: 80 } } } : {}
+      aimed = true
+      return { aiming: { dir: { x: 1, y: 0 }, tier: 0, power: 0.3 } }
+    }
+    const peers = match(5, 3, 3000, once)
+    expect(peers[0]).toEqual(peers[1])
+    expect(peers.shots.filter((e) => (e as { power: number }).power === 0.3)).toHaveLength(1)
   })
 
   describe('Siege defence choice under the build timer', () => {

@@ -16,7 +16,7 @@ import { Fog } from './entities/Fog'
 import { Pitch } from './entities/Pitch'
 import { Structures } from './entities/Structures'
 import { routeEvents } from './events'
-import { reducedMotion } from './feedback'
+import { reducedMotion, tierBuzz } from './feedback'
 import { InputController } from './input/InputController'
 import { buildMenu, type BuildActions, type BuildMenu } from './view/buildMenu'
 import { hudModel, roundOf, type HudModel } from './view/hudModel'
@@ -126,6 +126,7 @@ export class Game implements Sink {
       state: () => this.state,
       config: () => this.config,
       shown: () => this.transition.shown,
+      mine,
       mapOpen: () => this.mapOpen,
       blocked: this.blocked,
       toggleMap: (open) => this.toggleMap(open),
@@ -221,16 +222,16 @@ export class Game implements Sink {
     this.last = this.now = now
     // Clocks advance before the sim ticks, so an effect the tick starts is drawn at age 0.
     this.camera.update(dt)
-    this.driver.send({ charging: this.input.charging(now) })
     this.driver.update(dt)
     this.announce([])
     this.seeBlind()
-    // A ghost ball or half-made gesture does not survive a blocking hold into the next player's turn.
+    // A ball-in-hand placement or half-made gesture does not survive a blocking hold into the next player's turn.
     if (this.blocked()) this.input.cancelGestures()
     const { state, transition, camera } = this
     const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
     if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), camera.recenter()
     this.input.edgeScroll(dt)
+    this.input.tickAim()
     if (!camera.held) camera.follow(state.ball.pos.y, dt)
     this.present()
     this.draw()
@@ -238,7 +239,7 @@ export class Game implements Sink {
     this.raf = requestAnimationFrame(this.frame)
   }
 
-  /** Hands the entities what this frame shows: the build overlays, the charge, the ball's ghost. */
+  /** Hands the entities what this frame shows: the build overlays, the aim, the ball-in-hand placement. */
   private present(): void {
     const { state, input, structures, mapOpen } = this
     const { builder } = state.match
@@ -249,14 +250,20 @@ export class Game implements Sink {
     structures.hidden = mapOpen ? [] : [sel?.movable ? sel.id : undefined, input.landing?.id].filter((id) => id !== undefined)
     structures.selected = !mapOpen && sel && !sel.movable ? sel.id : undefined
     structures.movable = builder && !mapOpen ? state.built : []
-    this.aim.charge = mapOpen ? undefined : input.chargeView(this.now)
-    structures.preview = new Map(this.aim.preview().map((h) => [h.id, h.own]))
+    const aim = mapOpen ? undefined : input.aimView()
+    const reduced = reducedMotion()
+    const buzz = tierBuzz(this.ball.aim, aim, reduced)
+    if (buzz) navigator.vibrate?.(buzz)
+    this.aim.aim = this.ball.aim = aim
+    // A cancel-armed aim fires nothing, so it previews no Splash.
+    structures.previewSplash(state, aim?.cancel ? undefined : aim, this.config)
+    this.ball.reduced = reduced
     structures.mark()
     this.pitch.builder = builder ?? undefined
     // During the goal hold the ball rests in the net (the sim has already reset it).
     const inNet = goalBall(this.transition)
     this.ball.sync(inNet ? { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } : state.ball)
-    this.ball.placement = input.ballGhost && { at: input.ballGhost, legal: canPlaceBall(shooter, input.ballGhost, state.objects, this.config), radius: this.config.ballRadius }
+    this.ball.placement = input.placement && { at: input.placement, legal: canPlaceBall(shooter, input.placement, state.objects, this.config), radius: this.config.ballRadius }
     this.ball.armed = input.armed || state.breaker ? shooter : undefined
   }
 

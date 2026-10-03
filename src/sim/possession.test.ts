@@ -11,10 +11,12 @@ const base = (ball: { x: number; y: number }, shooter: 1 | 2 = 1, shots = 3): Si
   ball: { pos: ball, vel: { x: 0, y: 0 }, rolled: 0 },
   possession: { shooter, shots, inHand: false, live: false },
 })
-/** A blast that cannot reach the ball: still one shot. */
+/** A soft shot along the ball's row, stepped until it rests: still one shot. Returns the last tick and every event. */
 const miss = (s: SimState) => {
-  const player = s.possession.shooter
-  return step(s, { blast: { player, origin: at(player === 1 ? 90 : 18, 5), power: 0.1 } }, c)
+  let r = step(s, { shot: { player: s.possession.shooter, dir: { x: 1, y: 0 }, tier: 0, power: 0.15 } }, c)
+  const events = [...r.events]
+  while (r.state.possession.live) (r = step(r.state, {}, c)), events.push(...r.events)
+  return { state: r.state, events }
 }
 
 describe('possession', () => {
@@ -23,7 +25,7 @@ describe('possession', () => {
     expect(c.shots).toBe(3)
   })
   it('does nothing until the ball rests', () => {
-    const r = step(base(at(80)), { blast: { player: 1, origin: at(82), power: 1 } }, c)
+    const r = step(base(at(80)), { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 } }, c)
     expect(r.state.ball.vel.y).not.toBe(0)
     expect(r.state.possession).toEqual({ shooter: 1, shots: 3, inHand: false, live: true })
     expect(r.events.some((e) => e.type === 'possession-changed')).toBe(false)
@@ -47,14 +49,14 @@ describe('possession', () => {
     expect(r.state.possession).toMatchObject({ shooter: 1, shots: 2 })
     expect(r.events.some((e) => e.type === 'possession-changed')).toBe(false)
   })
-  it('only the shooter may blast', () => {
-    const r = step(base(at(80)), { blast: { player: 2, origin: at(20, 5), power: 0.5 } }, c)
+  it('only the shooter may shoot', () => {
+    const r = step(base(at(80)), { shot: { player: 2, dir: { x: 0, y: 1 }, tier: 0, power: 0.4 } }, c)
     expect(r.events).toEqual([{ type: 'refused' }])
     expect(r.state.possession.live).toBe(false)
   })
-  it('refuses a blast while ball-in-hand is pending', () => {
+  it('refuses a shot while ball-in-hand is pending', () => {
     const s = { ...base(at(30), 2), possession: { shooter: 2 as const, shots: 3, inHand: true, live: false } }
-    expect(step(s, { blast: { player: 2, origin: at(20, 5), power: 0.5 } }, c).events).toEqual([{ type: 'refused' }])
+    expect(step(s, { shot: { player: 2, dir: { x: 0, y: 1 }, tier: 0, power: 0.4 } }, c).events).toEqual([{ type: 'refused' }])
   })
 })
 

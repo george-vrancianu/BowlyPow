@@ -1,4 +1,4 @@
-import { initialState, step, type SimConfig, type SimEvent, type SimInput, type SimState } from '../sim/step'
+import { initialState, step, type Aiming, type SimConfig, type SimEvent, type SimInput, type SimState } from '../sim/step'
 
 /** Where a driver delivers sim state: `Game`. A blocked sink (a flip, goal hold or turn card) makes the driver stop stepping. */
 export type Sink = { apply(state: SimState, events: SimEvent[]): void; blocked(): boolean }
@@ -20,7 +20,7 @@ export class LocalDriver implements Driver {
   private state!: SimState
   private config!: SimConfig
   private pending: SimInput = {}
-  private charging?: SimInput['charging']
+  private aiming?: Aiming
   private acc = 0
 
   constructor(private sink: Sink) {}
@@ -29,15 +29,15 @@ export class LocalDriver implements Driver {
   start(config: SimConfig, seed?: number): SimState {
     this.config = config
     this.pending = {}
-    this.charging = undefined
+    this.aiming = undefined
     this.acc = 0
     return (this.state = initialState(seed, config))
   }
 
-  /** One-off inputs go to the next tick; `charging` holds until it is sent again (undefined releases it). */
+  /** One-off inputs go to the next tick; `aiming` holds until it is sent again (null releases it) or a shot is fired. */
   send(input: SimInput): void {
-    const { charging, ...rest } = input
-    if ('charging' in input) this.charging = charging
+    const { aiming, ...rest } = input
+    if (aiming !== undefined) this.aiming = aiming ?? undefined
     this.pending = { ...this.pending, ...rest }
   }
 
@@ -50,9 +50,11 @@ export class LocalDriver implements Driver {
         this.pending = {}
         continue
       }
-      const out = step(this.state, this.charging ? { charging: this.charging, ...this.pending } : this.pending, this.config)
+      const out = step(this.state, this.aiming ? { aiming: this.aiming, ...this.pending } : this.pending, this.config)
       this.state = out.state
       this.pending = {}
+      // A fired aim is spent, whether the controller or the shot clock fired it.
+      if (out.events.some((e) => e.type === 'shot-fired')) this.aiming = undefined
       this.sink.apply(out.state, out.events)
     }
   }

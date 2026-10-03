@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { visual } from '../../config/visual'
+import { defaultConfig } from '../../sim/step'
+import { playState } from '../../sim/testkit'
 import type { Structure } from '../../sim/wall'
 import { Structures } from './Structures'
 import { Tower } from './Tower'
@@ -64,13 +66,37 @@ describe('Structures', () => {
     expect([s.get(1)?.hidden, s.get(2)?.hidden, s.get(1)?.movable, s.get(2)?.movable]).toEqual([true, false, false, true])
   })
 
-  it('tints the walls a blast preview reaches: own ones differently from the enemy\'s', () => {
+  it('tints the walls a splash preview reaches: own ones differently from the enemy\'s', () => {
     const s = new Structures()
     s.sync([wall(1), wall(2)])
     s.preview = new Map([[1, true], [2, false]])
     s.mark()
     expect(s.get(1)?.tint).toBe(visual.wall.ownTint)
     expect(s.get(2)?.tint).toBe(visual.wall.illegal)
+  })
+})
+
+describe('Splash preview', () => {
+  const at = (id: number, owner: 1 | 2, gy: number): Structure => ({ id, kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 8, gy }, hp: 3 })
+  // P1's ball at (20, 79.5) under walls running x 16..24: own gy 39 is 1.5 away, enemy gy 37 5.5 away, enemy gy 34 11.5 away.
+  const state = { ...playState(), objects: [at(1, 1, 39), at(2, 2, 37), at(3, 2, 34)], ball: { pos: { x: 20, y: 79.5 }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: { shooter: 1 as const, shots: 3, inHand: false, live: false } }
+  const previewOf = (aim?: { tier: number; power?: number }) => {
+    const s = new Structures()
+    s.previewSplash(state, aim, defaultConfig)
+    return [...s.preview]
+  }
+
+  it('lists the structures a full Power aim\'s Splash reaches, marking the shooter\'s own', () => {
+    // Radius 10 at full power.
+    expect(previewOf({ tier: 1, power: 1 })).toEqual([[1, true], [2, false]])
+  })
+  it('shrinks with power within the tier: the weakest Power aim reaches only 2 units', () => {
+    expect(previewOf({ tier: 1, power: 0.5 })).toEqual([[1, true]])
+  })
+  it('is empty for a Touch aim, before the drag, and without an aim', () => {
+    expect(previewOf({ tier: 0, power: 0.45 })).toEqual([])
+    expect(previewOf({ tier: 1 })).toEqual([])
+    expect(previewOf()).toEqual([])
   })
 })
 

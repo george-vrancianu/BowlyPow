@@ -1,3 +1,5 @@
+import type { TierName } from './rules'
+
 const ink = '#e8eaf0'
 const dark = '#0b0f1a'
 const outline = '#05070d'
@@ -16,7 +18,7 @@ export const visual = {
     bg: dark,
     mapOutline: white,
     mapOutlinePx: 2,
-    /** A blast of at least `minPower` shakes the view by `max * power` px, decaying over `ms`. */
+    /** A shot of at least `minPower` shakes the view by `max * power` px, decaying over `ms`. */
     shake: { ms: 200, max: 4, minPower: 0.3, freqX: 0.11, freqY: 0.137 },
   },
   /** How far the blind-build cover bleeds past the pitch sides. */
@@ -89,31 +91,34 @@ export const visual = {
     /** The dot that rolls with the distance travelled. */
     dot: { offset: 0.55, radius: 0.2 },
     stealMs: 300,
-    ghostAlpha: 0.5,
+    /** The ball-in-hand placement disc. */
+    placementAlpha: 0.5,
     /** The Breaker outline. */
     armed: { radius: 1.5, swing: 0.25, periodMs: 120, width: 0.3 },
+    /** The faint control-radius ring while aiming. */
+    control: { color: white, alpha: 0.25, width: 0.15 },
+    /** The hold ring, `radiusPx` screen px out, filling while the shooter holds still; reaching a new tier pulses it (up to `grow` larger) over `pulseMs`. */
+    hold: { radiusPx: 36, width: 0.3, trackAlpha: 0.25, pulseMs: 300, grow: 0.35 },
   },
   aim: {
-    dwellMs: 1000,
-    rampMs: 1500,
-    /** Charge ring colour runs from `chargeFrom` to `chargeTo` (RGB) with power. */
-    chargeFrom: [90, 90, 90],
-    chargeTo: [255, 40, 40],
-    lineWidth: 0.15,
-    /** The ring that blinks during the dwell. */
-    dwell: { radius: 1.2, periodMs: 120, alpha: 0.5, swing: 0.5 },
-    fillAlpha: 0.15,
-    /** Radar rings sweeping outward from a charge. */
-    radar: { periodMs: 800, phases: [0, 0.5] },
-    arrow: cream,
-    /** The push preview: length per unit push, head length and spread (radians), alpha. */
-    arrowShape: { scale: 0.15, head: 0.8, spread: 0.5, alpha: 0.6 },
-    waveMs: 250,
-    wave: cream,
-    waveWidth: 0.3,
-    vibration: { blastBase: 10, blastPerPower: 40, goal: [60, 40, 60] },
+    /** A press this close to the ball's centre (or within its on-screen radius, if larger) starts aiming, in screen px. */
+    ballHitPx: 28,
+    /** Pointer travel from the press, in screen px, before a drag counts: releasing within it cancels, and full power range starts at its edge. */
+    slopPx: 8,
+    /** Within this many screen px of any canvas edge the aim is cancel-armed: releasing cancels, moving back out re-arms. */
+    edgeCancelPx: 24,
+    /** The Ghost: the ball's predicted path while aiming. */
+    ghost: { width: 0.3 },
+    /** Each tier's colour, by name: the Ghost and the hold ring. */
+    tierColors: { Touch: '#4ade80', Power: '#f87171' } satisfies Record<TierName, string>,
+    /** Cancel-armed: the Ghost greys out and an ✕ (half-size `size`, world units) sits on the ball. */
+    cancel: { color: '#9ca3af', size: 1.2, width: 0.35 },
+    /** The Splash ring of a fired Power shot: expands to the Splash radius over `ms`. */
+    splash: { ms: 250, color: cream, width: 0.3 },
+    /** `tier`: the short buzz on reaching a higher tier while holding. */
+    vibration: { shotBase: 10, shotPerPower: 40, goal: [60, 40, 60], tier: 30 },
   },
-  input: { slopPx: 12, tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
+  input: { tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
   transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000, revealMs: 1500 },
   hud: { font: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', ink, dark, panel: '#141a2a', track: '#3b4256', urgent: '#ff4d4d', urgentSeconds: 5, urgentPulse: 0.15, scrim: 'rgba(11,15,26,0.85)', scrimLight: 'rgba(11,15,26,0.7)', pressed: '#2a3350', pressedBorder: white, scoreFlipMs: 400, shadow: '#0008', gap: 8 },
 } as const

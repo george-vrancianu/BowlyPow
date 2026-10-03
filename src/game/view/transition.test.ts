@@ -39,7 +39,7 @@ describe('handover', () => {
   })
   it('carries hints in round 1 only', () => {
     expect(overlayView(go(newTransition(1), { inHand: true }), 0)!.hint).toMatch(/ball/i)
-    expect(overlayView(go(newTransition(1), { inHand: false }), 0)!.hint).toMatch(/charge/i)
+    expect(overlayView(go(newTransition(1), { inHand: false }), 0)!.hint).toBe('Drag back from the ball to shoot; hold first for Power')
     expect(overlayView(go(newTransition(1), { round: 2 }), 0)!.hint).toBeUndefined()
   })
 })

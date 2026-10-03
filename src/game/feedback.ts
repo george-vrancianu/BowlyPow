@@ -1,14 +1,24 @@
 import { visual } from '../config/visual'
 import type { PlayerId, Point } from '../sim/pitch'
 import type { SimEvent } from '../sim/step'
-
+import type { GestureView } from './input/gesture'
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /** Vibration pattern for an event, if it has one. */
 export function vibration(ev: SimEvent): number | number[] | undefined {
-  if (ev.type === 'blast-fired') return Math.round(visual.aim.vibration.blastBase + visual.aim.vibration.blastPerPower * ev.power)
+  if (ev.type === 'shot-fired') return Math.round(visual.aim.vibration.shotBase + visual.aim.vibration.shotPerPower * ev.power)
   if (ev.type === 'goal') return [...visual.aim.vibration.goal]
+}
+
+type Hold = Pick<GestureView, 'phase' | 'tier'>
+
+/** Whether holding still on the ball reached a higher tier between one frame's aim view and the next. */
+export const tierClimbed = (prev: Hold | undefined, next: Hold | undefined): boolean => prev?.phase === 'holding' && next?.phase === 'holding' && next.tier > prev.tier
+
+/** The short buzz when holding still on the ball reaches a higher tier (Power). Dropped under reduced motion. */
+export function tierBuzz(prev: Hold | undefined, next: Hold | undefined, reduced: boolean): number | undefined {
+  return tierClimbed(prev, next) && !reduced ? visual.aim.vibration.tier : undefined
 }
 
 /** What an event batch should trigger. Pure; `Game` turns it into entity calls. Flashes survive reduced motion. */
@@ -24,7 +34,7 @@ export function feedbackFor(events: SimEvent[], walls: { id: number; owner: Play
     }
     if (ev.type === 'repaired') out.flashes.push({ wall: ev.id, dim: false })
     if (ev.type === 'wall-destroyed') out.bursts.push({ at: ev.at, color: visual.player.colors[ev.wall.owner], count: ev.breaker ? visual.wall.particles.breaker : visual.wall.particles.destroy })
-    if (ev.type === 'blast-fired' && ev.power >= visual.camera.shake.minPower) out.shakes.push(visual.camera.shake.max * ev.power)
+    if (ev.type === 'shot-fired' && ev.power >= visual.camera.shake.minPower) out.shakes.push(visual.camera.shake.max * ev.power)
     const v = vibration(ev)
     if (v !== undefined) out.vibrations.push(v)
   }

@@ -5,7 +5,7 @@ import type { OverlayView } from '../../game/view/transition'
 import { Overlay } from './Overlay'
 
 afterEach(cleanup)
-const view = (over: Partial<OverlayView> = {}): OverlayView => ({ kind: 'turn', placement: 'center', band: false, text: 'Player 2', hint: 'Hold to charge', color: '#fff', opacity: 1, progress: 0, dismissable: true, ...over })
+const view = (over: Partial<OverlayView> = {}): OverlayView => ({ kind: 'turn', placement: 'center', band: false, text: 'Player 2', hint: 'Drag back from the ball to shoot', color: '#fff', opacity: 1, progress: 0, dismissable: true, ...over })
 
 it('renders nothing without a view', () => {
   const { container } = render(<Overlay onTap={() => {}} />)
@@ -15,7 +15,7 @@ it('renders nothing without a view', () => {
 it('shows text and hint, and a tap dismisses a turn card', () => {
   const tap = vi.fn()
   render(<Overlay view={view()} onTap={tap} />)
-  expect(screen.getByText('Hold to charge')).toBeTruthy()
+  expect(screen.getByText('Drag back from the ball to shoot')).toBeTruthy()
   fireEvent.pointerDown(screen.getByText('Player 2'))
   expect(tap).toHaveBeenCalled()
 })
