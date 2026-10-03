@@ -10,7 +10,7 @@ import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated,
 import { createFab } from './hud/fab'
 import { phaseButtons } from './hud/phase'
 import { createOverlay } from './hud/overlay'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, revealing } from './hud/transition'
+import { advance, angle, blocking, choosingNotice, dismiss, goalBall, newTransition, overlayView, revealing } from './hud/transition'
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
@@ -339,7 +339,7 @@ function frame(now: number) {
   const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
   if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), recenter(camera)
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
-  overlay.update(overlayView(transition, now))
+  overlay.update(overlayView(transition, now, choosingNotice(state.match, mine)))
   if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight, blind())
   lastFrame = now

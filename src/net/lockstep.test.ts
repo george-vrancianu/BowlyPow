@@ -24,13 +24,13 @@ function bot(s: SimState, me: PlayerId): SimInput {
 }
 
 /** Two peers over a link where each frame arrives `lag` rounds late; a peer missing a frame stalls. */
-function match(seed: number, lag: number, ticks: number, play: (s: SimState, me: PlayerId) => SimInput = bot) {
+function match(seed: number, lag: number, ticks: number, play: (s: SimState, me: PlayerId) => SimInput = bot, cfg: SimConfig = config, start: (seed: number) => SimState = (seed) => initialState(seed, cfg)) {
   let frames = 0
   const blasts: unknown[] = []
   const inbox: { f: Frame; at: number }[][] = [[], []]
   let now = 0
   const peers = [1, 2].map((me, i) => lockstep((f) => (frames++, inbox[1 - i].push({ f, at: now + lag })), me as PlayerId, DELAY))
-  const states = [initialState(seed, config), initialState(seed, config)]
+  const states = [start(seed), start(seed)]
   while (states.some((s) => s.tick < ticks) && now < ticks * 20) {
     now++
     peers.forEach((net, i) => {
@@ -40,7 +40,7 @@ function match(seed: number, lag: number, ticks: number, play: (s: SimState, me:
       net.submit(play(states[i], (i + 1) as PlayerId))
       const input = net.advance(states[i].possession.shooter)
       if (input) {
-        const r = step(states[i], input, config)
+        const r = step(states[i], input, cfg)
         states[i] = r.state
         if (i === 0) blasts.push(...r.events.filter((e) => e.type === 'blast-fired'))
       }
@@ -103,6 +103,31 @@ describe('lockstep', () => {
     const peers = match(5, 3, 1500, hold)
     expect(peers[0]).toEqual(peers[1])
     expect(peers.blasts).toContainEqual(expect.objectContaining({ type: 'blast-fired', power: 0.6 }))
+  })
+
+  describe('Siege defence choice under the build timer', () => {
+    const siege: SimConfig = { ...config, mode: 'siege' }
+    const wall = (id: number, owner: PlayerId, gx: number) => ({ id, kind: 'wall' as const, owner, shape: 'straight' as const, rotation: 0 as const, at: { gx, gy: owner === 1 ? 40 : 10 }, hp: 1 })
+    /** Player 1's ball is about to cross into player 2's goal. */
+    const scoring = (seed: number): SimState => {
+      const s = initialState(seed, siege)
+      return { ...s, match: { ...s.match, builder: null, opening: false } as SimState['match'], objects: [wall(1, 1, 2), wall(2, 2, 2)], nextId: 3, ball: { ...s.ball, pos: { x: 20, y: 0.5 }, vel: { x: 0, y: -60 } }, possession: { shooter: 1, shots: 1, inHand: false, live: true } }
+    }
+    it('an unanswered choice times out to Repair identically on both peers, at any latency', () => {
+      for (const lag of [0, 3, 11]) {
+        const [a, b] = match(5, lag, 400, () => ({}), siege, scoring)
+        expect(a).toEqual(b)
+        expect(a.match).toMatchObject({ choosing: null, builder: null })
+        expect(a.objects.map((o) => o.hp)).toEqual([3, 1])
+      }
+    })
+    it('a late Rearrange choice from the scorer lands on the same tick for both peers and its window then expires', () => {
+      const late = (s: SimState, me: PlayerId): SimInput => (me === 1 && s.match.choosing === 1 && s.clock.left < 600 ? { defence: { player: 1, choice: 'rearrange' } } : {})
+      const [a, b] = match(5, 3, 700, late, siege, scoring)
+      expect(a).toEqual(b)
+      expect(a.match).toMatchObject({ choosing: null, builder: null })
+      expect(a.objects.map((o) => o.hp)).toEqual([1, 1])
+    })
   })
 
   it('latency does not change the outcome', () => {

@@ -377,10 +377,11 @@ describe('Siege defence turn: Rearrange', () => {
     expect(r.events).toEqual([{ type: 'refused' }])
   })
 
-  it('the turn runs on the build window, not the shot clock, and play resumes on the shot clock', () => {
+  it('the turn runs on the build window (opened at the goal), not the shot clock, and play resumes on the shot clock', () => {
     const timed: SimConfig = { ...siege, buildTime: 30 }
     let s = step(scored(1, timed), { defence: { player: 1, choice: 'rearrange' } }, timed).state
-    expect(s.clock.left).toBe(30 * timed.tickHz)
+    // The window opened at the goal and is not refilled by the choice (one tick has drained since): see choicetimer.test.ts.
+    expect(s.clock.left).toBe(30 * timed.tickHz - 1)
     s = step(s, { done: 1 }, timed).state
     expect(s.clock.left).toBe(timed.shotClock * timed.tickHz)
   })
