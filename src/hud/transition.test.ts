@@ -150,6 +150,11 @@ describe('reveal', () => {
     expect(revealing(t)).toBe(false)
     expect(t.flip).toBeUndefined()
   })
+  it('pins its label to the top edge with no band, so the whole pitch stays visible', () => {
+    const t = done(building())
+    expect(overlayView(t, 5000)).toMatchObject({ placement: 'top', band: false })
+    expect(overlayView(go(open(), { now: 2000, events: [{ type: 'goal', scorer: 1, at: { x: 20, y: 110 } }] }), 2000)).toMatchObject({ placement: 'center', band: true })
+  })
   it('ignores taps while it holds', () => {
     const t = done(building())
     expect(dismiss(t, 9999)).toBe(t)

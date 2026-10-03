@@ -287,7 +287,7 @@ const showMatchEnd = (m: SimState['match'], winner: PlayerId, objects: SimState[
 function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
-  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
+  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold, reveal or turn card.
   const phase = state.match.builder ? 'Build' : 'Play'
   const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase, opening: blindSeat(state.match, 1) !== undefined, events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {

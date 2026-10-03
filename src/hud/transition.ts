@@ -9,7 +9,7 @@ const REVEAL_MS = 1500
 const DISMISS_MS = 1000
 
 type Overlay = { kind: 'turn' | 'goal' | 'sweep' | 'reveal'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point }
-/** `shown` is whose end of the pitch is at the bottom of the screen; `due` = a handover is waiting (e.g. for the goal hold to end). */
+/** `shown` is whose end of the pitch is at the bottom of the screen; `due` = a handover is waiting (e.g. for the goal hold to end); `opening` = the last frame saw a Siege opening build (the reveal fires when it ends). */
 export type Transition = { shown: PlayerId; flip?: { at: number; ms: number; from: PlayerId; to: PlayerId }; overlay?: Overlay; due?: boolean; phase?: string; opening?: boolean }
 
 export const newTransition = (active: PlayerId): Transition => ({ shown: active, due: true })
@@ -47,7 +47,7 @@ export function advance(t: Transition, f: Frame): Transition {
   return { shown, flip, overlay, due, opening: f.opening, phase: overlay?.kind === 'goal' ? t.phase : f.phase }
 }
 
-/** The shell stops stepping the sim while a flip, goal, turn or REPAIRED overlay is up: the conceder's clock and ball are out of reach until the handover is seen. */
+/** The shell stops stepping the sim while a flip, goal, turn, reveal or REPAIRED overlay is up: the conceder's clock and ball are out of reach until the handover is seen. */
 export const blocking = (t: Transition) => !!t.flip || t.overlay?.kind === 'goal' || t.overlay?.kind === 'turn' || t.overlay?.kind === 'reveal' || (t.overlay?.kind === 'sweep' && t.overlay.text === 'REPAIRED')
 
 /** The reveal hold is up: the shell shows the whole pitch through the map camera. */
@@ -71,5 +71,5 @@ export function overlayView(t: Transition, now: number) {
   if (!o) return undefined
   const half = t.flip ? t.flip.ms / 2 : 0
   const opacity = o.kind === 'turn' && t.flip ? Math.max(0, Math.min(1, (now - t.flip.at - half) / half)) : 1
-  return { kind: o.kind, text: o.text, hint: o.hint, color: PLAYER_COLORS[o.player], opacity, progress: Math.min(1, (now - o.at) / o.ms), dismissable: o.kind === 'turn' && !t.flip && now - o.at >= DISMISS_MS }
+  return { kind: o.kind, placement: o.kind === 'reveal' ? ('top' as const) : ('center' as const), band: o.kind === 'goal' || o.kind === 'sweep', text: o.text, hint: o.hint, color: PLAYER_COLORS[o.player], opacity, progress: Math.min(1, (now - o.at) / o.ms), dismissable: o.kind === 'turn' && !t.flip && now - o.at >= DISMISS_MS }
 }

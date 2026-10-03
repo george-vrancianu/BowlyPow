@@ -31,6 +31,10 @@ _Avoid_: Elimination, knockout
 Siege's opening build, during which each viewer sees only their own half; the opponent's structure count, tower stock and build points are hidden. Hiding is renderer and HUD only, the sim state is complete.
 _Avoid_: Hidden build, secret build
 
+**Reveal**:
+The 1.5 s hold after the second Done of a Siege opening build: the fog lifts and the map camera shows both layouts at once, then play begins. Same hold under reduced motion; Rounds and Rearrange have none.
+_Avoid_: Unveil, showdown
+
 **Fog**:
 The renderer's cover over the opponent's half (up to the halfway line, boards and nets included) during a blind build, in the main view and the map.
 _Avoid_: Mask, blackout
