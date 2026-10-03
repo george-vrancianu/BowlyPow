@@ -93,3 +93,50 @@ describe('Siege', () => {
     expect(s.match.winner).toBeNull()
   })
 })
+
+describe('Siege build timeout', () => {
+  const timed: SimConfig = { ...siege, buildTime: 2 }
+  const TICKS = 2 * timed.tickHz
+  const idle = (s: SimState, n: number, cfg = timed) => {
+    const events: string[] = []
+    for (let i = 0; i < n; i++) {
+      const r = step(s, {}, cfg)
+      events.push(...r.events.map((e) => e.type))
+      s = r.state
+    }
+    return { s, events }
+  }
+  const owned = (s: SimState, p: 1 | 2) => s.objects.filter((o) => o.owner === p)
+  const first = firstBuilder(1, 1)
+
+  it('an idle first builder gets a fallback piece and the turn ends without a refusal', () => {
+    const { s, events } = idle(initialState(1, timed), TICKS)
+    expect(s.match.builder).toBe(opponent(first))
+    expect(owned(s, first)).toHaveLength(1)
+    expect(s.clock.left).toBe(TICKS)
+    expect(events).not.toContain('refused')
+  })
+
+  it('an idle second builder also gets a piece, then play starts with ball-in-hand for the coin-flip winner', () => {
+    const { s, events } = idle(initialState(1, timed), 2 * TICKS)
+    expect(owned(s, first)).toHaveLength(1)
+    expect(owned(s, opponent(first))).toHaveLength(1)
+    expect(s.match.builder).toBeNull()
+    expect(s.possession).toMatchObject({ shooter: coinFlip(1, 1), inHand: true })
+    expect(events).not.toContain('refused')
+  })
+
+  it('with too few wall points the fallback is a tower', () => {
+    const cfg = { ...timed, wallPoints: 1 }
+    const { s } = idle(initialState(1, cfg), TICKS, cfg)
+    expect(owned(s, first)).toMatchObject([{ kind: 'tower' }])
+    expect(s.match.builder).toBe(opponent(first))
+  })
+
+  it('a builder who already placed a piece just ends the turn, as in Rounds', () => {
+    const placed = step(initialState(1, timed), { placeWall: piece(first) }, timed).state
+    const { s } = idle(placed, TICKS)
+    expect(owned(s, first)).toHaveLength(1)
+    expect(s.match.builder).toBe(opponent(first))
+  })
+})

@@ -2,7 +2,7 @@ import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { coinFlip, firstBuilder, startingPossession, type GameModeName, type Match, type RoundsMatch, type SiegeMatch } from './match'
 import { opponent, type Possession } from './possession'
 import type { SimConfig, SimEvent } from './step'
-import type { Structure } from './wall'
+import { structureCost, type Structure, type StructureSpec } from './wall'
 
 /** The board a hook may read when deciding: read-only, so hooks stay pure. */
 export type ModeContext = { objects: readonly Structure[]; possession: Possession }
@@ -28,6 +28,8 @@ export type GameMode<M extends Match = Match> = {
   onGoal(m: M, scorer: PlayerId, ctx: ModeContext, c: SimConfig): ModeResult<M>
   /** The builder pressed Done (or timed out): the new match state (who builds next, null = play begins) and events, or null to refuse. */
   onBuildDone(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): ModeResult<M> | null
+  /** A timed-out Done was refused: a piece to place for the builder before finishing the turn, or null for none. */
+  onBuildTimeout(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): StructureSpec | null
   /** A build turn just opened for `m.builder`. */
   onBuildStart(m: M, ctx: ModeContext, c: SimConfig): BuildTurn
   /** Who has won, if anyone; derived from state. */
@@ -58,6 +60,7 @@ export const rounds: GameMode<RoundsMatch> = {
   onShotConsumed: (m, _ctx, c) => (m.roundShots >= c.shotCap && m.round <= c.rounds ? endRound(m, null, c) : null),
   onGoal: (m, scorer, _ctx, c) => endRound(m, scorer, c),
   onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, m.round) ? opponent(builder) : null }, events: [] }),
+  onBuildTimeout: () => null,
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
   // The last round is over and the score is not tied; a tie means sudden death.
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
@@ -71,6 +74,12 @@ export const siege: GameMode<SiegeMatch> = {
   onGoal: (m, scorer, _ctx, c) => ({ match: m, possession: startingPossession(opponent(scorer), c), ball: { ...center }, events: [] }),
   // An empty defence would be an instant loss, so Done is refused until the builder owns a structure.
   onBuildDone: (m, builder, ctx) => (ctx.objects.some((o) => o.owner === builder) ? { match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] } : null),
+  // A builder with nothing owned has the full budget: a straight wall on their half if it fits, else a Repulsor (free, always in stock at the opening).
+  onBuildTimeout: (_m, builder, _ctx, c) => {
+    const at = { gx: 10, gy: builder === 1 ? 40 : 10 }
+    const wall: StructureSpec = { kind: 'wall', owner: builder, shape: 'straight', rotation: 0, at }
+    return structureCost(wall) <= c.wallPoints ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
+  },
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
   winner: () => null,
 }
