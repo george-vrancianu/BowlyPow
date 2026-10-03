@@ -121,7 +121,7 @@ export const siege: GameMode<SiegeMatch> = {
   onBuildTimeout: (m, builder, _ctx, c) => {
     if (!m.opening) return null
     const { gx, gy } = rules.fallbackPiece
-    const at = { gx, gy: builder === 1 ? gy : rules.pitchHeight / rules.cellSize - gy }
+    const at = { gx, gy: builder === 1 ? gy : rules.gridRows - gy }
     const wall: StructureSpec = { kind: 'wall', owner: builder, shape: 'straight', rotation: 0, at }
     return structureCost(wall) <= c.wallPoints ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
   },

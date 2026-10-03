@@ -168,10 +168,10 @@ export function step(
   if (demolish) {
     const it = objects.find((w) => w.id === demolish.wall)
     const fresh = built.includes(demolish.wall)
-    if (edit && it && demolish.player === match.builder && it.owner === demolish.player && (fresh || points[demolish.player] >= 1)) {
+    if (edit && it && demolish.player === match.builder && it.owner === demolish.player && (fresh || points[demolish.player] >= rules.demolishCost)) {
       objects = objects.filter((w) => w.id !== demolish.wall)
-      // This turn's items come back in full; older ones cost a point to clear.
-      points = { ...points, [demolish.player]: points[demolish.player] + (fresh ? structureCost(it) : -1) }
+      // This turn's items come back in full; older ones cost `rules.demolishCost`.
+      points = { ...points, [demolish.player]: points[demolish.player] + (fresh ? structureCost(it) : -rules.demolishCost) }
       if (fresh && it.kind === 'tower') players = spend(players, it.owner, it.power, -1)
       built = built.filter((id) => id !== demolish.wall)
     } else events.push({ type: 'refused' })

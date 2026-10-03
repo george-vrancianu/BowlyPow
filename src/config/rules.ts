@@ -18,6 +18,8 @@ const base = {
   wallHalf: 0.35,
   /** Each arm is a run of cells from the pivot, before rotation. */
   arms: { straight: [[4, 0]], L: [[3, 0], [0, 3]] } as Record<'straight' | 'L', [number, number][]>,
+  /** Wall points it costs to demolish a piece placed in an earlier turn. */
+  demolishCost: 1,
   startInventory: 3,
   /** Where a timed-out blind opening build drops its piece for P1, in grid vertices; P2's mirrors across the halfway line. */
   fallbackPiece: { gx: 10, gy: 40 },
@@ -34,6 +36,8 @@ const mapHeight = base.pitchHeight + 2 * (base.board + base.netDepth)
 export const rules = {
   ...base,
   halfHeight: base.pitchHeight / 2,
+  /** Grid rows (vertices) from goal line to goal line. */
+  gridRows: base.pitchHeight / base.cellSize,
   /** The middle of each player's half, where their ball goes and the build view starts. */
   halfCentre: { 1: (3 * base.pitchHeight) / 4, 2: base.pitchHeight / 4 } as Record<1 | 2, number>,
   goalLeft: (base.pitchWidth - base.goalWidth) / 2,

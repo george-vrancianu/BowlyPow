@@ -3,7 +3,7 @@ import { layout } from '../render/camera'
 import type { BuildMenu } from './build'
 import { el, FONT, type ButtonSpec } from './hud'
 
-const ROUND = `${FONT}width:52px;height:52px;border-radius:50%;border:2px solid ${visual.hud.ink};color:${visual.hud.ink};background:${visual.hud.panel};font-size:22px;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 2px 8px #0008;`
+const ROUND = `${FONT}width:52px;height:52px;border-radius:50%;border:2px solid ${visual.hud.ink};color:${visual.hud.ink};background:${visual.hud.panel};font-size:22px;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 2px 8px ${visual.hud.shadow};`
 // A small brick wall.
 const ICON = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="1"/><path d="M2 9.3h20M2 14.7h20M8 4v5.3M16 4v5.3M12 9.3v5.4M8 14.7V20M16 14.7V20"/></svg>'
 

@@ -113,7 +113,7 @@ export function createHud(root: HTMLElement, actions: HudActions) {
       s.score.style.display = p.digit === null ? 'none' : ''
       const shown = p.digit ?? ''
       if (s.score.textContent !== shown) {
-        if (s.score.textContent && shown) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], 400)
+        if (s.score.textContent && shown) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], visual.hud.scoreFlipMs)
         s.score.textContent = shown
       }
       for (const i of s.icons) {

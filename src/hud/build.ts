@@ -15,7 +15,7 @@ export type Selection = { spec: StructureSpec; id?: number; movable: boolean }
 export type Piece = WallShape | TowerPower
 
 /** Grid rows (vertices) a piece anchored on `owner`'s half may use. */
-const rows = (owner: PlayerId) => (owner === 1 ? [rules.halfHeight / rules.cellSize, rules.pitchHeight / rules.cellSize - 1] : [0, rules.halfHeight / rules.cellSize - 1])
+const rows = (owner: PlayerId) => (owner === 1 ? [rules.gridRows / 2, rules.gridRows - 1] : [0, rules.gridRows / 2 - 1])
 
 /** A new piece at the vertex nearest the view centre, clamped to the owner's half. */
 export function spawn(piece: Piece, owner: PlayerId, viewY: number): Selection {
@@ -94,7 +94,7 @@ export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selectio
   return {
     kind: 'selected',
     buttons: [
-      ...(sel.id !== undefined && edit ? [{ label: '🗑', disabled: !sel.movable && s.points[b] < 1, onClick: a.remove }] : []),
+      ...(sel.id !== undefined && edit ? [{ label: '🗑', disabled: !sel.movable && s.points[b] < rules.demolishCost, onClick: a.remove }] : []),
       ...(sel.movable && sel.spec.kind === 'wall' ? [{ label: '↻', onClick: a.rotate }] : []),
       { label: '✕', onClick: a.cancel },
       ...(sel.movable ? [{ label: '✓', disabled: !!v.landing || !legal(s, sel), onClick: a.confirm }] : []),
