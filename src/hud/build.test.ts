@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultConfig as c, step, type SimState } from '../sim/step'
 import { buildState } from '../sim/testkit'
 import type { WallSpec } from '../sim/wall'
-import { buildMenu, commit, edgeScrollDy, legal, pick, rotated, spawn, type BuildActions } from './build'
+import { buildMenu, commit, landed, edgeScrollDy, legal, pick, rotated, spawn, type BuildActions } from './build'
 
 const noop = () => {}
 const actions: BuildActions = { toggle: noop, spawn: noop, confirm: noop, cancel: noop, rotate: noop, remove: noop }
@@ -75,5 +75,22 @@ describe('edge scroll', () => {
   it('does nothing when that edge of the half is already in view', () => {
     expect(edgeScrollDy(69, 30, 1, 55, 0.1)).toBe(0)
     expect(edgeScrollDy(93, 30, 1, 107, 0.1)).toBe(0)
+  })
+})
+
+describe('landing', () => {
+  it('a new piece lands once it stands among this turn\'s, a move once it stands where it was put', () => {
+    const s = placed()
+    expect(landed(buildState(1), { spec: wall, movable: true })).toBe(false)
+    expect(landed(s, { spec: wall, movable: true })).toBe(true)
+    expect(landed({ ...s, built: [] }, { spec: wall, movable: true })).toBe(false)
+    const moved = { spec: { ...wall, at: { gx: 4, gy: 40 } }, id: 1, movable: true }
+    expect(landed(s, moved)).toBe(false)
+    expect(landed(step(s, { moveStructure: { player: 1, id: 1, at: moved.spec.at, rotation: 0 } }, c).state, moved)).toBe(true)
+    expect(landed(s, rotated({ spec: wall, id: 1, movable: true }))).toBe(false)
+  })
+  it('✓ waits while a confirmed piece is landing', () => {
+    const m = buildMenu(buildState(1), 1, { open: false, selection: { spec: wall, movable: true }, landing: true }, actions)
+    expect(m.kind === 'selected' && m.buttons.find((b) => b.label === '✓')?.disabled).toBe(true)
   })
 })

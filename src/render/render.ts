@@ -251,8 +251,12 @@ function drawCharge(ctx: CanvasRenderingContext2D, state: SimState, { origin, po
 /** Read-only: draws the state through the camera, which shows the full pitch width and at most 64 units of height. An optional ghost wall is drawn half-transparent. */
 export type Overlays = {
   ghost?: StructureSpec
-  /** The builder's selection: a structure being moved (hidden; the ghost stands in for it) or an older one picked to demolish (pulses). */
-  selected?: { id: number; moving: boolean }
+  /** A confirmed piece not yet in the sim, drawn as a still ghost. */
+  landing?: StructureSpec
+  /** Structures being moved: the ghost or the landing piece stands in for them. */
+  hidden?: number[]
+  /** An older structure picked to demolish; it pulses. */
+  selected?: number
   /** Structures the builder placed this turn, outlined dashed. */
   movable?: number[]
   fragments?: Fragment[]
@@ -265,7 +269,7 @@ export type Overlays = {
   armed?: PlayerId
 }
 
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, { ghost, selected, movable = [], fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed }: Overlays = {}): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, { ghost, landing, hidden = [], selected, movable = [], fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed }: Overlays = {}): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
@@ -319,10 +323,10 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
 
   const inRange = new Map(charge && charge.power > 0 ? blastDamage(state.objects, charge.origin, charge.power, charge.player, defaultConfig).map((h) => [h.wall.id, h.wall.owner === charge.player ? COLORS.ownTint : COLORS.illegal]) : [])
   for (const o of state.objects) {
-    if (selected?.moving && selected.id === o.id) continue
+    if (hidden.includes(o.id)) continue
     drawWall(ctx, o, inRange.get(o.id))
     if (movable.includes(o.id)) drawOutline(ctx, o, [0.4, 0.4])
-    if (selected?.id === o.id) drawPulseOutline(ctx, o, now)
+    if (selected === o.id) drawPulseOutline(ctx, o, now)
     const pulse = fx?.pulses.find((p) => p.tower === o.id)
     if (pulse && o.kind === 'tower') drawPulse(ctx, o, now - pulse.born)
     const flash = fx?.flashes.find((f) => f.wall === o.id)
@@ -371,9 +375,14 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
     ctx.fillRect(p.at.x + p.vel.x * t - 0.15, p.at.y + p.vel.y * t - 0.15, 0.3, 0.3)
   }
   ctx.globalAlpha = 1
+  if (landing) {
+    ctx.globalAlpha = 0.5
+    drawWall(ctx, landing)
+    ctx.globalAlpha = 1
+  }
   if (ghost) {
     ctx.globalAlpha = 0.5
-    drawWall(ctx, ghost, canPlace(state.objects.filter((o) => o.id !== selected?.id), ghost) ? undefined : COLORS.illegal)
+    drawWall(ctx, ghost, canPlace(state.objects.filter((o) => !hidden.includes(o.id)), ghost) ? undefined : COLORS.illegal)
     ctx.globalAlpha = 1
     drawPulseOutline(ctx, ghost, now)
   }

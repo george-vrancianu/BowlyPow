@@ -53,6 +53,13 @@ export function edgeScrollDy(camY: number, visibleHeight: number, builder: Playe
   return pointerY < top + margin && top > lo ? -Math.min(EDGE_SPEED * dt, top - lo) : pointerY > bottom - margin && bottom < hi ? Math.min(EDGE_SPEED * dt, hi - bottom) : 0
 }
 
+const sameSpec = (a: StructureSpec, b: StructureSpec) =>
+  a.kind === b.kind && a.owner === b.owner && a.at.gx === b.at.gx && a.at.gy === b.at.gy && (a.kind === 'tower' ? a.power === (b as typeof a).power : a.shape === (b as typeof a).shape && a.rotation === (b as typeof a).rotation)
+
+/** A confirmed selection has reached the sim: the new piece stands among this turn's, or the moved one stands where it was put. */
+export const landed = (s: SimState, sel: Selection): boolean =>
+  s.objects.some((o) => (sel.id === undefined ? s.built.includes(o.id) : o.id === sel.id) && sameSpec(o, sel.spec))
+
 /** The sim input ✓ sends: place a new piece or move a structure. Undefined when there is nothing to send. */
 export function commit(sel: Selection): SimInput | undefined {
   const { spec, id } = sel
@@ -68,7 +75,7 @@ export type BuildActions = { toggle(): void; spawn(p: Piece): void; confirm(): v
 
 const POWER_LABEL: Record<TowerPower, string> = { repulsor: 'Repulsor', steal: 'Steal' }
 
-export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selection?: Selection }, a: BuildActions): BuildMenu {
+export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selection?: Selection; /** A confirmed piece is still on its way to the sim. */ landing?: boolean }, a: BuildActions): BuildMenu {
   const sel = v.selection
   if (!sel) {
     const points = s.points[b]
@@ -87,7 +94,7 @@ export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selectio
       ...(sel.id !== undefined ? [{ label: '🗑', disabled: !sel.movable && s.points[b] < 1, onClick: a.remove }] : []),
       ...(sel.movable && sel.spec.kind === 'wall' ? [{ label: '↻', onClick: a.rotate }] : []),
       { label: '✕', onClick: a.cancel },
-      ...(sel.movable ? [{ label: '✓', disabled: !legal(s, sel), onClick: a.confirm }] : []),
+      ...(sel.movable ? [{ label: '✓', disabled: !!v.landing || !legal(s, sel), onClick: a.confirm }] : []),
     ],
   }
 }

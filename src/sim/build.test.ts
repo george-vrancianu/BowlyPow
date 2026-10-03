@@ -133,7 +133,9 @@ describe('moving and refunding this turn\'s items', () => {
     expect(run(s, { demolish: { player: 1, wall: 1 } }).points[1]).toBe(s.points[1] - 1)
   })
   it('placing and Done in the same tick leaves nothing movable', () => {
-    expect(run(buildState(1), { placeWall: wall(1), done: 1 }).built).toEqual([])
+    const s = run(buildState(1), { placeWall: wall(1), done: 1 })
+    expect(s.objects).toHaveLength(1)
+    expect(s.built).toEqual([])
   })
   it('demolishing a tower placed this turn leaves the points alone and returns the charge', () => {
     const tower: TowerSpec = { kind: 'tower', owner: 1, power: 'steal', at: { gx: 10, gy: 40 } }

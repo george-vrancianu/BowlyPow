@@ -6,7 +6,7 @@ import { createScreens } from './screens/screens'
 import { configFrom } from './sim/settings'
 import { createHud } from './hud/hud'
 import { hudModel } from './hud/model'
-import { buildMenu, commit, edgeScrollDy, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
+import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
 import { createFab } from './hud/fab'
 import { createOverlay } from './hud/overlay'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
@@ -58,6 +58,8 @@ document.getElementById('map-stretch')!.onclick = () => {
 // Build turn: the floating menu spawns a piece; drag it by pressing on it, ✓ sends it through the sim, ✕ drops it.
 // Pressing one of this turn's structures picks it up again; an older one is only selected, to demolish it.
 let selection: Selection | undefined
+// A confirmed selection stays drawn until the sim has it (online it runs a few ticks later) or refuses it.
+let landing: Selection | undefined
 let menuOpen = false
 // Grab point relative to the piece's anchor, and the pointer's last canvas position (for edge scrolling).
 // `moved` once the pointer has travelled past DRAG_SLOP from the press, which is when edge scrolling may start.
@@ -98,8 +100,8 @@ const build = {
   rotate: () => selection?.movable && (selection = rotated(selection)),
   cancel: () => (selection = undefined),
   confirm: () => {
-    const input = selection && legal(state, selection) && commit(selection)
-    if (input) (pending = input), (selection = undefined)
+    const input = !landing && selection && legal(state, selection) && commit(selection)
+    if (input) (pending = input), (landing = selection), (selection = undefined)
   },
   remove: () => {
     if (selection?.id !== undefined) pending = { demolish: { player: selection.spec.owner, wall: selection.id } }
@@ -132,6 +134,8 @@ canvas.onpointermove = (e) => {
   if (drag?.id === e.pointerId) dragTo(e.offsetX, e.offsetY)
   if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
 }
+// A cancelled pointer (the browser took the gesture) ends like a release.
+canvas.onpointercancel = (e) => canvas.onpointerup!(e)
 canvas.onpointerup = (e) => {
   draggingBall = false
   if (drag?.id === e.pointerId) drag = undefined
@@ -283,11 +287,12 @@ function frame(now: number) {
     if (state.match.builder !== lastBuilder) {
       // Done or the build timer drops the selection: a new piece is gone, a moved one never left its spot in the sim.
       lastBuilder = state.match.builder
-      selection = drag = undefined
+      selection = landing = drag = undefined
       menuOpen = false
       if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight)
       else recenter(camera)
     }
+    if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
     pending = {}
     announce(tick.events)
     applyEvents(fx, tick.events, state.objects, now)
@@ -317,12 +322,14 @@ function frame(now: number) {
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
   hud.update(hudModel(state, config, { active: transition.shown, buttons: building && [{ label: 'Done', onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
-  fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection }, build) : undefined, build.toggle, size, transition.shown === 2)
+  fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
   render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
     ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
-    selected: !mapOpen && selection?.id !== undefined ? { id: selection.id, moving: selection.movable } : undefined,
+    landing: mapOpen ? undefined : landing?.spec,
+    hidden: mapOpen ? [] : [selection?.movable ? selection.id : undefined, landing?.id].filter((id) => id !== undefined),
+    selected: !mapOpen && selection && !selection.movable ? selection.id : undefined,
     movable: building && !mapOpen ? state.built : undefined,
     fragments,
     now,
