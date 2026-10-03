@@ -36,6 +36,11 @@ export class Structures extends Entity {
     return this.fixtures.get(id)
   }
 
+  /** Hit particles still flying. */
+  get particleCount(): number {
+    return this.particles.length
+  }
+
   get count(): number {
     return this.fixtures.size
   }

@@ -82,7 +82,7 @@ export function Shell({ hud: m, menu, confirm, mapOpen, flipped, onMap, onRecent
           )
         })}
       </div>
-      {children}
+      {children && <div style={auto}>{children}</div>}
     </div>
   )
 }

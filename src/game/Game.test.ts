@@ -47,8 +47,10 @@ describe('Game', () => {
     make(onView)
     const t = performance.now()
     // The constructor pushes the first view; a frame may move time-driven parts (the card's progress).
+    expect(onView).toHaveBeenCalledTimes(1)
     frame(t)
     const settled = onView.mock.calls.length
+    expect(settled).toBeLessThanOrEqual(2)
     frame(t)
     frame(t)
     expect(onView).toHaveBeenCalledTimes(settled)
