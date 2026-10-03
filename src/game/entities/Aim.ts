@@ -1,29 +1,30 @@
 import { visual } from '../../config/visual'
-import { blastDamage, blastPush, blastRadius } from '../../sim/blast'
+import { splashRadius } from '../../sim/splash'
+import { chargeDir } from '../input/gesture'
 import type { PlayerId, Point } from '../../sim/pitch'
 import type { SimConfig, SimState } from '../../sim/step'
 import { Entity } from './Entity'
 
-/** A blast being charged: `power` is 0 during the dwell. */
+/** A shot being charged (temporary hold-to-charge adapter): `power` is 0 during the dwell. */
 export type Charge = { origin: Point; power: number; player: PlayerId }
 
 const chargeColor = (t: number) => `rgb(${visual.aim.chargeFrom.map((from, i) => Math.round(from * (1 - t) + visual.aim.chargeTo[i] * t)).join(',')})`
 
-/** The charge ring with its radar and push preview, and the expanding ring of a fired blast. */
+/** The charge ring with its radar and launch preview, and the expanding ring of a fired shot. */
 export class Aim extends Entity {
   charge?: Charge
-  private state?: Pick<SimState, 'ball' | 'objects'>
+  private state?: Pick<SimState, 'ball'>
   private config?: SimConfig
   private waves: { origin: Point; radius: number; born: number }[] = []
 
-  sync(state: Pick<SimState, 'ball' | 'objects'>, config: SimConfig): void {
+  sync(state: Pick<SimState, 'ball'>, config: SimConfig): void {
     this.state = state
     this.config = config
   }
 
-  /** A blast fired: a ring expands from `origin` to its radius over `visual.aim.waveMs`. */
+  /** A shot fired: a ring expands from `origin` to its radius over `visual.aim.waveMs`. */
   wave(origin: Point, power: number): void {
-    if (this.config) this.waves.push({ origin, radius: blastRadius(power, this.config), born: this.clock })
+    if (this.config) this.waves.push({ origin, radius: splashRadius(power, this.config), born: this.clock })
   }
 
   /** A new match: no rings, no charge. */
@@ -34,13 +35,6 @@ export class Aim extends Entity {
 
   get waveCount(): number {
     return this.waves.length
-  }
-
-  /** The structures the charge would damage, and whether each is the shooter's own. */
-  preview(): { id: number; own: boolean }[] {
-    const c = this.charge
-    if (!c || c.power <= 0 || !this.state || !this.config) return []
-    return blastDamage(this.state.objects, c.origin, c.power, c.player, this.config).map((h) => ({ id: h.wall.id, own: h.wall.owner === c.player }))
   }
 
   override update(dt: number): void {
@@ -75,7 +69,7 @@ export class Aim extends Entity {
       return
     }
     if (!this.config || !this.state) return
-    const r = blastRadius(power, this.config)
+    const r = splashRadius(power, this.config)
     const color = chargeColor(power)
     ctx.beginPath()
     ctx.arc(origin.x, origin.y, r, 0, Math.PI * 2)
@@ -95,8 +89,9 @@ export class Aim extends Entity {
     }
     ctx.globalAlpha = 1
     const { pos } = this.state.ball
-    const push = blastPush(pos, origin, power, player, this.config)
-    if (push) {
+    const dir = chargeDir(pos, origin)
+    if (dir) {
+      const push = { x: dir.x * power * this.config.maxSpeed, y: dir.y * power * this.config.maxSpeed }
       const { scale, head, spread, alpha } = a.arrowShape
       const tip = { x: pos.x + push.x * scale, y: pos.y + push.y * scale }
       const ang = Math.atan2(push.y, push.x)

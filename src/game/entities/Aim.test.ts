@@ -9,7 +9,7 @@ const wall: WallSpec = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0,
 const placed = () => step(buildState(1), { placeWall: wall }, defaultConfig).state
 
 describe('Aim', () => {
-  it('shows a fired blast\'s ring for waveMs', () => {
+  it('shows a fired shot\'s ring for waveMs', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
     a.wave({ x: 20, y: 70 }, 0.5)
@@ -19,16 +19,6 @@ describe('Aim', () => {
     expect(a.waveCount).toBe(0)
   })
 
-  it('previews the walls a charge would reach, nothing during the dwell or without a charge', () => {
-    const a = new Aim()
-    const s = placed()
-    a.sync(s, defaultConfig)
-    expect(a.preview()).toEqual([])
-    a.charge = { origin: { x: 21, y: 81 }, power: 0, player: 1 }
-    expect(a.preview()).toEqual([])
-    a.charge = { origin: { x: 21, y: 81 }, power: 1, player: 1 }
-    expect(a.preview()).toEqual([{ id: s.objects[0].id, own: true }])
-  })
 })
 
 describe('Aim reset', () => {

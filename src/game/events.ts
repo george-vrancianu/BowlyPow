@@ -25,6 +25,6 @@ export function routeEvents(events: SimEvent[], t: Targets, objects: Structure[]
       const { gx, gy } = ev.tower.at
       t.ball.steal(ev.at, cellToWorld({ cx: gx, cy: gy }))
       t.structures.shatter(ev.tower.id, ev.at, visual.ball.stealMs)
-    } else if (ev.type === 'blast-fired') t.aim.wave(ev.origin, ev.power)
+    } else if (ev.type === 'shot-fired') t.aim.wave(ev.from, ev.power)
   }
 }

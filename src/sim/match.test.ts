@@ -40,9 +40,9 @@ describe('goals', () => {
 
 describe('shot cap', () => {
   const resting = (round: number, shots: number) => shotAt(80, 0, { match: matchAt(round, { 1: 0, 2: 0 }, shots) })
-  it('counts every blast', () => {
+  it('counts every shot', () => {
     const s = shotAt(80, 0, { match: matchAt(1, { 1: 0, 2: 0 }, 4), possession: { shooter: 1, shots: 3, inHand: false, live: false } })
-    expect(roundsMatch(step(s, { blast: { player: 1, origin: { x: 5, y: 90 }, power: 0.1 } }, c).state).roundShots).toBe(5)
+    expect(roundsMatch(step(s, { shot: { player: 1, dir: { x: 1, y: 0 }, tier: 0, power: 0.15 } }, c).state).roundShots).toBe(5)
   })
   it('ends a scoreless round once the 30th shot has come to rest', () => {
     const r = step(resting(1, 30), {}, c)

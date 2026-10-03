@@ -16,7 +16,7 @@ export const visual = {
     bg: dark,
     mapOutline: white,
     mapOutlinePx: 2,
-    /** A blast of at least `minPower` shakes the view by `max * power` px, decaying over `ms`. */
+    /** A shot of at least `minPower` shakes the view by `max * power` px, decaying over `ms`. */
     shake: { ms: 200, max: 4, minPower: 0.3, freqX: 0.11, freqY: 0.137 },
   },
   /** How far the blind-build cover bleeds past the pitch sides. */
@@ -111,7 +111,7 @@ export const visual = {
     waveMs: 250,
     wave: cream,
     waveWidth: 0.3,
-    vibration: { blastBase: 10, blastPerPower: 40, goal: [60, 40, 60] },
+    vibration: { shotBase: 10, shotPerPower: 40, goal: [60, 40, 60] },
   },
   input: { slopPx: 12, tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
   transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000, revealMs: 1500 },

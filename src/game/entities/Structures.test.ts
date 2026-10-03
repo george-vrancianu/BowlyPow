@@ -64,7 +64,7 @@ describe('Structures', () => {
     expect([s.get(1)?.hidden, s.get(2)?.hidden, s.get(1)?.movable, s.get(2)?.movable]).toEqual([true, false, false, true])
   })
 
-  it('tints the walls a blast preview reaches: own ones differently from the enemy\'s', () => {
+  it('tints the walls a splash preview reaches: own ones differently from the enemy\'s', () => {
     const s = new Structures()
     s.sync([wall(1), wall(2)])
     s.preview = new Map([[1, true], [2, false]])

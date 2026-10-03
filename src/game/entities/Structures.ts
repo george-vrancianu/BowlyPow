@@ -25,7 +25,7 @@ export class Structures extends Entity {
   selected?: number
   /** Ids placed this turn. */
   movable: number[] = []
-  /** Blast preview: ids in range, and whether each is the shooter's own. */
+  /** Splash preview: ids in range, and whether each is the shooter's own. */
   preview = new Map<number, boolean>()
   /** Drawn above the ball and aim: the game adds it to the camera after them. */
   readonly fx = new StructureFx(this)
@@ -91,7 +91,7 @@ export class Structures extends Entity {
     this.preview = new Map()
   }
 
-  /** Hands each child what this frame shows (build overlays, blast preview). Call before drawing. */
+  /** Hands each child what this frame shows (build overlays, splash preview). Call before drawing. */
   mark(): void {
     for (const [id, f] of this.fixtures) {
       f.hidden = this.hidden.includes(id)

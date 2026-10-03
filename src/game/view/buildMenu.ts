@@ -1,6 +1,6 @@
 import { visual } from '../../config/visual'
 import { rules } from '../../config/rules'
-import { nearestOnWall } from '../../sim/blast'
+import { nearestOnWall } from '../../sim/near'
 import { type PlayerId, type Point } from '../../sim/pitch'
 import { canEdit, type SimInput, type SimState } from '../../sim/step'
 import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../../sim/wall'
