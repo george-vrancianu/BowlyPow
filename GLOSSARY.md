@@ -15,3 +15,7 @@ _Avoid_: Endless mode, sandbox
 **Game mode**:
 The set of rules that owns a match's match-level transitions: how it starts, what a goal and a consumed shot do, and who has won.
 _Avoid_: Variant, ruleset
+
+**Wipe-out**:
+Siege's end condition: a player owns no structures (towers included) when the ball comes to rest or a goal is scored, never mid-flight. If both players are at zero, the shooter loses.
+_Avoid_: Elimination, knockout

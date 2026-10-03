@@ -211,7 +211,7 @@ export function step(
   const breaker = state.breaker || (fired && !!blast?.breaker)
   const done = input.done ?? (buildExpired ? match.builder : null)
   if (done) {
-    const r = done === match.builder ? mode.onBuildDone(match, done, { objects, possession }, config) : null
+    const r = done === match.builder ? mode.onBuildDone(match, done, { objects, possession, shooter: possession.shooter }, config) : null
     if (r) {
       match = r.match
       events.push(...r.events)
@@ -236,7 +236,7 @@ export function step(
     possession = r.possession
     events.push(...r.events)
   }
-  const ctx = { objects: rolled.objects, possession }
+  const ctx = { objects: rolled.objects, possession, shooter: state.possession.shooter }
   const turn = conceder ? mode.onGoal(match, opponent(conceder), ctx, config) : consumed ? mode.onShotConsumed(match, ctx, config) : null
   const ended = !!turn
   if (turn) {
@@ -246,7 +246,7 @@ export function step(
     events.push(...turn.events)
   }
   if (conceder || consumed) {
-    const winner = mode.winner(match, { objects: rolled.objects, possession }, config)
+    const winner = mode.winner(match, ctx, config)
     if (winner && !match.winner) {
       match = { ...match, winner, builder: null }
       events.push({ type: 'match-ended', winner })
@@ -254,7 +254,7 @@ export function step(
   }
   if (match.builder !== state.match.builder) built = []
   if (match.builder && match.builder !== state.match.builder) {
-    const t = mode.onBuildStart(match, { objects: rolled.objects, possession }, config)
+    const t = mode.onBuildStart(match, ctx, config)
     built = t.built
     points = { ...points, [match.builder]: t.points }
     if (config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }

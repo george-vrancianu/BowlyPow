@@ -5,7 +5,12 @@ import type { SimConfig, SimEvent } from './step'
 import type { Structure } from './wall'
 
 /** The board a hook may read when deciding: read-only, so hooks stay pure. */
-export type ModeContext = { objects: readonly Structure[]; possession: Possession }
+export type ModeContext = {
+  objects: readonly Structure[]
+  possession: Possession
+  /** Who took the shot being resolved (possession may already have passed to the opponent). */
+  shooter: PlayerId
+}
 
 /** What a match-level hook returns. `possession` and `ball` are set only when the hook resets play (a new round). */
 export type ModeResult<M extends Match = Match> = { match: M; possession?: Possession; ball?: Point; events: SimEvent[] }
@@ -63,7 +68,7 @@ export const rounds: GameMode<RoundsMatch> = {
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
 }
 
-/** Siege: one opening build (Rounds ordering), no score, no shot cap; a goal hands the conceder ball-in-hand at the center. */
+/** Siege: one opening build (Rounds ordering), no score, no shot cap; a goal hands the conceder ball-in-hand at the center; a player with no structures left loses. */
 export const siege: GameMode<SiegeMatch> = {
   start: (seed, c) => ({ match: { mode: 'siege', seed, winner: null, builder: firstBuilder(seed, 1) }, possession: startingPossession(coinFlip(seed, 1), c) }),
   onShotFired: (m) => m,
@@ -71,7 +76,12 @@ export const siege: GameMode<SiegeMatch> = {
   onGoal: (m, scorer, _ctx, c) => ({ match: m, possession: startingPossession(opponent(scorer), c), ball: { ...center }, events: [] }),
   onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] }),
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
-  winner: () => null,
+  winner: (_m, ctx) => {
+    const left = (p: PlayerId) => ctx.objects.some((o) => o.owner === p)
+    if (left(1) && left(2)) return null
+    // Wipe-out; if both are at zero the shooter loses.
+    return !left(1) && !left(2) ? opponent(ctx.shooter) : left(1) ? 1 : 2
+  },
 }
 
 /** The mode a match is being played in, read off the match itself. */

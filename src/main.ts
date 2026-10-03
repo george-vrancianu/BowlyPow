@@ -263,12 +263,12 @@ const roundOf = (m: SimState['match']): number | undefined => {
   }
 }
 
-const showMatchEnd = (m: SimState['match'], winner: PlayerId) => {
+const showMatchEnd = (m: SimState['match'], winner: PlayerId, objects: SimState['objects']) => {
   switch (m.mode) {
     case 'rounds':
-      return screens.matchEnd(winner, m.score, !!net)
+      return screens.matchEnd(winner, `${m.score[1]} - ${m.score[2]}`, !!net)
     case 'siege':
-      return // no end condition yet
+      return screens.matchEnd(winner, `${objects.filter((o) => o.owner === winner).length} left`, !!net)
     default:
       return m satisfies never
   }
@@ -333,7 +333,7 @@ function frame(now: number) {
   if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
-  if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner))
+  if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner, state.objects))
   confirm.hidden = !state.possession.inHand || !!state.match.builder || !mine(state.possession.shooter)
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
