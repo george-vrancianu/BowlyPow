@@ -43,10 +43,10 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
   /** A message with a way back to the title (e.g. the opponent disconnected). */
   const notice = (text: string) => show(el('div', 'font-size:24px;', text), buttonRow([menu]))
 
-  const matchEnd = (winner: PlayerId, score: Record<PlayerId, number>, online = false) =>
+  const matchEnd = (winner: PlayerId, result: string, online = false) =>
     show(
       el('div', `font-size:32px;color:${PLAYER_COLORS[winner]};`, `Player ${winner} wins`),
-      el('div', 'font-size:48px;', `${score[1]} - ${score[2]}`),
+      el('div', 'font-size:48px;', result),
       buttonRow(online ? [menu] : [{ label: 'Rematch', onClick: () => (hide(), actions.onRematch()) }, menu]),
     )
 

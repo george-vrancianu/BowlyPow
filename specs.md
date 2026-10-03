@@ -63,7 +63,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 - A goal emits the goal event, resets the ball to the pitch center and gives the conceder ball-in-hand with a fresh shot counter. Own goals count for the opponent.
 - There is no shot cap: shots never end anything.
 - The HUD shows each player's remaining structure count, towers included, in place of the score digit, and no round label.
-- The match has no end condition yet.
+- Wipe-out: the match ends when a player owns no structures, towers included (a Steal tower consumed as the last piece counts). The check runs only when the ball comes to rest or a goal is scored, never mid-flight, so fragments fly and the ball settles before the winner banner. If both players are at zero, the shooter loses. After `match-ended` the sim ignores input. The end screen shows the winner and their surviving structure count instead of a score.
 - Wall points default to 10; a value to tune after play-testing.
 
 ### Rounds
@@ -231,7 +231,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 ### Screens
 
-- Title screen (name, Play), settings screen (three sliders, Start), match end screen (winner in their colour, final score, Rematch, Menu). Same flat style and font. No tutorial screen in v1.
+- Title screen (name, Play), settings screen (three sliders, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Same flat style and font. No tutorial screen in v1.
 
 ### Feedback and accessibility
 

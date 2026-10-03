@@ -7,12 +7,12 @@ import { blastDamage, blastPush, canBlastFrom } from './blast'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
 import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
-const ctxOf = (objects: readonly Structure[], possession: Possession): ModeContext => ({ objects, possession })
+const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId): ModeContext => ({ objects, possession, shooter })
 
 /** Whether Done would be accepted for the current builder (the HUD disables the button when not). */
 export function canFinishBuild(s: SimState, config: SimConfig): boolean {
   const b = s.match.builder
-  return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession), config) !== null
+  return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession, s.possession.shooter), config) !== null
 }
 
 export type SimEvent =
@@ -128,6 +128,8 @@ export function step(
   let { objects, points, nextId, players, built } = state
   let { match } = state
   const mode = modeFor(match)
+  /** Who took the shot being resolved: possession may pass to the opponent before the hooks run. */
+  const shooter = state.possession.shooter
   const events: SimEvent[] = []
   const building = match.builder !== null
   const { placeWall, demolish, moveStructure: move } = input
@@ -198,7 +200,6 @@ export function step(
   // A shot is consumed when it rests, is stolen, or is burned by the clock; the round cap is checked then.
   let consumed = false
   if (expired) {
-    const shooter = possession.shooter
     events.push({ type: 'shot-clock-expired', player: shooter })
     if (!possession.live) {
       consumed = true
@@ -221,10 +222,10 @@ export function step(
   const breaker = state.breaker || (fired && !!blast?.breaker)
   const done = input.done ?? (buildExpired ? match.builder : null)
   if (done) {
-    let r = done === match.builder ? mode.onBuildDone(match, done, ctxOf(objects, possession), config) : null
+    let r = done === match.builder ? mode.onBuildDone(match, done, ctxOf(objects, possession, shooter), config) : null
     // A timed-out build the mode refuses gets the mode's fallback piece, then finishes: the timer must bound the turn.
-    const fallback = !r && !input.done && done === match.builder ? mode.onBuildTimeout(match, done, ctxOf(objects, possession), config) : null
-    if (fallback && place(fallback)) r = mode.onBuildDone(match, done, ctxOf(objects, possession), config)
+    const fallback = !r && !input.done && done === match.builder ? mode.onBuildTimeout(match, done, ctxOf(objects, possession, shooter), config) : null
+    if (fallback && place(fallback)) r = mode.onBuildDone(match, done, ctxOf(objects, possession, shooter), config)
     if (r) {
       match = r.match
       events.push(...r.events)
@@ -249,7 +250,7 @@ export function step(
     possession = r.possession
     events.push(...r.events)
   }
-  const ctx = ctxOf(rolled.objects, possession)
+  const ctx = ctxOf(rolled.objects, possession, shooter)
   const turn = conceder ? mode.onGoal(match, opponent(conceder), ctx, config) : consumed ? mode.onShotConsumed(match, ctx, config) : null
   const ended = !!turn
   if (turn) {
@@ -259,7 +260,7 @@ export function step(
     events.push(...turn.events)
   }
   if (conceder || consumed) {
-    const winner = mode.winner(match, ctxOf(rolled.objects, possession), config)
+    const winner = mode.winner(match, ctxOf(rolled.objects, possession, shooter), config)
     if (winner && !match.winner) {
       match = { ...match, winner, builder: null }
       events.push({ type: 'match-ended', winner })
@@ -267,7 +268,7 @@ export function step(
   }
   if (match.builder !== state.match.builder) built = []
   if (match.builder && match.builder !== state.match.builder) {
-    const t = mode.onBuildStart(match, ctxOf(rolled.objects, possession), config)
+    const t = mode.onBuildStart(match, ctxOf(rolled.objects, possession, shooter), config)
     built = t.built
     points = { ...points, [match.builder]: t.points }
     if (config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
