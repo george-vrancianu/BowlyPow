@@ -5,9 +5,8 @@ describe('vibration', () => {
   it('pulses longer for a stronger blast', () => {
     expect(vibration({ type: 'blast-fired', player: 1, origin: { x: 0, y: 0 }, power: 1 }) as number).toBeGreaterThan(vibration({ type: 'blast-fired', player: 1, origin: { x: 0, y: 0 }, power: 0.2 }) as number)
   })
-  it('double pulse on goal, tick at full charge, silent otherwise', () => {
-    expect(vibration({ type: 'goal' })).toHaveLength(3)
-    expect(vibration({ type: 'charge-full' })).toBeTypeOf('number')
+  it('double pulse on goal, silent otherwise', () => {
+    expect(vibration({ type: 'goal', scorer: 1, at: { x: 0, y: 0 } })).toHaveLength(3)
     expect(vibration({ type: 'refused' })).toBeUndefined()
   })
 })
@@ -35,7 +34,7 @@ describe('feedbackFor', () => {
     expect(r.bursts).toEqual([])
   })
   it('reduced motion drops shake, particles and haptics but keeps flashes', () => {
-    const r = feedbackFor([{ type: 'wall-cracked', id: 1, hp: 2, at }, { type: 'blast-fired', player: 1, origin: { x: 0, y: 0 }, power: 1 }, { type: 'goal' }], walls, true)
+    const r = feedbackFor([{ type: 'wall-cracked', id: 1, hp: 2, at }, { type: 'blast-fired', player: 1, origin: { x: 0, y: 0 }, power: 1 }, { type: 'goal', scorer: 1, at: { x: 0, y: 0 } }], walls, true)
     expect(r.flashes).toHaveLength(1)
     expect([r.bursts, r.shakes, r.vibrations]).toEqual([[], [], []])
   })

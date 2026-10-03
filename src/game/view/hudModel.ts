@@ -13,8 +13,8 @@ import { structuresOf, type Structure } from '../../sim/wall'
 export type ButtonSpec = { label: string; onClick(): void; disabled?: boolean; pressed?: boolean }
 
 export type HudModel = {
-  players: Record<PlayerId, { /** What the strip's big digit shows (Rounds: the score; Siege: remaining structures); null hides it. */ digit: string | null; inventory: Record<PowerUp, number> }>
-  /** Whose turn it is; their strip goes to the bottom. */
+  players: Record<PlayerId, { /** What the big digit shows (Rounds: the score; Siege: remaining structures); null hides it. */ digit: string | null; inventory: Record<PowerUp, number> }>
+  /** Whose turn it is; their controls go to the bottom. */
   active: PlayerId
   /** Null in modes without rounds. */
   round: number | null
@@ -24,29 +24,43 @@ export type HudModel = {
   shotsLeft: number
   shotsMax: number
   phase: string
-  /** Phase buttons (Done in a build turn; Repair and Rearrange on a defence choice) shown under the shared strip. The row is rebuilt only when a label or `disabled` flag changes, so handlers must read live state at click time (see `ButtonSpec`). */
+  /** Phase buttons (Done in a build turn; Repair and Rearrange on a defence choice) shown above the HUD row. The row is rebuilt only when a label or `disabled` flag changes, so handlers must read live state at click time (see `ButtonSpec`). */
   buttons?: ButtonSpec[]
   /** Breaker is armed (highlighted) and whether the active player may tap it now. */
   breaker: { armed: boolean; tappable: boolean }
 }
 
-/** What the game knows that the sim state does not. `viewer` is the local player (online: the peer's own seat; hot-seat: whoever holds the device), not necessarily the strip shown at the bottom. */
+/** What the game knows that the sim state does not. `viewer` is the local player (online: the peer's own seat; hot-seat: whoever holds the device), not necessarily the seat shown at the bottom. */
 export type HudInputs = { active: PlayerId; viewer: PlayerId; buttons?: ButtonSpec[]; armed: boolean; tappable: boolean }
 
-/** What the HUD reads off the match, per mode. A new mode adds a case; the missing return makes the compiler point at this spot. `null` = the mode has no such thing, so the HUD drops it. */
-function matchView(m: Match, objects: readonly Structure[]): { digit: Record<PlayerId, string> | null; round: number | null } {
+/** The round number for modes that have rounds, else null; the first-play hints show on round 1. */
+export function roundOf(m: Match): number | null {
   switch (m.mode) {
     case 'rounds':
-      return { digit: { 1: String(m.score[1]), 2: String(m.score[2]) }, round: m.round }
+      return m.round
+    case 'siege':
+      return null
+    default:
+      return m satisfies never
+  }
+}
+
+/** What the big digit shows, per mode. A new mode adds a case; the `never` arm makes the compiler point at this spot. `null` = the mode has no such thing, so the HUD drops it. */
+function digitsOf(m: Match, objects: readonly Structure[]): Record<PlayerId, string> | null {
+  switch (m.mode) {
+    case 'rounds':
+      return { 1: String(m.score[1]), 2: String(m.score[2]) }
     case 'siege':
       // Every structure counts, towers included; derived from the board so repairs and rearranging need no extra state.
-      return { digit: { 1: String(structuresOf(objects, 1).length), 2: String(structuresOf(objects, 2).length) }, round: null }
+      return { 1: String(structuresOf(objects, 1).length), 2: String(structuresOf(objects, 2).length) }
+    default:
+      return m satisfies never
   }
 }
 
 export function hudModel(s: SimState, c: SimConfig, v: HudInputs): HudModel {
   const b = s.match.builder
-  const { digit, round } = matchView(s.match, s.objects)
+  const digit = digitsOf(s.match, s.objects)
   // Blind opening build: the viewer's opponent's count is a guess, not information.
   const hidden = blindSeat(s.match, v.viewer) ? opponent(v.viewer) : null
   const inventoryOf = (p: PlayerId) => (p === hidden ? STARTING_INVENTORY : s.players[p].inventory)
@@ -55,7 +69,7 @@ export function hudModel(s: SimState, c: SimConfig, v: HudInputs): HudModel {
   return {
     players: { 1: { digit: digitOf(1), inventory: inventoryOf(1) }, 2: { digit: digitOf(2), inventory: inventoryOf(2) } },
     active: v.active,
-    round,
+    round: roundOf(s.match),
     rounds: c.rounds,
     clock: timed ? { seconds: s.clock.left / c.tickHz, fraction: s.clock.left / (timed * c.tickHz) } : null,
     shotsLeft: s.possession.shots,

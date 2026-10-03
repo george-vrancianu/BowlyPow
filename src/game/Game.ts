@@ -7,10 +7,11 @@ import { canArm, canPlaceBall, whoActs } from '../sim/possession'
 import { configFrom, type Settings } from '../sim/settings'
 import { defaultConfig, type SimConfig, type SimEvent, type SimState } from '../sim/step'
 import { structuresOf } from '../sim/wall'
-import { LocalDriver, type Sink } from './driver'
+import type { Driver, DriverFactory, Sink } from './driver'
 import { Aim } from './entities/Aim'
 import { Ball } from './entities/Ball'
 import { Camera, viewOutline } from './entities/Camera'
+import { EdgeFade } from './entities/EdgeFade'
 import { Fog } from './entities/Fog'
 import { Pitch } from './entities/Pitch'
 import { Structures } from './entities/Structures'
@@ -18,9 +19,9 @@ import { routeEvents } from './events'
 import { reducedMotion } from './feedback'
 import { InputController } from './input/InputController'
 import { buildMenu, type BuildActions, type BuildMenu } from './view/buildMenu'
-import { hudModel, type HudModel } from './view/hudModel'
+import { hudModel, roundOf, type HudModel } from './view/hudModel'
 import { phaseButtons } from './view/phaseButtons'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, choosingNotice, overlayView, revealing, type OverlayView } from './view/transition'
+import { advance, angle, blocking, choosingNotice, dismiss, goalBall, newTransition, overlayView, revealing, type OverlayView } from './view/transition'
 
 export type { PlayerId, PowerUp }
 
@@ -56,20 +57,8 @@ export type GameActions = {
   build: BuildActions
 }
 
-/** The round number for modes that have rounds; the first-play hints show on round 1. */
 /** Hot-seat: every seat is local, so no one is ever waited on. The online wave swaps this one predicate. */
 const mine = () => true
-
-const roundOf = (m: SimState['match']): number | undefined => {
-  switch (m.mode) {
-    case 'rounds':
-      return m.round
-    case 'siege':
-      return undefined
-    default:
-      return m satisfies never
-  }
-}
 
 /** The end screen's result line, per mode. */
 const resultOf = (m: SimState['match'], winner: PlayerId, objects: SimState['objects']): string => {
@@ -106,10 +95,11 @@ export class Game implements Sink {
   readonly ball = new Ball()
   readonly aim = new Aim()
   readonly fog = new Fog(() => this.viewCam(), () => this.camera.shakeNow)
+  readonly edgeFade = new EdgeFade(() => this.viewCam())
   readonly actions: GameActions
   state!: SimState
   private config: SimConfig = defaultConfig
-  private driver = new LocalDriver(this)
+  private driver: Driver
   private input: InputController
   private ctx: CanvasRenderingContext2D
   private transition = newTransition(1)
@@ -121,13 +111,14 @@ export class Game implements Sink {
   private dead = false
   private lastView = ''
 
-  constructor(private canvas: HTMLCanvasElement, private onView?: (view: HudView) => void) {
+  constructor(private canvas: HTMLCanvasElement, makeDriver: DriverFactory, private onView?: (view: HudView) => void) {
+    this.driver = makeDriver(this)
     this.ctx = canvas.getContext('2d')!
     this.camera.add(this.pitch)
     this.camera.add(this.structures)
     this.camera.add(this.ball)
     this.camera.add(this.aim)
-    this.camera.add(this.structures.overlay)
+    this.camera.add(this.structures.fx)
     this.input = new InputController({
       canvas,
       camera: this.camera,
@@ -220,7 +211,7 @@ export class Game implements Sink {
 
   private announce(events: SimEvent[]): void {
     const { state } = this
-    this.transition = advance(this.transition, { handover: true, active: whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase: buildPhase(state.match), opening: openingBuild(state.match), events, now: this.now, reduced: reducedMotion() })
+    this.transition = advance(this.transition, { handover: true, active: whoActs(state), round: roundOf(state.match) ?? undefined, inHand: state.possession.inHand, phase: buildPhase(state.match), opening: openingBuild(state.match), events, now: this.now, reduced: reducedMotion() })
   }
 
   private frame = (now: number): void => {
@@ -277,6 +268,7 @@ export class Game implements Sink {
     if (this.viewCam() === mapCam) mapCam.draw(ctx, camera.children, camera.shakeNow)
     else camera.draw(ctx)
     this.fog.draw(ctx)
+    this.edgeFade.draw(ctx)
     if (this.mapOpen) {
       const o = viewOutline(canvas, mapCam, camera)
       ctx.strokeStyle = visual.camera.mapOutline

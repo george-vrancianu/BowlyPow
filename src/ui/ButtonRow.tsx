@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { visual } from '../config/visual'
 import type { ButtonSpec } from '../game/view/hudModel'
 
-export const FONT: CSSProperties = { font: '700 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums' }
+export const FONT: CSSProperties = { font: `700 14px ${visual.hud.font}`, textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums' }
 
 type Look = { className?: string; style?: CSSProperties; children?: ReactNode }
 

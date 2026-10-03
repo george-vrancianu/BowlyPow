@@ -13,7 +13,7 @@ const make = (d: FixtureData): Fixture => (d.kind === 'tower' ? new Tower(d) : n
 /**
  * Every wall and tower, keyed by sim id. `sync` creates a child as an object appears; one that leaves the sim is dropped at once,
  * unless it was told to `shatter`, in which case it stays until the shatter ends. Holds the build overlays (ghost, landing) and hit particles too.
- * What flies above the ball and aim (fragments, particles, landing, ghost) is drawn by `overlay`, which the game adds to the camera after them.
+ * What flies above the ball and aim (fragments, particles, landing, ghost) is drawn by `fx`, which the game adds to the camera after them.
  */
 export class Structures extends Entity {
   /** The piece being dragged and a confirmed piece not yet in the sim, drawn half-transparent. */
@@ -28,12 +28,17 @@ export class Structures extends Entity {
   /** Blast preview: ids in range, and whether each is the shooter's own. */
   preview = new Map<number, boolean>()
   /** Drawn above the ball and aim: the game adds it to the camera after them. */
-  readonly overlay = new Overlay(this)
+  readonly fx = new StructureFx(this)
   private fixtures = new Map<number, Fixture>()
   private particles: Particle[] = []
 
   get(id: number): Fixture | undefined {
     return this.fixtures.get(id)
+  }
+
+  /** Hit particles still flying. */
+  get particleCount(): number {
+    return this.particles.length
   }
 
   get count(): number {
@@ -147,7 +152,7 @@ export class Structures extends Entity {
 }
 
 /** Fragments, particles, the landing piece and the build ghost: the layer that draws over the ball and aim. */
-export class Overlay extends Entity {
+export class StructureFx extends Entity {
   constructor(private structures: Structures) {
     super()
   }

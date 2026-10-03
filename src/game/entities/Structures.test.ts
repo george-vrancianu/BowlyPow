@@ -79,12 +79,12 @@ const ctx = new Proxy({}, { get: () => () => {}, set: () => true }) as unknown a
 const spyDraws = (s: Structures) => ({ shatter: vi.spyOn(s, 'drawShatter'), particles: vi.spyOn(s, 'drawParticles'), pieces: vi.spyOn(s, 'drawPieces') })
 
 describe('draw order', () => {
-  it('fragments, particles, the landing piece and the build ghost are drawn by the overlay, not by the structures', () => {
+  it('fragments, particles, the landing piece and the build ghost are drawn by `fx`, not by the structures', () => {
     const s = new Structures()
     const spies = spyDraws(s)
     s.draw(ctx)
     for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled()
-    s.overlay.draw(ctx)
+    s.fx.draw(ctx)
     for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1)
   })
 })
@@ -108,14 +108,12 @@ describe('Structures reset', () => {
     s.sync([wall(1), wall(2)])
     s.shatter(1, from)
     s.burst(from, 'red', 3)
+    expect(s.particleCount).toBe(3)
     s.ghost = wall(3)
     s.reset()
     expect([s.count, s.children.length, s.ghost]).toEqual([0, 0, undefined])
     s.sync([tower(1)])
     expect(s.get(1)).toBeInstanceOf(Tower)
-    run(s, visual.wall.particles.ms)
-    const fillRect = vi.fn()
-    s.drawParticles({ save() {}, restore() {}, fillRect } as unknown as CanvasRenderingContext2D)
-    expect(fillRect).not.toHaveBeenCalled()
+    expect(s.particleCount).toBe(0)
   })
 })

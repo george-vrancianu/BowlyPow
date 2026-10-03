@@ -1,5 +1,5 @@
 import { visual } from '../config/visual'
-import { rules } from '../config/rules'
+import { cellToWorld } from '../sim/pitch'
 import type { SimEvent } from '../sim/step'
 import type { Structure } from '../sim/wall'
 import type { Aim } from './entities/Aim'
@@ -23,7 +23,7 @@ export function routeEvents(events: SimEvent[], t: Targets, objects: Structure[]
     else if (ev.type === 'repulsor-fired') (t.structures.pulse(ev.tower), t.ball.pulse())
     else if (ev.type === 'steal-triggered') {
       const { gx, gy } = ev.tower.at
-      t.ball.steal(ev.at, { x: (gx + 0.5) * rules.cellSize, y: (gy + 0.5) * rules.cellSize })
+      t.ball.steal(ev.at, cellToWorld({ cx: gx, cy: gy }))
       t.structures.shatter(ev.tower.id, ev.at, visual.ball.stealMs)
     } else if (ev.type === 'blast-fired') t.aim.wave(ev.origin, ev.power)
   }

@@ -77,10 +77,11 @@ describe('Shell', () => {
   })
 
   it('only its controls take pointer input, so gestures pass through the gaps to the pitch', () => {
-    const { container } = render(<Shell {...props()} confirm />)
+    const buttons = [{ label: 'Done', onClick: vi.fn() }]
+    const { container } = render(<Shell {...props()} hud={hud({ buttons })} menu={{ kind: 'menu', open: false, items: [] }} confirm mapOpen><i>extra</i></Shell>)
     const shell = container.firstElementChild as HTMLElement
     expect(shell.style.pointerEvents).toBe('none')
-    expect([...shell.children].map((c) => (c as HTMLElement).style.pointerEvents)).not.toContain('')
+    expect(shell.children.length).toBe(7)
     expect([...shell.children].every((c) => (c as HTMLElement).style.pointerEvents === 'auto')).toBe(true)
   })
 

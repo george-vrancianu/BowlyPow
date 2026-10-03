@@ -10,8 +10,8 @@ export class Ball extends Entity {
   placement?: { at: Point; legal: boolean; radius: number }
   /** The shooter whose ball gets the Breaker outline. */
   armed?: PlayerId
-  /** Ms since a Repulsor fired (the trail runs bright for `visual.ball.trailMs`), and the steal sink in progress. */
-  private pulseAge?: number
+  /** The clock when a Repulsor fired (the trail runs bright for `visual.ball.trailMs`), and the steal sink in progress. */
+  private pulsedAt?: number
   private sinking?: { from: Point; to: Point; age: number }
 
   sync(state: BallState): void {
@@ -20,11 +20,11 @@ export class Ball extends Entity {
 
   /** A Repulsor fired: the trail brightens for `visual.ball.trailMs`. */
   pulse(): void {
-    this.pulseAge = 0
+    this.pulsedAt = this.clock
   }
 
   get bright(): boolean {
-    return this.pulseAge !== undefined && this.pulseAge < visual.ball.trailMs
+    return this.pulsedAt !== undefined && this.clock - this.pulsedAt < visual.ball.trailMs
   }
 
   /** A Steal tower caught the ball: it shrinks from `from` into `to` over `visual.ball.stealMs`. */
@@ -38,12 +38,11 @@ export class Ball extends Entity {
 
   /** A new match: no pulse, no steal sink, no ghost. */
   reset(): void {
-    this.pulseAge = this.sinking = this.placement = this.armed = undefined
+    this.pulsedAt = this.sinking = this.placement = this.armed = undefined
   }
 
   override update(dt: number): void {
     super.update(dt)
-    if (this.pulseAge !== undefined) this.pulseAge += dt * 1000
     if (this.sinking) this.sinking.age += dt * 1000
   }
 

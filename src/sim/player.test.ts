@@ -10,9 +10,9 @@ describe('players', () => {
     p1.inventory.steal = 0
     expect(p2.inventory.steal).toBe(3)
   })
-  it('player 1 is cyan and owns the bottom half, player 2 orange and the top', () => {
+  it('player 1 owns the bottom half, player 2 the top', () => {
     const { 1: p1, 2: p2 } = initialPlayers()
-    expect([p1.id, p1.color, p2.id, p2.color]).toEqual([1, '#22d3ee', 2, '#fb923c'])
+    expect([p1.id, p2.id]).toEqual([1, 2])
     expect(halfOf(100)).toBe(p1.id)
     expect(halfOf(8)).toBe(p2.id)
   })

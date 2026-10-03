@@ -1,11 +1,14 @@
 import { rules } from '../../config/rules'
 import { visual } from '../../config/visual'
 import type { Point } from '../../sim/pitch'
-import { crackLines, wallCells, wallSegments, type Structure, type StructureSpec } from '../../sim/wall'
+import { maxHp, vertexToWorld, wallCells, type StructureSpec, type TowerSpec, type WallSpec } from '../../sim/wall'
 import { Entity } from './Entity'
 
 /** A structure as drawn: the sim's `Structure`, or a bare spec (a ghost) with no hp, id or spent flag yet. */
-export type FixtureData = StructureSpec & { id?: number; hp?: number; spent?: boolean }
+type Placed = { id?: number; hp?: number; spent?: boolean }
+export type WallData = WallSpec & Placed
+export type TowerData = TowerSpec & Placed
+export type FixtureData = WallData | TowerData
 
 /** Player 2 walls: owner colour with diagonal stripes. */
 function hatch(ctx: CanvasRenderingContext2D): CanvasPattern {
@@ -45,23 +48,33 @@ export function drawSegments(ctx: CanvasRenderingContext2D, segments: { a: Point
   ctx.stroke()
 }
 
-export function drawCracks(ctx: CanvasRenderingContext2D, s: Structure): void {
-  ctx.beginPath()
-  for (const [p, ...rest] of crackLines(s)) {
-    ctx.moveTo(p.x, p.y)
-    for (const q of rest) ctx.lineTo(q.x, q.y)
-  }
-  ctx.lineCap = 'butt'
-  ctx.strokeStyle = visual.wall.outline
-  ctx.lineWidth = visual.wall.crackWidth
-  ctx.stroke()
+/** One jagged crack per lost hit point, as world-space polylines. Deterministic in (id, hp) so peers draw the same cracks. */
+export function crackLines(spec: StructureSpec, id: number, hp: number): Point[][] {
+  const cells = wallCells(spec)
+  const max = maxHp(spec)
+  const { spread, across, jitter } = visual.wall.crack
+  return Array.from({ length: max - hp }, (_, k) => {
+    // Seeded from id and the hp remaining after this crack, so earlier cracks never move.
+    let seed = (id * 31 + (max - 1 - k)) * 2654435761
+    const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) >>> 0) / 2 ** 32)
+    const { a, b } = cells[Math.floor(rnd() * cells.length)]
+    const [pa, pb] = [vertexToWorld(a), vertexToWorld(b)]
+    const [cx, cy] = [(pa.x + pb.x) / 2, (pa.y + pb.y) / 2]
+    // Across the wall: perpendicular to the cell's direction.
+    const [nx, ny] = [Math.abs(b.gy - a.gy), Math.abs(b.gx - a.gx)]
+    const along = (rnd() - 0.5) * rules.cellSize * spread
+    return across.map((t) => {
+      const j = (rnd() - 0.5) * jitter
+      return { x: cx + nx * t + ny * (along + j), y: cy + ny * t + nx * (along + j) }
+    })
+  })
 }
 
 /** One cell-sized piece of a destroyed structure, flying away from the impact point. */
 type Fragment = { a: Point; b: Point }
 
 /** What every structure shares: a flash on a hit, an outline when marked, and a shatter that outlives its sim object. */
-export abstract class Fixture extends Entity {
+export abstract class Fixture<D extends FixtureData = FixtureData> extends Entity {
   /** Placed this turn, so it can still be moved: drawn with a dashed outline. */
   movable = false
   /** The builder's selection: an outline that breathes. */
@@ -75,7 +88,7 @@ export abstract class Fixture extends Entity {
   private flash?: { dim: boolean; age: number }
   private shattering?: { from: Point; delay: number; age: number; fragments: Fragment[] }
 
-  constructor(public data: FixtureData) {
+  constructor(public data: D) {
     super()
   }
 
@@ -94,7 +107,7 @@ export abstract class Fixture extends Entity {
 
   /** Breaks into one fragment per cell flying from `from`, after `delay` ms (the structure stays whole until then). */
   shatter(from: Point, delay = 0): void {
-    const fragments = wallCells(this.data).map(({ a, b }) => ({ a: { x: a.gx * rules.cellSize, y: a.gy * rules.cellSize }, b: { x: b.gx * rules.cellSize, y: b.gy * rules.cellSize } }))
+    const fragments = wallCells(this.data).map(({ a, b }) => ({ a: vertexToWorld(a), b: vertexToWorld(b) }))
     this.shattering = { from, delay, age: 0, fragments }
   }
 
@@ -112,7 +125,7 @@ export abstract class Fixture extends Entity {
     if (this.hidden) return
     ctx.globalAlpha = this.alpha
     const s = this.shattering
-    // Once it breaks the body is gone; the fragments are drawn by the overlay, above the ball.
+    // Once it breaks the body is gone; the fragments are drawn by `fx`, above the ball.
     if (!s || s.age < s.delay) {
       this.drawBody(ctx, this.tint)
       if (!s) this.drawMarks(ctx)
@@ -120,10 +133,28 @@ export abstract class Fixture extends Entity {
     ctx.globalAlpha = 1
   }
 
-  /** The flying fragments of a shattered structure, once its delay is over. Drawn in the overlay layer. */
+  /** The flying fragments of a shattered structure, once its delay is over. Drawn in the `fx` layer. */
   drawShatter(ctx: CanvasRenderingContext2D): void {
     const s = this.shattering
     if (!this.hidden && s && s.age >= s.delay) this.drawFragments(ctx, s)
+  }
+
+  /** The boxes an outline traces, as corner pairs in world units. */
+  protected abstract footprint(): { a: Point; b: Point }[]
+
+  /** One crack per lost hit point, once the structure has an id and hp (a ghost has neither). */
+  protected drawCracks(ctx: CanvasRenderingContext2D): void {
+    const { id, hp } = this.data
+    if (id === undefined || hp === undefined) return
+    ctx.beginPath()
+    for (const [p, ...rest] of crackLines(this.data, id, hp)) {
+      ctx.moveTo(p.x, p.y)
+      for (const q of rest) ctx.lineTo(q.x, q.y)
+    }
+    ctx.lineCap = 'butt'
+    ctx.strokeStyle = visual.wall.outline
+    ctx.lineWidth = visual.wall.crackWidth
+    ctx.stroke()
   }
 
   /** The structure itself, filled with `fill` or the owner colour. */
@@ -148,12 +179,10 @@ export abstract class Fixture extends Entity {
 
   /** A thin outline around the footprint, in the owner's colour. */
   protected outline(ctx: CanvasRenderingContext2D, pad: number, dash: number[] = []): void {
-    const d = this.data
     ctx.beginPath()
-    if (d.kind === 'tower') ctx.rect(d.at.gx * rules.cellSize - pad, d.at.gy * rules.cellSize - pad, rules.cellSize + 2 * pad, rules.cellSize + 2 * pad)
-    else for (const { a, b } of wallSegments(d)) ctx.rect(Math.min(a.x, b.x) - pad, Math.min(a.y, b.y) - pad, Math.abs(b.x - a.x) + 2 * pad, Math.abs(b.y - a.y) + 2 * pad)
+    for (const { a, b } of this.footprint()) ctx.rect(Math.min(a.x, b.x) - pad, Math.min(a.y, b.y) - pad, Math.abs(b.x - a.x) + 2 * pad, Math.abs(b.y - a.y) + 2 * pad)
     ctx.setLineDash(dash)
-    ctx.strokeStyle = visual.player.colors[d.owner]
+    ctx.strokeStyle = visual.player.colors[this.data.owner]
     ctx.lineWidth = visual.wall.mark.width
     ctx.stroke()
     ctx.setLineDash([])
