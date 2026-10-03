@@ -15,7 +15,7 @@ export function bands(size: { width: number; height: number }): { near: Band; fa
 }
 
 export type HudModel = {
-  players: Record<PlayerId, { score: number | null; inventory: Record<PowerUp, number> }>
+  players: Record<PlayerId, { /** What the strip's big digit shows (Rounds: the score; Siege: remaining structures); null hides it. */ digit: string | null; inventory: Record<PowerUp, number> }>
   /** Whose turn it is; their strip goes to the bottom. */
   active: PlayerId
   /** Null in modes without rounds. */
@@ -64,7 +64,7 @@ export function createHud(root: HTMLElement, actions: HudActions) {
   const mk = (id: PlayerId) => {
     const color = PLAYER_COLORS[id]
     const strip = el('div', `${FONT}display:flex;align-items:center;justify-content:center;gap:16px;color:${color};`)
-    const score = el('div', 'font-size:40px;line-height:1;')
+    const score = el('div', 'font-size:40px;line-height:1;font-variant-numeric:tabular-nums;')
     const icons = (Object.keys(ICONS) as PowerUp[]).map((p) => {
       const b = el('button', `${FONT}position:relative;width:44px;height:44px;border-radius:50%;border:2px solid ${color};color:${color};background:none;`, ICONS[p]) as HTMLButtonElement
       const badge = el('span', `position:absolute;top:-6px;right:-6px;min-width:18px;border-radius:9px;background:${color};color:#0b0f1a;font-size:12px;`)
@@ -104,8 +104,8 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     for (const id of [1, 2] as const) {
       const s = strips[id]
       const p = m.players[id]
-      s.score.style.display = p.score === null ? 'none' : ''
-      const shown = p.score === null ? '' : String(p.score)
+      s.score.style.display = p.digit === null ? 'none' : ''
+      const shown = p.digit ?? ''
       if (s.score.textContent !== shown) {
         if (s.score.textContent && shown) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], 400)
         s.score.textContent = shown

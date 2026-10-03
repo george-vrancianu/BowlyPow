@@ -29,8 +29,10 @@ export function advance(t: Transition, f: Frame): Transition {
     if (ev.type === 'repaired') overlay = { kind: 'sweep', at: f.now, player: f.active, text: 'REPAIRED', ms: SWEEP_MS }
   }
   if (t.phase !== undefined && t.phase !== f.phase && overlay?.kind !== 'goal') overlay = { kind: 'sweep', at: f.now, player: f.active, text: f.phase.toUpperCase(), ms: SWEEP_MS }
+  // The handover waits for the REPAIRED sweep, so the flash and label are seen before the turn flips.
+  const repairing = overlay?.kind === 'sweep' && overlay.text === 'REPAIRED'
   if (f.handover === false) due = false
-  else if ((due || f.active !== shown) && !flip && overlay?.kind !== 'goal' && overlay?.kind !== 'turn') {
+  else if ((due || f.active !== shown) && !flip && !repairing && overlay?.kind !== 'goal' && overlay?.kind !== 'turn') {
     const ms = f.reduced ? 0 : FLIP_MS
     if (ms) flip = { at: f.now, ms, from: shown, to: f.active }
     else shown = f.active

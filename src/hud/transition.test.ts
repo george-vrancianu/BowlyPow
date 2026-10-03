@@ -87,6 +87,19 @@ describe('repaired sweep', () => {
   })
 })
 
+describe('repaired sweep in hot-seat', () => {
+  it('holds the handover until the sweep ends, even when the active player changes in the same frame', () => {
+    let t = go(open(), { now: 2000, active: 2, events: [{ type: 'repaired', id: 1 }] })
+    expect(overlayView(t, 2500)).toMatchObject({ kind: 'sweep', text: 'REPAIRED' })
+    expect(t.flip).toBeUndefined()
+    t = go(t, { now: 2600, active: 2 })
+    expect(overlayView(t, 2600)?.text).toBe('REPAIRED')
+    t = go(t, { now: 3000, active: 2 })
+    expect(t.flip).toBeDefined()
+    expect(overlayView(t, 3000)?.text).toBe("Player 2's turn")
+  })
+})
+
 describe('online (no handover)', () => {
   const online = (t: Transition, o: Partial<Frame>) => go(t, { active: 2, handover: false, ...o })
   it('never flips or opens a turn card, and the screen stays with the local player', () => {

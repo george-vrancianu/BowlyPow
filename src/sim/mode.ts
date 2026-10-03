@@ -2,10 +2,16 @@ import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { coinFlip, firstBuilder, startingPossession, type GameModeName, type Match, type RoundsMatch, type SiegeMatch } from './match'
 import { opponent, type Possession } from './possession'
 import type { SimConfig, SimEvent } from './step'
-import { maxHp, type Structure } from './wall'
+import { maxHp, structureCost, type Structure, type StructureSpec } from './wall'
 
 /** The board a hook may read when deciding: read-only, so hooks stay pure. */
-export type ModeContext = { objects: readonly Structure[]; possession: Possession }
+export type ModeContext = {
+  objects: readonly Structure[]
+  /** The possession at the moment the hook is called: for `onGoal` and `onShotConsumed` before the result is applied, for `winner` and `onBuildStart` after. */
+  possession: Possession
+  /** Who took the shot being resolved (possession may already have passed to the opponent). */
+  shooter: PlayerId
+}
 
 /** What a match-level hook returns. `possession` and `ball` are set only when the hook resets play (a new round). */
 export type ModeResult<M extends Match = Match> = { match: M; possession?: Possession; ball?: Point; /** Set when the hook changes structures (a repair). */ objects?: Structure[]; events: SimEvent[] }
@@ -33,6 +39,8 @@ export type GameMode<M extends Match = Match> = {
   onBuildDone(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): ModeResult<M> | null
   /** `player` (the one the match is waiting on) made a defence choice: the result, or null to refuse. */
   onDefenceChoice(m: M, player: PlayerId, choice: DefenceChoice, ctx: ModeContext, c: SimConfig): ModeResult<M> | null
+  /** A timed-out Done was refused: a piece to place for the builder before finishing the turn, or null for none. */
+  onBuildTimeout(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): StructureSpec | null
   /** A build turn just opened for `m.builder`. */
   onBuildStart(m: M, ctx: ModeContext, c: SimConfig): BuildTurn
   /** Who has won, if anyone; derived from state. */
@@ -64,32 +72,43 @@ export const rounds: GameMode<RoundsMatch> = {
   onGoal: (m, scorer, _ctx, c) => endRound(m, scorer, c),
   onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, m.round) ? opponent(builder) : null }, events: [] }),
   onDefenceChoice: () => null,
+  onBuildTimeout: () => null,
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
   // The last round is over and the score is not tied; a tie means sudden death.
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
 }
 
-/** Siege: one opening build (Rounds ordering), no score, no shot cap; a goal hands the conceder ball-in-hand at the center. */
+/** Siege: one opening build (Rounds ordering), no score, no shot cap; a goal hands the conceder ball-in-hand at the center; a player with no structures left loses. */
 export const siege: GameMode<SiegeMatch> = {
   start: (seed, c) => ({ match: { mode: 'siege', seed, winner: null, builder: firstBuilder(seed, 1), choosing: null }, possession: startingPossession(coinFlip(seed, 1), c) }),
   onShotFired: (m) => m,
   onShotConsumed: () => null,
-  // The scorer owes a defence choice; step holds play until it is made. The ball waits at the center.
+  // The scorer owes a defence choice; step holds play until it is made. The conceder's ball-in-hand is set up here, once, and stays unusable while `choosing`.
   onGoal: (m, scorer, _ctx, c) => ({ match: { ...m, choosing: scorer }, possession: startingPossession(opponent(scorer), c), ball: { ...center }, events: [] }),
-  onDefenceChoice: (m, player, choice, ctx, c) => {
+  onDefenceChoice: (m, player, choice, ctx) => {
     if (choice !== 'repair') return null
-    const mine = ctx.objects.filter((o) => o.owner === player)
     return {
       match: { ...m, choosing: null },
-      possession: startingPossession(opponent(player), c),
-      ball: { ...center },
       objects: ctx.objects.map((o) => (o.owner === player ? { ...o, hp: maxHp(o) } : o)),
-      events: mine.map((o) => ({ type: 'repaired', id: o.id })),
+      // One per surviving own structure, full-HP ones included, so the sweep and flash always fire.
+      events: ctx.objects.filter((o) => o.owner === player).map((o) => ({ type: 'repaired', id: o.id })),
     }
   },
-  onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] }),
+  // An empty defence would be an instant loss, so Done is refused until the builder owns a structure.
+  onBuildDone: (m, builder, ctx) => (ctx.objects.some((o) => o.owner === builder) ? { match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] } : null),
+  // A builder with nothing owned has the full budget: a straight wall on their half if it fits, else a Repulsor (free, always in stock at the opening).
+  onBuildTimeout: (_m, builder, _ctx, c) => {
+    const at = { gx: 10, gy: builder === 1 ? 40 : 10 }
+    const wall: StructureSpec = { kind: 'wall', owner: builder, shape: 'straight', rotation: 0, at }
+    return structureCost(wall) <= c.wallPoints ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
+  },
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
-  winner: () => null,
+  winner: (_m, ctx) => {
+    const left = (p: PlayerId) => ctx.objects.some((o) => o.owner === p)
+    if (left(1) && left(2)) return null
+    // Wipe-out; if both are at zero the shooter loses.
+    return !left(1) && !left(2) ? opponent(ctx.shooter) : left(1) ? 1 : 2
+  },
 }
 
 /** The mode a match is being played in, read off the match itself. */

@@ -23,3 +23,6 @@ _Avoid_: Bonus turn, power-up
 **Repair**:
 The defence-turn choice that restores every surviving structure the scorer owns to full HP; destroyed structures stay gone.
 _Avoid_: Heal, rebuild
+**Wipe-out**:
+Siege's end condition: a player owns no structures (towers included) when the ball comes to rest or a goal is scored, never mid-flight. If both players are at zero, the shooter loses.
+_Avoid_: Elimination, knockout
