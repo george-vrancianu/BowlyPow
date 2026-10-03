@@ -4,6 +4,6 @@ const sources = import.meta.glob<string>(['./**/*.{ts,tsx}', '!./**/*.test.*'], 
 
 it('keeps src/ui independent of src/sim', () => {
   expect(Object.keys(sources).length).toBeGreaterThan(0)
-  const offenders = Object.entries(sources).filter(([, src]) => /from\s+['"][^'"]*\/sim\//.test(src)).map(([file]) => file)
+  const offenders = Object.entries(sources).filter(([, src]) => /['"][^'"]*\/sim(\/|['"])/.test(src)).map(([file]) => file)
   expect(offenders).toEqual([])
 })

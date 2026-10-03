@@ -10,7 +10,7 @@ const hud = (over: Partial<HudModel> = {}): HudModel => ({
   players: { 1: { digit: '3', inventory: { breaker: 1, repulsor: 0, steal: 2 } }, 2: { digit: '?', inventory: { breaker: 4, repulsor: 4, steal: 4 } } },
   active: 1, round: null, rounds: 3, clock: { seconds: 12, fraction: 0.5 }, shotsLeft: 2, shotsMax: 3, phase: 'Play', breaker: { armed: false, tappable: true }, ...over,
 })
-const props = () => ({ hud: hud(), confirm: false, mapOpen: false, flipped: false, onMap: vi.fn(), onRecenter: vi.fn(), onPowerUp: vi.fn(), onConfirm: vi.fn(), onMapStretch: vi.fn(), onMapClose: vi.fn() })
+const props = () => ({ hud: hud(), confirm: false, mapOpen: false, flipped: false, onMap: vi.fn(), onRecenter: vi.fn(), onPowerUp: vi.fn(), onConfirm: vi.fn(), onMapStretch: vi.fn(), onMapClose: vi.fn(), onBuildToggle: vi.fn() })
 
 describe('Shell', () => {
   it('shows both structure counts, including a hidden opponent as ?', () => {
@@ -74,6 +74,19 @@ describe('Shell', () => {
     render(<Shell {...props()} menu={{ kind: 'selected', buttons: [{ label: '🗑', onClick: del }] }} />)
     fireEvent.click(screen.getByRole('button', { name: 'Demolish' }))
     expect(del).toHaveBeenCalled()
+  })
+
+  it('only its controls take pointer input, so gestures pass through the gaps to the pitch', () => {
+    const { container } = render(<Shell {...props()} confirm />)
+    const shell = container.firstElementChild as HTMLElement
+    expect(shell.style.pointerEvents).toBe('none')
+    expect([...shell.children].map((c) => (c as HTMLElement).style.pointerEvents)).not.toContain('')
+    expect([...shell.children].every((c) => (c as HTMLElement).style.pointerEvents === 'auto')).toBe(true)
+  })
+
+  it('renders children', () => {
+    render(<Shell {...props()}><i>extra</i></Shell>)
+    expect(screen.getByText('extra')).toBeTruthy()
   })
 
   it('sits at the top of the stage when flipped, so the turned stage puts it at the screen bottom', () => {

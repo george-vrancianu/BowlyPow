@@ -89,7 +89,7 @@ export class InputController {
     if (canArm(s, s.possession.shooter)) this.armed = !this.armed
   }
 
-  // Build turn: the floating menu spawns a piece; drag it by pressing on it, ✓ sends it through the sim, ✕ drops it.
+  // Build turn: the build menu spawns a piece; drag it by pressing on it, ✓ sends it through the sim, ✕ drops it.
   // Pressing one of this turn's structures picks it up again; an older one is only selected, to demolish it.
   build: BuildActions = {
     toggle: () => (this.menuOpen = !this.menuOpen),

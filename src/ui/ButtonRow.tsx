@@ -24,10 +24,11 @@ export function Button({ spec, aria, className, style, children }: { spec: Butto
 }
 
 /** A row of buttons, shared by the phase row and the screens. */
-export function ButtonRow({ specs, className, style }: { specs: ButtonSpec[] } & Look) {
+export function ButtonRow({ specs, className, style, children }: { specs: ButtonSpec[] } & Look) {
   return (
     <div className={className} style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', ...style }}>
       {specs.map((s) => <Button key={s.label} spec={s} />)}
+      {children}
     </div>
   )
 }

@@ -44,13 +44,15 @@ describe('Game', () => {
     const onView = vi.fn()
     make(onView)
     const t = performance.now()
+    // The constructor pushes the first view; a frame may move time-driven parts (the card's progress).
+    frame(t)
+    const settled = onView.mock.calls.length
     frame(t)
     frame(t)
-    frame(t)
-    expect(onView).toHaveBeenCalledTimes(1)
+    expect(onView).toHaveBeenCalledTimes(settled)
     press('m')
     frame(t)
-    expect(onView).toHaveBeenCalledTimes(2)
+    expect(onView).toHaveBeenCalledTimes(settled + 1)
     expect(onView.mock.lastCall![0].mapOpen).toBe(true)
   })
 
@@ -146,5 +148,17 @@ describe('Game', () => {
     game.structures.burst({ x: 0, y: 0 }, 'red', 3)
     game.actions.rematch()
     expect(game.camera.shakeNow).toEqual({ x: 0, y: 0 })
+  })
+
+  it('starting a match pushes its view at once, so a finished match\'s winner never lingers', () => {
+    const onView = vi.fn()
+    const game = make(onView)
+    frame(performance.now())
+    const { match } = game.state
+    game.apply({ ...game.state, match: { ...match, winner: 1 } }, [])
+    frame(performance.now())
+    expect(onView.mock.lastCall![0].winner).toBe(1)
+    game.actions.rematch()
+    expect(onView.mock.lastCall![0].winner).toBeUndefined()
   })
 })

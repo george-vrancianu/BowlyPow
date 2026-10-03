@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { StrictMode } from 'react'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { HudView } from '../game/Game'
+import { afterEach, beforeEach, expect, it, vi, type Mock } from 'vitest'
+import type { GameActions, HudView } from '../game/Game'
 
 // Game needs a real canvas; the seam under test is how App creates, feeds and drives it.
-const games = vi.hoisted(() => [] as { destroyed: boolean; onView: (v: HudView) => void; actions: Record<string, ReturnType<typeof vi.fn>> }[])
+const freshView = vi.hoisted(() => () => ({ angle: 0, flipped: false, confirm: false, mapOpen: false, result: '', hud: { players: { 1: { digit: '0', inventory: { breaker: 1, repulsor: 1, steal: 1 } }, 2: { digit: '0', inventory: { breaker: 1, repulsor: 1, steal: 1 } } }, active: 1, round: 1, rounds: 5, clock: null, shotsLeft: 3, shotsMax: 3, phase: 'Play', breaker: { armed: false, tappable: false } } }) as HudView)
+const games = vi.hoisted(() => [] as { destroyed: boolean; onView: (v: HudView) => void; actions: { [K in 'start' | 'rematch' | 'map']: Mock<GameActions[K]> } }[])
 vi.mock('../game/Game', () => ({
   Game: class {
     destroyed = false
-    actions = { start: vi.fn(), rematch: vi.fn(), map: vi.fn() }
+    // Like the real Game, starting a match pushes its (winnerless) view at once.
+    actions = { start: vi.fn(() => this.onView(freshView())), rematch: vi.fn(() => this.onView(freshView())), map: vi.fn() }
     constructor(_canvas: HTMLCanvasElement, public onView: (v: HudView) => void) {
       games.push(this)
     }
@@ -21,11 +23,7 @@ vi.mock('../game/Game', () => ({
 
 import { App } from './App'
 
-const view = (over: Partial<HudView> = {}): HudView => ({
-  size: { width: 400, height: 800 },
-  hud: { players: { 1: { digit: '0', inventory: { breaker: 1, repulsor: 1, steal: 1 } }, 2: { digit: '0', inventory: { breaker: 1, repulsor: 1, steal: 1 } } }, active: 1, round: 1, rounds: 5, clock: null, shotsLeft: 3, shotsMax: 3, phase: 'Play', breaker: { armed: false, tappable: false } },
-  angle: 0, flipped: false, confirm: false, mapOpen: false, result: '', ...over,
-})
+const view = (over: Partial<HudView> = {}): HudView => ({ ...freshView(), ...over })
 
 beforeEach(() => (games.length = 0))
 afterEach(cleanup)
@@ -67,4 +65,28 @@ it('Menu returns to the title and the finished match does not pop the end screen
   expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy()
   act(() => games[0]!.onView(view({ winner: 2, result: 'x' })))
   expect(screen.queryByText('Player 2 wins')).toBeNull()
+})
+
+it('keeps the settings across Menu and Play', () => {
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Rounds' }))
+  const rounds = screen.getByLabelText(/rounds/i) as HTMLInputElement
+  fireEvent.change(rounds, { target: { value: '9' } })
+  fireEvent.click(screen.getByText('Start'))
+  act(() => games[0]!.onView(view({ winner: 1, result: 'x' })))
+  fireEvent.click(screen.getByText('Menu'))
+  fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+  expect(screen.getByRole('button', { name: 'Rounds' }).getAttribute('aria-pressed')).toBe('true')
+  expect((screen.getByLabelText(/rounds/i) as HTMLInputElement).value).toBe('9')
+})
+
+it('draws the overlay under the shell, so the controls stay tappable during a card', () => {
+  render(<App />)
+  act(() => games[0]!.onView(view({ overlay: { kind: 'turn', placement: 'center', band: false, text: 'Player 2', color: '#fff', opacity: 1, progress: 0, dismissable: true } })))
+  const card = screen.getByText('Player 2').parentElement!
+  const map = screen.getByRole('button', { name: 'Map' })
+  expect(card.compareDocumentPosition(map) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  fireEvent.click(map)
+  expect(games[0]!.actions.map).toHaveBeenCalled()
 })

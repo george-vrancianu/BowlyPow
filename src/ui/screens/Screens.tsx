@@ -1,6 +1,7 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { type CSSProperties, type ReactNode } from 'react'
 import { visual } from '../../config/visual'
-import { defaultSettings, modePicker, sliderRows, type PlayerId, type Settings } from '../../game/view/settings'
+import type { PlayerId } from '../../game/Game'
+import { modePicker, sliderRows, type Settings } from '../../game/view/settings'
 import { ButtonRow, FONT } from '../ButtonRow'
 
 type Look = { className?: string; style?: CSSProperties; children?: ReactNode }
@@ -25,22 +26,21 @@ export function TitleScreen({ onPlay, ...look }: { onPlay(): void } & Look) {
 }
 
 /** The mode picker, then the sliders that mode uses, then Start. */
-export function SettingsScreen({ onStart, ...look }: { onStart(s: Settings): void } & Look) {
-  const [settings, setSettings] = useState<Settings>({ ...defaultSettings })
+export function SettingsScreen({ settings, onChange, onStart, ...look }: { settings: Settings; onChange(s: Settings): void; onStart(): void } & Look) {
   return (
     <Screen {...look}>
       <div style={{ fontSize: 28 }}>Settings</div>
-      <ButtonRow specs={modePicker(settings.mode, (mode) => setSettings({ ...settings, mode }))} />
+      <ButtonRow specs={modePicker(settings.mode, (mode) => onChange({ ...settings, mode }))} />
       {sliderRows(settings).map(({ key, label, min, max, value }) => (
         <label key={key} style={{ display: 'block', width: 'min(80vw,320px)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>{label}</span>
             <span>{value}</span>
           </div>
-          <input type="range" min={min} max={max} step={1} value={value} aria-label={label} style={{ width: '100%', minHeight: 44 }} onChange={(e) => setSettings({ ...settings, [key]: e.currentTarget.valueAsNumber })} />
+          <input type="range" min={min} max={max} step={1} value={value} aria-label={label} style={{ width: '100%', minHeight: 44 }} onChange={(e) => onChange({ ...settings, [key]: e.currentTarget.valueAsNumber })} />
         </label>
       ))}
-      <ButtonRow specs={[{ label: 'Start', onClick: () => onStart(settings) }]} />
+      <ButtonRow specs={[{ label: 'Start', onClick: onStart }]} />
       {look.children}
     </Screen>
   )

@@ -22,11 +22,12 @@ import { hudModel, type HudModel } from './view/hudModel'
 import { phaseButtons } from './view/phaseButtons'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, choosingNotice, overlayView, revealing, type OverlayView } from './view/transition'
 
+export type { PlayerId, PowerUp }
+
 /** Everything the HUD and screens draw from. Data only: pushed up through `onView` when it changes, never read back. */
 export type HudView = {
-  size: { width: number; height: number }
   hud: HudModel
-  /** The builder's floating menu, when it is their build turn and the map is closed. */
+  /** The builder's build menu, when it is their build turn and the map is closed. */
   menu?: BuildMenu
   overlay?: OverlayView
   /** Degrees the stage (canvas and in-match HUD) is rotated by the hot-seat flip. */
@@ -210,6 +211,7 @@ export class Game implements Sink {
     this.camera.y = s.ball.pos.y
     this.lastBuilder = undefined
     this.apply(s, [])
+    this.push()
   }
 
   private toggleMap(open = !this.mapOpen): void {
@@ -290,7 +292,6 @@ export class Game implements Sink {
     const builder = state.match.builder
     const { shooter, inHand } = state.possession
     const view: HudView = {
-      size: { width: this.canvas.clientWidth, height: this.canvas.clientHeight },
       hud: hudModel(state, this.config, { active: transition.shown, buttons: phaseButtons(state, this.config, { mine, current: () => this.state, send: (i) => this.driver.send(i), choosable: !blocked }), viewer: this.viewer(), armed: input.armed, tappable: canArm(state, shooter) }),
       menu: builder && !this.mapOpen && !blocked ? buildMenu(state, builder, { open: input.menuOpen, selection: input.selection, landing: !!input.landing }, input.build) : undefined,
       overlay: overlayView(transition, now, choosingNotice(state.match, mine)),

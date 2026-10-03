@@ -18,12 +18,13 @@ const Round = ({ spec }: { spec: ButtonSpec }) => {
 }
 
 /** The builder's menu: a Build button that opens the piece list, or the buttons for the selected piece. */
-export function BuildMenu({ menu, onToggle, className, style }: { menu: BuildMenuView; onToggle?(): void; className?: string; style?: CSSProperties }) {
+export function BuildMenu({ menu, onToggle, className, style, children }: { menu: BuildMenuView; onToggle(): void; className?: string; style?: CSSProperties; children?: ReactNode }) {
   const row: CSSProperties = { display: 'flex', gap: 10, alignItems: 'center', ...style }
   if (menu.kind === 'selected') {
     return (
       <div className={className} style={row}>
         {menu.buttons.map((s) => <Round key={s.label} spec={s} />)}
+        {children}
       </div>
     )
   }
@@ -31,6 +32,7 @@ export function BuildMenu({ menu, onToggle, className, style }: { menu: BuildMen
     <div className={className} style={row}>
       {menu.open && menu.items.map((s) => <Button key={s.label} spec={s} style={{ minHeight: 44, borderRadius: 22 }} />)}
       <button aria-label={menu.open ? 'Close build menu' : 'Build'} onClick={onToggle} style={ROUND}>{menu.open ? '✕' : WALL}</button>
+      {children}
     </div>
   )
 }

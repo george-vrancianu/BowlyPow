@@ -22,7 +22,7 @@ export function Overlay({ view: v, onTap, className, style, children }: { view?:
         ...style,
       }}
     >
-      {/* Pinned labels sit below the HUD strip so they never cover its digit and badges. */}
+      {/* Pinned labels sit well below the top edge so they clear rotated phone screens' notches and status bars. */}
       <div style={top ? { padding: '1vmin 3vmin', marginTop: 'max(19vmin,112px)', background: visual.hud.scrimLight, borderRadius: '1vmin', fontSize: '6vmin' } : v.band ? { width: '100%', padding: '2vmin 0', background: visual.hud.scrim, ...(v.kind === 'goal' ? { borderBlock: `1vmin solid ${v.color}` } : {}) } : undefined}>{v.text}</div>
       <div style={{ font: '600 3.5vmin system-ui,sans-serif', textTransform: 'none', color: visual.hud.ink }}>{v.hint}</div>
       {children}

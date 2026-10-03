@@ -45,7 +45,7 @@ Expect to tune friction and max speed by feel in the first hour of play. A full-
 ## Camera
 
 - The view is always the full 40-unit pitch width. Visible height is whatever the screen gives, capped at 64 units, so a player sees their own half plus a 10-unit strip of the enemy's. Nobody ever sees more than that at once.
-- Screens taller than 10:16 get letterbox bands top and bottom. Screens wider than 10:16 get a 10:16 pane letterboxed left and right. The HUD lives in the bands.
+- Screens taller than 10:16 get letterbox bands top and bottom. Screens wider than 10:16 get a 10:16 pane letterboxed left and right.
 - The camera targets the ball, clamped so it never shows beyond the boards. While the ball moves it follows with about 150 ms of smoothing lag. At rest it settles on the ball.
 - Free panning at all times, in every phase: drag during the blast dwell (see Blasting), or drag with two fingers. Mouse drag and mouse wheel on desktop. A manual pan holds until the next sim event (blast fired, wall placed, possession change), then the camera returns to the ball. A recenter button in the HUD does the same on demand. Panning never pauses the shot clock.
 - Map: a HUD button opens a full-screen live view of the whole pitch, drawn by the same renderer through a second camera, with the current view outlined. Tap any point to close the map and center the camera there. Close button or map button closes without moving. A fit/stretch toggle in the corner is remembered for the session. The clock keeps running. Available in every phase, including the opponent's turn and while the ball moves. It always draws the whole pitch; during Siege's blind opening build the opponent's half is fogged in it (see Siege), so the map never shows more than the main view may.
@@ -229,14 +229,14 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 ### HUD
 
-- React components in `src/ui` take data and callbacks and never import the sim; `Game` pushes a view up and the HUD drives it through an actions handle. System font stack, bold weights, uppercase labels, tabular numerals.
-- All in-match controls sit in one shell at the bottom of the screen and show only the active viewer: the build menu, Confirm (ball-in-hand) and the map's Stretch and Close when due; the phase row (Done in your build turn, disabled while the mode would refuse it; Repair and Rearrange for a scorer owing a defence choice); round as "ROUND 2 / 5" (Rounds only), the clock as a number with a draining ring (the shot clock in play, the build window in a build turn or a pending defence choice, "-" when no clock runs), shots remaining as dots that empty, the phase label (Build, Rearrange or Play), and the map and recenter buttons; and each side's structure count or score as a large number (Siege: the remaining structure count; "?" for a hidden opponent) beside the viewer's three power-up icons with count badges (dimmed at 0; Breaker tappable only during your own play phase). There is no far band.
+- React components in `src/ui` take data and callbacks and never import the sim; `Game` pushes a view up and the HUD drives it through an actions handle.
+- All in-match controls sit in one shell at the bottom of the screen and show only the active viewer: the build menu, Confirm (ball-in-hand) and the map's Stretch and Close when due; the phase row (Done in your build turn, disabled while the mode would refuse it; Repair and Rearrange for a scorer owing a defence choice); round as "ROUND 2 / 5" (Rounds only); the clock (the shot clock in play, the build window in a build turn or a pending defence choice, "-" when no clock runs); shots remaining; the phase label (Build, Rearrange or Play); the map and recenter buttons; each side's structure count or score (Siege: the remaining structure count; "?" for a hidden opponent); and the viewer's three power-up icons with counts (Breaker tappable only during your own play phase).
 - The shell sits inside the rotating stage, so the HUD turns with the flip and the active player's controls are always at the bottom of the screen.
 - Overlays (turn card, GOAL, sweeps, REVEAL, "Opponent is choosing") are their own layer, also inside the stage.
 
 ### Screens
 
-- Title screen (name, Play), settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Each is its own layer, outside the rotating stage. Same flat style and font. No tutorial screen in v1.
+- Title screen (name, Play), settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Each is its own layer, outside the rotating stage. No tutorial screen in v1.
 
 ### Feedback and accessibility
 

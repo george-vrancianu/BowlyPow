@@ -2,8 +2,6 @@ import { defaultSettings, MODES, SLIDERS, slidersFor, type Settings } from '../.
 import type { ButtonSpec } from './hudModel'
 
 export { defaultSettings, type Settings }
-export type { PlayerId } from '../../sim/pitch'
-export type { PowerUp } from '../../sim/player'
 
 /** The mode picker's buttons: the chosen mode reads as pressed (aria-pressed and a filled look), not just bracketed text. */
 export const modePicker = (current: Settings['mode'], pick: (mode: Settings['mode']) => void): ButtonSpec[] => MODES.map(({ mode, label }) => ({ label, pressed: mode === current, onClick: () => pick(mode) }))

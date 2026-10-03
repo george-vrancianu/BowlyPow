@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Game, type HudView } from '../game/Game'
+import { defaultSettings, type Settings } from '../game/view/settings'
 import { Shell } from './hud/Shell'
 import { Overlay } from './overlays/Overlay'
 import { MatchEndScreen, SettingsScreen, TitleScreen } from './screens/Screens'
@@ -13,6 +14,8 @@ export function App() {
   const [view, setView] = useState<HudView>()
   // The match runs behind the title; the end screen shows when a match is won while no screen is up.
   const [screen, setScreen] = useState<Screen>('title')
+  // Lasts the session: Menu then Play shows the last choices.
+  const [settings, setSettings] = useState<Settings>(defaultSettings)
 
   useEffect(() => {
     const g = new Game(canvas.current!, setView)
@@ -26,16 +29,15 @@ export function App() {
   }, [view?.winner, screen])
 
   const actions = () => game.current!.actions
-  // The finished match's view lingers until the next frame; clear its winner so the end screen does not reopen.
-  const leaveMatch = (next: Screen) => (setView((v) => v && { ...v, winner: undefined }), setScreen(next))
 
   return (
     <>
-      {/* The stage rotates as one: canvas, in-match HUD and overlay (the 180-degree handover flip). */}
+      {/* The overlay goes under the shell so the controls stay tappable during a card. The stage rotates as one: canvas, in-match HUD and overlay (the 180-degree handover flip). */}
       <div style={{ position: 'fixed', inset: 0, transform: `rotate(${view?.angle ?? 0}deg)` }}>
         <canvas ref={canvas} />
         {view && (
           <>
+            <Overlay view={view.overlay} onTap={() => actions().dismiss()} />
             <Shell
               hud={view.hud}
               menu={view.menu}
@@ -50,13 +52,12 @@ export function App() {
               onMapClose={() => actions().map(false)}
               onBuildToggle={() => actions().build.toggle()}
             />
-            <Overlay view={view.overlay} onTap={() => actions().dismiss()} />
           </>
         )}
       </div>
       {screen === 'title' && <TitleScreen onPlay={() => setScreen('settings')} />}
-      {screen === 'settings' && <SettingsScreen onStart={(s) => (actions().start(s), leaveMatch(undefined))} />}
-      {screen === 'end' && view?.winner && <MatchEndScreen winner={view.winner} result={view.result} onRematch={() => (actions().rematch(), leaveMatch(undefined))} onMenu={() => leaveMatch('title')} />}
+      {screen === 'settings' && <SettingsScreen settings={settings} onChange={setSettings} onStart={() => (actions().start(settings), setScreen(undefined))} />}
+      {screen === 'end' && view?.winner && <MatchEndScreen winner={view.winner} result={view.result} onRematch={() => (actions().rematch(), setScreen(undefined))} onMenu={() => setScreen('title')} />}
     </>
   )
 }
