@@ -1,7 +1,8 @@
 import { visual } from '../config/visual'
-import { layout } from '../render/camera'
-import { type PowerUp } from '../sim/player'
+import { layout } from '../game/entities/Camera'
+import type { PowerUp } from '../sim/player'
 import type { PlayerId } from '../sim/pitch'
+import type { ButtonSpec, HudModel } from '../game/view/hudModel'
 
 export type Band = { x: number; y: number; w: number; h: number }
 
@@ -15,31 +16,7 @@ export function bands(size: { width: number; height: number }): { near: Band; fa
     : { wide, far: { x: 0, y: 0, w: W, h: pane.y }, near: { x: 0, y: pane.y + pane.h, w: W, h: pane.y } }
 }
 
-export type HudModel = {
-  players: Record<PlayerId, { /** What the strip's big digit shows (Rounds: the score; Siege: remaining structures); null hides it. */ digit: string | null; inventory: Record<PowerUp, number> }>
-  /** Whose turn it is; their strip goes to the bottom. */
-  active: PlayerId
-  /** Null in modes without rounds. */
-  round: number | null
-  rounds: number
-  /** Seconds left and fraction of the clock remaining, or null when no clock runs. */
-  clock: { seconds: number; fraction: number } | null
-  shotsLeft: number
-  shotsMax: number
-  phase: string
-  /** Phase buttons (Done in a build turn; Repair and Rearrange on a defence choice) shown under the shared strip. The row is rebuilt only when a label or `disabled` flag changes, so handlers must read live state at click time (see `ButtonSpec`). */
-  buttons?: ButtonSpec[]
-  /** Breaker is armed (highlighted) and whether the active player may tap it now. */
-  breaker: { armed: boolean; tappable: boolean }
-}
-
 export type HudActions = { onMap(): void; onRecenter(): void; onPowerUp?(p: PowerUp): void }
-
-/**
- * One button. `onClick` runs whenever the button is clicked, and the HUD keeps a row alive while its `[label, disabled, pressed]` are unchanged,
- * so a handler must read live state at click time and never close over what was true when it was built. `pressed` marks a toggle that is on (aria-pressed and a filled look).
- */
-export type ButtonSpec = { label: string; onClick(): void; disabled?: boolean; pressed?: boolean }
 
 const ICONS: Record<PowerUp, string> = { breaker: 'B', repulsor: 'R', steal: 'S' }
 export const el = (tag: string, css = '', text = '') => {
@@ -65,7 +42,7 @@ export function buttonRow(specs: ButtonSpec[]): HTMLElement {
 
 const ring = (f: number, color: string = visual.hud.ink) => `conic-gradient(${color} ${f * 360}deg,${visual.hud.track} 0)`
 
-/** DOM overlay mounted over the canvas; call `update` every frame with the current model and canvas size. */
+/** DOM overlay mounted over the canvas; call `update` with the current model and canvas size whenever the view changes. */
 export function createHud(root: HTMLElement, actions: HudActions) {
   const mk = (id: PlayerId) => {
     const color = visual.player.colors[id]

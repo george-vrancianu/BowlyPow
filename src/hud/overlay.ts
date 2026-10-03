@@ -1,9 +1,7 @@
 import { visual } from '../config/visual'
-import type { overlayView } from './transition'
+import type { OverlayView } from '../game/view/transition'
 
-type View = NonNullable<ReturnType<typeof overlayView>>
-
-/** The one interstitial component: turn card, GOAL banner, BUILD/PLAY/REPAIRED sweep and the REVEAL and "Opponent is choosing" labels (pinned to the top, no band, so the pitch stays visible). Mount inside the rotating stage; call `update` every frame (undefined hides it). */
+/** The one interstitial component: turn card, GOAL banner, BUILD/PLAY/REPAIRED sweep and the REVEAL and "Opponent is choosing" labels (pinned to the top, no band, so the pitch stays visible). Mount inside the rotating stage; call `update` whenever the view changes (undefined hides it). */
 export function createOverlay(root: HTMLElement, onTap: () => void) {
   const e = document.createElement('div')
   e.style.cssText = 'position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;font:800 9vmin system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-transform:uppercase;'
@@ -14,7 +12,7 @@ export function createOverlay(root: HTMLElement, onTap: () => void) {
   e.onpointerdown = onTap
   root.append(e)
   return {
-    update(v: View | undefined) {
+    update(v: OverlayView | undefined) {
       e.style.display = v ? 'flex' : 'none'
       if (!v) return
       const banner = v.band

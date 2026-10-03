@@ -1,10 +1,10 @@
-import { visual } from '../config/visual'
-import { rules } from '../config/rules'
-import { nearestOnWall } from '../sim/blast'
-import { type PlayerId, type Point } from '../sim/pitch'
-import { canEdit, type SimInput, type SimState } from '../sim/step'
-import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../sim/wall'
-import type { ButtonSpec } from './hud'
+import { visual } from '../../config/visual'
+import { rules } from '../../config/rules'
+import { nearestOnWall } from '../../sim/blast'
+import { type PlayerId, type Point } from '../../sim/pitch'
+import { canEdit, type SimInput, type SimState } from '../../sim/step'
+import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../../sim/wall'
+import type { ButtonSpec } from './hudModel'
 
 /**
  * The builder's selection: a new piece (no `id`), or one of their structures (`id`). Only this turn's structures can be
@@ -20,7 +20,7 @@ const rows = (owner: PlayerId) => (owner === 1 ? [rules.gridRows / 2, rules.grid
 /** A new piece at the vertex nearest the view centre, clamped to the owner's half. */
 export function spawn(piece: Piece, owner: PlayerId, viewY: number): Selection {
   const [lo, hi] = rows(owner)
-  const at = { gx: rules.pitchWidth / rules.cellSize / 2, gy: Math.min(Math.max(Math.round(viewY / rules.cellSize), lo), hi) }
+  const at = { gx: rules.gridCols / 2, gy: Math.min(Math.max(Math.round(viewY / rules.cellSize), lo), hi) }
   const spec: StructureSpec = piece === 'repulsor' || piece === 'steal' ? { kind: 'tower', owner, power: piece, at } : { kind: 'wall', owner, shape: piece, rotation: 0, at }
   return { spec, movable: true }
 }
@@ -45,11 +45,11 @@ export function legal(s: SimState, sel: Selection): boolean {
   return canPlace(others, sel.spec) && (sel.id !== undefined || s.points[sel.spec.owner] >= structureCost(sel.spec))
 }
 
-/** How far to pan while a piece is held near the top or bottom tenth of the view: toward any of the builder's half that is off screen, never past it. */
+/** How far to pan while a piece is held near the top or bottom `edgeBand` of the view: toward any of the builder's half that is off screen, never past it. */
 export function edgeScrollDy(camY: number, visibleHeight: number, builder: PlayerId, pointerY: number, dt: number): number {
   const [lo, hi] = builder === 1 ? [rules.halfHeight, rules.pitchHeight] : [0, rules.halfHeight]
   const [top, bottom] = [camY - visibleHeight / 2, camY + visibleHeight / 2]
-  const margin = visibleHeight / 10
+  const margin = visibleHeight * visual.input.edgeBand
   return pointerY < top + margin && top > lo ? -Math.min(visual.input.edgeScrollSpeed * dt, top - lo) : pointerY > bottom - margin && bottom < hi ? Math.min(visual.input.edgeScrollSpeed * dt, hi - bottom) : 0
 }
 

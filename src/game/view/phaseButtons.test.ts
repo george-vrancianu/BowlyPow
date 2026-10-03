@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig as c, type SimInput, type SimState } from '../sim/step'
-import { initialState } from '../sim/step'
-import { buildState } from '../sim/testkit'
-import { phaseButtons } from './phase'
+import { defaultConfig as c, type SimInput, type SimState } from '../../sim/step'
+import { initialState } from '../../sim/step'
+import { buildState } from '../../sim/testkit'
+import { phaseButtons } from './phaseButtons'
 
 /** Hot-seat: one device, so every seat is "mine". */
 const hotSeat = () => true

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { visual } from '../config/visual'
+import { visual } from '../../config/visual'
 import { advance, angle, blocking, choosingNotice, dismiss, goalBall, newTransition, overlayView, revealing, type Frame, type Transition } from './transition'
 
 const base: Frame = { active: 1, round: 1, inHand: true, phase: 'Play', events: [], now: 0, reduced: false }

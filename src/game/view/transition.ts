@@ -1,7 +1,7 @@
-import { visual } from '../config/visual'
-import type { PlayerId, Point } from '../sim/pitch'
-import type { Match } from '../sim/match'
-import type { SimEvent } from '../sim/step'
+import { visual } from '../../config/visual'
+import type { PlayerId, Point } from '../../sim/pitch'
+import type { Match } from '../../sim/match'
+import type { SimEvent } from '../../sim/step'
 
 /** `holds` = the handover waits for this overlay and the sim is paused while it is up (the REPAIRED sweep; the goal, turn and reveal kinds always hold). */
 type Overlay = { kind: 'turn' | 'goal' | 'sweep' | 'reveal'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point; holds?: true }
@@ -67,7 +67,9 @@ export type Notice = { player: PlayerId; text: string }
 /** A label for the peer waiting on the scorer's defence choice (online only: `mine` is false for the chooser's seat), else undefined. The pitch stays visible and the sim keeps running. */
 export const choosingNotice = (m: Match, mine: (p: PlayerId | null | undefined) => boolean): Notice | undefined => (m.choosing && !mine(m.choosing) ? { player: m.choosing, text: 'Opponent is choosing' } : undefined)
 
-export function overlayView(t: Transition, now: number, notice?: Notice) {
+export type OverlayView = { kind: Overlay['kind'] | 'notice'; placement: 'top' | 'center'; band: boolean; text: string; hint?: string; color: string; opacity: number; progress: number; dismissable: boolean }
+
+export function overlayView(t: Transition, now: number, notice?: Notice): OverlayView | undefined {
   const o = t.overlay
   if (!o) return notice && { kind: 'notice' as const, placement: 'top' as const, band: false, text: notice.text, hint: undefined, color: visual.player.colors[notice.player], opacity: 1, progress: 1, dismissable: false }
   const half = t.flip ? t.flip.ms / 2 : 0

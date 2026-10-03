@@ -23,8 +23,6 @@ const base = {
   startInventory: 3,
   /** Where a timed-out blind opening build drops its piece for P1, in grid vertices; P2's mirrors across the halfway line. */
   fallbackPiece: { gx: 10, gy: 40 },
-  /** Seconds per build turn online. */
-  onlineBuildSeconds: 30,
   /** Blast radius is `radiusBase * ballRadius * (1 + radiusGrowth * power)`; pressure above `heavy` / `light` costs more hp. */
   blast: { radiusBase: 2, radiusGrowth: 4, heavy: 0.8, light: 0.4 },
 } as const
@@ -38,6 +36,8 @@ export const rules = {
   halfHeight: base.pitchHeight / 2,
   /** Grid rows (vertices) from goal line to goal line. */
   gridRows: base.pitchHeight / base.cellSize,
+  /** Grid columns (vertices) across the pitch. */
+  gridCols: base.pitchWidth / base.cellSize,
   /** The middle of each player's half, where their ball goes and the build view starts. */
   halfCentre: { 1: (3 * base.pitchHeight) / 4, 2: base.pitchHeight / 4 } as Record<1 | 2, number>,
   goalLeft: (base.pitchWidth - base.goalWidth) / 2,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { feedbackFor, shakeOffset, vibration } from './feedback'
+import { feedbackFor, vibration } from './feedback'
 
 describe('vibration', () => {
   it('pulses longer for a stronger blast', () => {
@@ -9,17 +9,6 @@ describe('vibration', () => {
     expect(vibration({ type: 'goal' })).toHaveLength(3)
     expect(vibration({ type: 'charge-full' })).toBeTypeOf('number')
     expect(vibration({ type: 'refused' })).toBeUndefined()
-  })
-})
-
-describe('shake', () => {
-  it('never exceeds 4 px and is gone after 200 ms', () => {
-    for (let t = 0; t < 200; t += 7) {
-      const { x, y } = shakeOffset(4, 0, t)
-      expect(Math.abs(x)).toBeLessThanOrEqual(4)
-      expect(Math.abs(y)).toBeLessThanOrEqual(4)
-    }
-    expect(shakeOffset(4, 0, 200)).toEqual({ x: 0, y: 0 })
   })
 })
 

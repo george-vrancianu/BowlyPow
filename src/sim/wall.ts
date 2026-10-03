@@ -74,7 +74,7 @@ export function isLegal(w: StructureSpec): boolean {
  * Flood fill over the owner's half in cells; a wall cell blocks the step across its edge, so a gap must be a full cell wide.
  */
 function goalReachable(walls: StructureSpec[], owner: PlayerId): boolean {
-  const [cols, rows] = [rules.pitchWidth / rules.cellSize, rules.gridRows]
+  const [cols, rows] = [rules.gridCols, rules.gridRows]
   const edge = (ax: number, ay: number, bx: number, by: number) => `${ax},${ay},${bx},${by}`
   const blocked = new Set(walls.flatMap(wallCells).map(({ a, b }) => (a.gx + a.gy < b.gx + b.gy ? edge(a.gx, a.gy, b.gx, b.gy) : edge(b.gx, b.gy, a.gx, a.gy))))
   const [first, last] = owner === 1 ? [rows / 2, rows - 1] : [rows / 2 - 1, 0]

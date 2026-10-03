@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig, initialState, step, type SimState } from '../sim/step'
-import { firstBuilder } from '../sim/match'
-import { opponent } from '../sim/possession'
-import type { TowerSpec, WallSpec } from '../sim/wall'
-import { hudModel } from './model'
+import { defaultConfig, initialState, step, type SimState } from '../../sim/step'
+import { firstBuilder } from '../../sim/match'
+import { opponent } from '../../sim/possession'
+import type { TowerSpec, WallSpec } from '../../sim/wall'
+import { hudModel } from './hudModel'
 
 const view = { active: 1 as const, viewer: 1 as const, armed: false, tappable: false }
 

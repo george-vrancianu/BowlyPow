@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig, initialState, step, type SimEvent, type SimInput, type SimState } from '../sim/step'
-import { blindSeat, buildPhase, openingBuild } from '../sim/mode'
-import { whoActs } from '../sim/possession'
-import { hudModel } from './model'
+import { defaultConfig, initialState, step, type SimEvent, type SimInput, type SimState } from '../../sim/step'
+import { blindSeat, buildPhase, openingBuild } from '../../sim/mode'
+import { whoActs } from '../../sim/possession'
+import { hudModel } from './hudModel'
 import { advance, blocking, newTransition, overlayView, revealing, type Transition } from './transition'
 
 const siege = { ...defaultConfig, mode: 'siege' as const }
 const w = (id: number, owner: 1 | 2, gx: number) => ({ kind: 'wall' as const, owner, shape: 'straight' as const, rotation: 0 as const, at: { gx, gy: owner === 1 ? 40 : 10 }, id, hp: 2 })
 
-/** Drives step and advance as the shell does: the view derivations are the ones main.ts uses, computed from the state after each tick. */
+/** Drives step and advance as the shell does: the view derivations are the ones Game uses, computed from the state after each tick. */
 function play() {
   const init = initialState(1, siege)
   let s: SimState = { ...init, match: { ...init.match, builder: null, opening: false } as SimState['match'], objects: [w(1, 1, 2), w(2, 2, 2)], nextId: 3, ball: { ...init.ball, pos: { x: 20, y: 0.5 }, vel: { x: 0, y: -60 } }, possession: { shooter: 1, shots: 1, inHand: false, live: true } }

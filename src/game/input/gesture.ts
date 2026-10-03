@@ -1,5 +1,5 @@
-import { visual } from '../config/visual'
-import type { Point } from '../sim/pitch'
+import { visual } from '../../config/visual'
+import type { Point } from '../../sim/pitch'
 
 /** `charge` while still, `pan` once moved during the dwell (camera ticket), `dead` once moved during the ramp. */
 export type Gesture = { start: Point; t0: number; mode: 'charge' | 'pan' | 'dead' }

@@ -1,6 +1,6 @@
-import type { PlayerId } from '../sim/pitch'
-import { canFinishBuild, type SimConfig, type SimInput, type SimState } from '../sim/step'
-import type { ButtonSpec } from './hud'
+import type { PlayerId } from '../../sim/pitch'
+import { canFinishBuild, type SimConfig, type SimInput, type SimState } from '../../sim/step'
+import type { ButtonSpec } from './hudModel'
 
 export type PhaseSeam = {
   /** Whether this device plays that seat (online: only your own). */
