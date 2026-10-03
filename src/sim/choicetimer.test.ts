@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, initialState, step, type SimConfig, type SimEvent, type SimInput, type SimState } from './step'
 import type { Structure } from './wall'
-import { hudModel } from '../hud/model'
+import { hudModel } from '../game/view/hudModel'
 
 const timed: SimConfig = { ...defaultConfig, mode: 'siege', buildTime: 2 }
 const hotseat: SimConfig = { ...defaultConfig, mode: 'siege' }

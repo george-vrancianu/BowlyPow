@@ -1,5 +1,6 @@
-import { BOARD, halfOf, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
-import { insideTower, nearestOnWall, WALL_HALF } from './blast'
+import { rules } from '../config/rules'
+import { halfOf, type PlayerId, type Point } from './pitch'
+import { insideTower, nearestOnWall } from './blast'
 import type { SimConfig, SimEvent, SimState } from './step'
 import type { Structure } from './wall'
 
@@ -20,8 +21,8 @@ export function canPlaceBall(player: PlayerId, at: Point, objects: Structure[], 
   const r = c.ballRadius
   return (
     halfOf(at.y) === player &&
-    at.x >= r && at.x <= PITCH_WIDTH - r && at.y >= BOARD && at.y <= PITCH_HEIGHT - BOARD &&
-    objects.every((w) => nearestOnWall(w, at).dist > r + WALL_HALF && !insideTower(w, at))
+    at.x >= r && at.x <= rules.pitchWidth - r && at.y >= rules.board && at.y <= rules.pitchHeight - rules.board &&
+    objects.every((w) => nearestOnWall(w, at).dist > r + rules.wallHalf && !insideTower(w, at))
   )
 }
 

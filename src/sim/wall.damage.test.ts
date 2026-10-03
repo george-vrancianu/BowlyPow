@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SimState } from './step'
-import { place, playState } from './testkit'
-import { crackLines, damageWall, type WallSpec } from './wall'
+import { place } from './testkit'
+import { damageWall, type WallSpec } from './wall'
 
 const spec = (shape: WallSpec['shape']): WallSpec => ({ kind: 'wall', owner: 1, shape, rotation: 0, at: { gx: 5, gy: 40 } })
 const at = { x: 11, y: 80 }
@@ -44,18 +44,5 @@ describe('wall damage', () => {
     const r = hit(placed(), 99)
     expect(r.events).toEqual([])
     expect(r.state.objects[0].hp).toBe(3)
-  })
-})
-
-describe('crackLines', () => {
-  const wall = { ...spec('L'), id: 4, hp: 3 }
-  it('draws one crack per lost hp, deterministically, keeping earlier cracks', () => {
-    expect(crackLines(wall)).toEqual([])
-    const one = crackLines({ ...wall, hp: 2 })
-    expect(one).toHaveLength(1)
-    expect(crackLines({ ...wall, hp: 2 })).toEqual(one)
-    const two = crackLines({ ...wall, hp: 1 })
-    expect(two).toHaveLength(2)
-    expect(two[0]).toEqual(one[0])
   })
 })

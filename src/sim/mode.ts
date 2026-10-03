@@ -1,4 +1,5 @@
-import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { rules } from '../config/rules'
+import { type PlayerId, type Point } from './pitch'
 import { coinFlip, firstBuilder, startingPossession, type GameModeName, type Match, type RoundsMatch, type SiegeMatch } from './match'
 import { opponent, type Possession } from './possession'
 import type { SimConfig, SimEvent } from './step'
@@ -53,7 +54,7 @@ export type GameMode<M extends Match = Match> = {
   winner(m: M, ctx: ModeContext, c: SimConfig): PlayerId | null
 }
 
-const center: Point = { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }
+const center: Point = { x: rules.pitchWidth / 2, y: rules.halfHeight }
 
 /** Ends the current round (`scorer` null = shot cap, scoreless) and sets up the next; the step function ends the match if `winner` says so. */
 function endRound(m: RoundsMatch, scorer: PlayerId | null, c: SimConfig): ModeResult<RoundsMatch> {
@@ -119,7 +120,8 @@ export const siege: GameMode<SiegeMatch> = {
   // and the builder owns nothing yet, so it cannot block their own goal. Both pieces therefore always place (tested for each seat).
   onBuildTimeout: (m, builder, _ctx, c) => {
     if (!m.opening) return null
-    const at = { gx: 10, gy: builder === 1 ? 40 : 14 }
+    const { gx, gy } = rules.fallbackPiece
+    const at = { gx, gy: builder === 1 ? gy : rules.gridRows - gy }
     const wall: StructureSpec = { kind: 'wall', owner: builder, shape: 'straight', rotation: 0, at }
     return structureCost(wall) <= c.wallPoints ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
   },
