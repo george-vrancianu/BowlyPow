@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { follow, layout, MAP_Y, pan, recenter, viewOf, viewOutline } from './camera'
+import { follow, fogOf, layout, MAP_Y, pan, recenter, viewOf, viewOutline } from './camera'
 
 
 describe('manual pan', () => {
@@ -74,5 +74,38 @@ describe('map camera', () => {
     expect(o.h).toBe(640)
     expect(o.y + o.h / 2).toBeCloseTo(600)
     expect(viewOutline(canvas, map, { y: MAP_Y + 10 }).y - o.y).toBeCloseTo(100)
+  })
+})
+
+describe('blind build', () => {
+  it('pan stays on the bottom viewer\'s half: the view bottom rests on the far board', () => {
+    const cam = { y: 77 }
+    pan(cam, -1000, 64, 1)
+    expect(cam.y).toBe(77)
+    pan(cam, 1000, 64, 1)
+    expect(cam.y).toBe(77)
+  })
+  it('pan stays on the top viewer\'s half: the view top rests on the far board', () => {
+    const cam = { y: 31 }
+    pan(cam, 1000, 64, 2)
+    expect(cam.y).toBe(31)
+    pan(cam, -1000, 64, 2)
+    expect(cam.y).toBe(31)
+  })
+  it('a view shorter than the half can move within it, never past the halfway line', () => {
+    const cam = { y: 80 }
+    pan(cam, -1000, 20, 1)
+    expect(cam.y - 10).toBe(54)
+    pan(cam, 1000, 20, 1)
+    expect(cam.y + 10).toBe(109)
+  })
+  it('follow is clamped the same way', () => {
+    const cam = { y: 77 }
+    follow(cam, 0, 10, 64, 1)
+    expect(cam.y).toBe(77)
+  })
+  it('fogs the opponent\'s half up to the halfway line, boards and net included', () => {
+    expect(fogOf(1)).toEqual({ top: -4, bottom: 54 })
+    expect(fogOf(2)).toEqual({ top: 54, bottom: 112 })
   })
 })

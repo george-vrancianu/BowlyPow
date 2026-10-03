@@ -3,17 +3,20 @@ import { lockstep } from './net/lockstep'
 import type { Peer } from './net/peer'
 import { applyEvents, newFx, reducedMotion, STEAL_MS } from './render/feedback'
 import { createScreens } from './screens/screens'
-import { configFrom } from './sim/settings'
+import { configFrom, defaultSettings } from './sim/settings'
 import { createHud } from './hud/hud'
 import { hudModel } from './hud/model'
 import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
 import { createFab } from './hud/fab'
+import { phaseButtons } from './hud/phase'
 import { createOverlay } from './hud/overlay'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
+import { advance, angle, blocking, choosingNotice, dismiss, goalBall, newTransition, overlayView, revealing } from './hud/transition'
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
+import { blindSeat, buildPhase, openingBuild } from './sim/mode'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
+import { structuresOf } from './sim/wall'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
 import { canArm, canPlaceBall, whoActs } from './sim/possession'
@@ -34,6 +37,9 @@ stage.append(canvas)
 const ONLINE_BUILD_SECONDS = 30
 let net: { me: PlayerId; peer: Peer; sync: ReturnType<typeof lockstep> } | undefined
 const mine = (p: PlayerId | null | undefined) => !net || p === net.me
+// Siege blind build: the seat whose half is the only one this screen may show. Hot-seat: whoever builds; online: my own seat, also while I wait.
+const viewer = (): PlayerId => (net ? net.me : (state.match.builder ?? transition.shown))
+const blind = () => blindSeat(state.match, viewer())
 const canvasPx = () => canvas.width / canvas.clientWidth
 const toWorld = (e: PointerEvent) => screenToWorld(canvas, camera, e.offsetX * canvasPx(), e.offsetY * canvasPx())
 let state = initialState()
@@ -80,7 +86,8 @@ let tap: Point | undefined
 const confirm = document.getElementById('confirm') as HTMLButtonElement
 const confirmBall = () => {
   const { shooter } = state.possession
-  if (mine(shooter) && ballGhost && canPlaceBall(shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: shooter, at: ballGhost } }
+  // Not while a flip, goal hold, turn card, reveal or REPAIRED sweep is up: the board is not the player's to act on yet.
+  if (!blocking(transition) && !state.match.choosing && mine(shooter) && ballGhost && canPlaceBall(shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: shooter, at: ballGhost } }
 }
 confirm.onclick = confirmBall
 const pxToWorld = (px: number, py: number) => screenToWorld(canvas, camera, px * canvasPx(), py * canvasPx())
@@ -119,7 +126,9 @@ addEventListener('keydown', (e) => {
 // Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
 const pointers = new Map<number, Point>()
 let panOnly = false
-const panBy = (dyPx: number) => pan(camera, (transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight)
+// Every camera move is clamped to the visible height and, in a blind build, to the viewer's half.
+const panWorld = (dy: number) => pan(camera, dy, layout(canvas).visibleHeight, blind())
+const panBy = (dyPx: number) => panWorld((transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale)
 canvas.onwheel = (e) => (e.preventDefault(), panBy(-e.deltaY))
 addEventListener('keydown', (e) => e.code === 'Space' && (e.preventDefault(), recenter(camera)))
 canvas.onpointermove = (e) => {
@@ -149,8 +158,10 @@ canvas.onpointerup = (e) => {
   charge = undefined
 }
 canvas.onpointerdown = (e) => {
+  // The Map and Close buttons still work; everything else is ignored behind a blocking hold, so a tap there cannot carry into the next player's turn.
+  if (blocking(transition) && !mapOpen) return
   if (mapOpen) {
-    pan(camera, screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y, layout(canvas).visibleHeight)
+    panWorld(screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y)
     toggleMap(false)
     return
   }
@@ -175,6 +186,11 @@ canvas.onpointerdown = (e) => {
       drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY, id: e.pointerId, from: { x: e.offsetX, y: e.offsetY }, moved: false }
       canvas.setPointerCapture(e.pointerId)
     } else panOnly = true
+    return
+  }
+  // A defence choice is pending: the board is for looking at, not for placing the ball.
+  if (state.match.choosing) {
+    panOnly = true
     return
   }
   if (state.possession.inHand) {
@@ -216,7 +232,7 @@ const screens = createScreens(document.body, {
 })
 // Host is player 1 and picks the seed; the guest starts when it arrives. A drop mid-match ends it with a message.
 function startOnline(peer: Peer, me: PlayerId, seed: number) {
-  config = { ...defaultConfig, buildTime: ONLINE_BUILD_SECONDS }
+  config = { ...configFrom(defaultSettings), buildTime: ONLINE_BUILD_SECONDS }
   net = { me, peer, sync: lockstep((f) => peer.send({ type: 'frame', ...f }), me) }
   screens.hide()
   newMatch(seed)
@@ -240,7 +256,7 @@ function edgeScroll(builder: PlayerId, dt: number) {
   const { visibleHeight } = layout(canvas)
   const dy = edgeScrollDy(camera.y, visibleHeight, builder, pxToWorld(drag!.px, drag!.py).y, dt)
   if (!dy) return
-  pan(camera, dy, visibleHeight)
+  panWorld(dy)
   dragTo(drag!.px, drag!.py)
 }
 const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && mine(state.possession.shooter) && canArm(state, state.possession.shooter) && (armed = !armed) })
@@ -252,12 +268,35 @@ let acc = 0
 let last = performance.now()
 let lastFrame = last
 
+const roundOf = (m: SimState['match']): number | undefined => {
+  switch (m.mode) {
+    case 'rounds':
+      return m.round
+    case 'siege':
+      return undefined
+    default:
+      return m satisfies never
+  }
+}
+
+const showMatchEnd = (m: SimState['match'], winner: PlayerId, objects: SimState['objects']) => {
+  switch (m.mode) {
+    case 'rounds':
+      return screens.matchEnd(winner, `${m.score[1]} - ${m.score[2]}`, !!net)
+    case 'siege': {
+      const left = structuresOf(objects, winner).length
+      return screens.matchEnd(winner, `${left} structure${left === 1 ? '' : 's'} left`, !!net)
+    }
+    default:
+      return m satisfies never
+  }
+}
+
 function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
-  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
-  const phase = state.match.builder ? 'Build' : 'Play'
-  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: state.match.round, inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
+  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold, reveal or turn card.
+  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase: buildPhase(state.match), opening: openingBuild(state.match), events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
     if (blocking(transition)) {
       pending = {}
@@ -282,14 +321,14 @@ function frame(now: number) {
     const tick = step(state, input, config)
     state = tick.state
     if (!canArm(state, state.possession.shooter)) armed = false
-    if (!state.possession.inHand) ballGhost = undefined
+    if (!state.possession.inHand || state.match.choosing) ballGhost = undefined
     if (!state.match.builder && tick.events.length) recenter(camera)
     if (state.match.builder !== lastBuilder) {
       // Done or the build timer drops the selection: a new piece is gone, a moved one never left its spot in the sim.
       lastBuilder = state.match.builder
       selection = landing = drag = undefined
       menuOpen = false
-      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight)
+      if (lastBuilder) panWorld((lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y)
       else recenter(camera)
     }
     if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
@@ -304,15 +343,17 @@ function frame(now: number) {
   }
 
   announce([])
+  // A ghost ball or half-made gesture does not survive a blocking hold into the next player's turn.
+  if (blocking(transition)) (ballGhost = tap = charge = undefined), (draggingBall = false)
   const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
   if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), recenter(camera)
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
-  overlay.update(overlayView(transition, now))
+  overlay.update(overlayView(transition, now, choosingNotice(state.match, mine)))
   if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
-  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight, blind())
   lastFrame = now
-  if (state.match.winner && !matchShown) (matchShown = true, screens.matchEnd(state.match.winner, state.match.score, !!net))
-  confirm.hidden = !state.possession.inHand || !!state.match.builder || !mine(state.possession.shooter)
+  if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner, state.objects))
+  confirm.hidden = blocking(transition) || !state.possession.inHand || !!state.match.choosing || !!state.match.builder || !mine(state.possession.shooter)
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
@@ -321,11 +362,14 @@ function frame(now: number) {
   const shooter = state.possession.shooter
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
-  hud.update(hudModel(state, config, { active: transition.shown, buttons: building && [{ label: 'Done', onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
-  fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
+  // The defence turn: the scorer is offered Repair or Rearrange once the GOAL banner is gone.
+  const buttons = phaseButtons(state, config, { mine, current: () => state, send: (i) => (pending = i), choosable: !blocking(transition) })
+  hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons, armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  fab.update(building && !mapOpen && !blocking(transition) ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
-  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
+  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen || revealing(transition) ? mapCam : camera, {
+    blind: blind(),
     ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
     landing: mapOpen ? undefined : landing?.spec,
     hidden: mapOpen ? [] : [selection?.movable ? selection.id : undefined, landing?.id].filter((id) => id !== undefined),

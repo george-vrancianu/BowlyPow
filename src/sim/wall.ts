@@ -27,6 +27,8 @@ export const TOWER_HP = 3
 export const TOWER_COST = 0
 /** A Steal tower is fragile; the rest take TOWER_HP. */
 const POWER_HP: Record<TowerPower, number> = { repulsor: TOWER_HP, steal: 1 }
+/** The structures `p` owns, towers included: the HUD count, the end screen and the Siege wipe-out all read this. */
+export const structuresOf = (objects: readonly Structure[], p: PlayerId): Structure[] => objects.filter((o) => o.owner === p)
 export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? POWER_HP[s.power] : WALL_HP)
 
 /** Each arm is a run of cells from the pivot, in grid units, before rotation. */
