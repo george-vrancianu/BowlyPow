@@ -21,7 +21,7 @@ describe('repulsor placement', () => {
     const b = buildState(1)
     const r = step(b, { placeWall: repulsor() }, defaultConfig)
     expect(r.state.objects).toHaveLength(1)
-    expect(r.state.points[1]).toBe(b.points[1])
+    expect(r.state.credits[1]).toBe(b.credits[1])
     expect(r.state.players[1].inventory.repulsor).toBe(2)
     const x = step(emptied(b, 1, 'repulsor'), { placeWall: repulsor() }, defaultConfig)
     expect(x.state.objects).toHaveLength(0)

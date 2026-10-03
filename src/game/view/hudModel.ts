@@ -58,6 +58,18 @@ function digitsOf(m: Match, objects: readonly Structure[]): Record<PlayerId, str
   }
 }
 
+/** What the builder's balance is called, per mode: Rounds banks Credits (ADR-0004), Siege keeps wall points. */
+function unitOf(m: Match): string {
+  switch (m.mode) {
+    case 'rounds':
+      return 'credits'
+    case 'siege':
+      return 'pts'
+    default:
+      return m satisfies never
+  }
+}
+
 export function hudModel(s: SimState, c: SimConfig, v: HudInputs): HudModel {
   const b = s.match.builder
   const digit = digitsOf(s.match, s.objects)
@@ -75,7 +87,7 @@ export function hudModel(s: SimState, c: SimConfig, v: HudInputs): HudModel {
     shotsLeft: s.possession.shots,
     shotsMax: c.shots,
     // Waiting on a blind opponent's build, the spent points would show what they placed.
-    phase: buildPhase(s.match) === 'Rearrange' ? 'Rearrange' : b ? (b === hidden ? 'Build' : `Build · ${s.points[b]} pts`) : 'Play',
+    phase: buildPhase(s.match) === 'Rearrange' ? 'Rearrange' : b ? (b === hidden ? 'Build' : `Build · ${s.credits[b]} ${unitOf(s.match)}`) : 'Play',
     buttons: v.buttons,
     breaker: { armed: v.armed, tappable: v.tappable },
   }

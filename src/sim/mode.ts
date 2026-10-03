@@ -20,8 +20,8 @@ export type ModeResult<M extends Match = Match> = { match: M; possession?: Posse
 /** What a scorer can do with their defence turn. */
 export type DefenceChoice = 'repair' | 'rearrange'
 
-/** How a build turn opens: the builder's wall points and which structures count as placed this turn (movable). */
-export type BuildTurn = { points: number; built: number[] }
+/** How a build turn opens: the builder's Credits and which structures count as placed this turn (movable). */
+export type BuildTurn = { credits: number; built: number[] }
 
 /**
  * A game mode: pure hooks that own the match-level transitions. The step function owns physics, possession, build turns and the shot clock,
@@ -48,8 +48,8 @@ export type GameMode<M extends Match = Match> = {
   mayEdit(m: M): boolean
   /** Whether the match is in its blind opening build phase (a build turn that is not a Rearrange); fog and the reveal key on it. */
   opening(m: M): boolean
-  /** A build turn just opened for `m.builder`. */
-  onBuildStart(m: M, ctx: ModeContext, c: SimConfig): BuildTurn
+  /** A build turn just opened for `m.builder`, who holds `held` Credits. */
+  onBuildStart(m: M, ctx: ModeContext, c: SimConfig, held: number): BuildTurn
   /** Who has won, if anyone; derived from state. */
   winner(m: M, ctx: ModeContext, c: SimConfig): PlayerId | null
 }
@@ -83,7 +83,8 @@ export const rounds: GameMode<RoundsMatch> = {
   onBuildTimeout: () => null,
   mayEdit: () => true,
   opening: () => false,
-  onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
+  // Credits bank: each build turn adds the round's grant to what is left.
+  onBuildStart: (_m, _ctx, c, held) => ({ credits: held + c.credits, built: [] }),
   // The last round is over and the score is not tied; a tie means sudden death.
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
 }
@@ -114,7 +115,7 @@ export const siege: GameMode<SiegeMatch> = {
     const next = m.opening && builder === firstBuilder(m.seed, 1) ? opponent(builder) : null
     return { match: { ...m, builder: next, opening: m.opening && next !== null }, events: [] }
   },
-  // A builder with nothing owned has the full budget (a fresh piece demolished refunds in full), so affordability is judged from `wallPoints`:
+  // A builder with nothing owned has the full budget (a fresh piece demolished refunds in full), so affordability is judged from `credits`:
   // a straight wall on their half if it fits, else a Repulsor (free, always in stock at the opening).
   // The spot mirrors across the halfway line (P1 gy 40, P2 gy 54 - 40) and is legal for either seat: inside the half, clear of the no-build zone,
   // and the builder owns nothing yet, so it cannot block their own goal. Both pieces therefore always place (tested for each seat).
@@ -123,12 +124,12 @@ export const siege: GameMode<SiegeMatch> = {
     const { gx, gy } = rules.fallbackPiece
     const at = { gx, gy: builder === 1 ? gy : rules.gridRows - gy }
     const wall: StructureSpec = { kind: 'wall', owner: builder, shape: 'straight', rotation: 0, at }
-    return structureCost(wall) <= c.wallPoints ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
+    return structureCost(wall) <= c.credits ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
   },
   mayEdit: (m) => m.opening,
   opening: (m) => m.opening && m.builder !== null,
   // A Rearrange turn has no wall points and every own structure counts as placed this turn, so all of them can be moved.
-  onBuildStart: (m, ctx, c) => (m.opening ? { points: c.wallPoints, built: [] } : { points: 0, built: m.builder ? structuresOf(ctx.objects, m.builder).map((o) => o.id) : [] }),
+  onBuildStart: (m, ctx, c) => (m.opening ? { credits: c.credits, built: [] } : { credits: 0, built: m.builder ? structuresOf(ctx.objects, m.builder).map((o) => o.id) : [] }),
   winner: (_m, ctx) => {
     const left = (p: PlayerId) => structuresOf(ctx.objects, p).length > 0
     if (left(1) && left(2)) return null

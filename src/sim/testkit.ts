@@ -4,10 +4,10 @@ import type { PlayerId } from './pitch'
 import type { PowerUp } from './player'
 import type { StructureSpec } from './wall'
 
-/** A fresh state already in the play phase (build turns are skipped). */
+/** A fresh state already in the play phase (build turns are skipped), both players holding one round's Credits. */
 export const playState = (seed = 1): SimState => {
   const s = initialState(seed)
-  return { ...s, match: { ...s.match, builder: null } }
+  return { ...s, match: { ...s.match, builder: null }, credits: { 1: defaultConfig.credits, 2: defaultConfig.credits } }
 }
 
 /** A fresh state in `owner`'s build turn. */

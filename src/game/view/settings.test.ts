@@ -18,4 +18,9 @@ describe('slider rows', () => {
     expect(siege.find((r) => r.key === 'shots')!.value).toBe(2)
     expect(sliderRows({ ...defaultSettings, mode: 'rounds' }).map((r) => r.key)).toContain('rounds')
   })
+  it('names the Credits slider for Rounds and keeps wall points in Siege', () => {
+    const label = (mode: 'rounds' | 'siege') => sliderRows({ ...defaultSettings, mode }).find((r) => r.key === 'credits')!.label
+    expect(label('rounds')).toBe('Credits per round')
+    expect(label('siege')).toBe('Wall points')
+  })
 })

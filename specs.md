@@ -74,7 +74,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 
 The match structure below is Rounds.
 
-- Pre-match settings screen with three sliders: shots per possession (default 3), rounds (default 5), wall points per build phase (default 10).
+- Pre-match settings screen with three sliders: shots per possession (default 3), rounds (default 5), Credits per round (default 10; Siege labels the same slider "Wall points").
 - A match is a fixed number of rounds. Most goals after all rounds wins. If tied, sudden-death rounds with no shot cap until someone scores.
 - Each round is a build phase followed by a play phase.
 - A round ends on a goal or after 30 total shots (scoreless).
@@ -83,7 +83,8 @@ The match structure below is Rounds.
 ## Build phase
 
 - Rounds: open information, both players see everything. Players build one after the other. Round 1 order is the coin-flip loser first, then order alternates each round. Siege has one blind opening build with the same first order, and Rearrange turns after a goal (see Game modes).
-- Each player gets the configured wall points (default 10). Unspent points are lost, no carry-over.
+- Rounds: building spends **Credits** (`docs/adr/0004-credits-single-resource.md`). Each build turn grants the builder the configured Credits per round (default 10) on top of what they hold, so unspent Credits carry over for the whole match. A player holds nothing before their first build turn. The HUD phase label shows the builder's balance (`Build · 14 credits`).
+- Siege: the opening build grants the configured wall points (default 10); its Rearrange turns have none.
 - A "Done" button ends your build. No timer in hot-seat (add one for P2P). In Rounds, tapping Done with nothing placed skips the phase; Siege refuses it (see Game modes).
 - Walls persist for the whole match.
 - Placement: tap a shape in the palette, a half-transparent build piece appears on your half, drag it to position it (dragging elsewhere pans), tap Rotate, tap Confirm. The piece turns red where placement is illegal.

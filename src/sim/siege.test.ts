@@ -44,7 +44,7 @@ describe('Siege', () => {
     expect(s.possession).toMatchObject({ shooter: coinFlip(1, 1), inHand: true })
     s = step(step(s, { placeWall: piece(first) }, siege).state, { done: first }, siege).state
     expect(s.match.builder).toBe(opponent(first))
-    expect(s.points[opponent(first)]).toBe(siege.wallPoints)
+    expect(s.credits[opponent(first)]).toBe(siege.credits)
     s = step(step(s, { placeWall: piece(opponent(first)) }, siege).state, { done: opponent(first) }, siege).state
     expect(s.match.builder).toBeNull()
   })
@@ -293,20 +293,20 @@ describe('Siege build timeout', () => {
   })
 
   it('with too few wall points the fallback is a tower', () => {
-    const cfg = { ...timed, wallPoints: 1 }
+    const cfg = { ...timed, credits: 1 }
     const { s } = idle(initialState(1, cfg), TICKS, cfg)
     expect(owned(s, first)).toMatchObject([{ kind: 'tower' }])
     expect(s.match.builder).toBe(opponent(first))
   })
 
   it('the fallback piece mirrors across the halfway line and always places, for either seat, wall or tower', () => {
-    for (const wallPoints of [timed.wallPoints, 1]) {
-      const cfg = { ...timed, wallPoints }
+    for (const credits of [timed.credits, 1]) {
+      const cfg = { ...timed, credits }
       const second = opponent(first)
       const { s } = idle(initialState(1, cfg), 2 * TICKS, cfg)
       const [a, b] = [owned(s, first), owned(s, second)]
       expect([a.length, b.length]).toEqual([1, 1])
-      expect(a[0].kind).toBe(wallPoints === 1 ? 'tower' : 'wall')
+      expect(a[0].kind).toBe(credits === 1 ? 'tower' : 'wall')
       const [p1, p2] = first === 1 ? [a[0], b[0]] : [b[0], a[0]]
       expect(p1.at.gy + p2.at.gy).toBe(54)
       expect(p1.at.gx).toBe(p2.at.gx)
@@ -341,7 +341,7 @@ describe('Siege defence turn: Rearrange', () => {
     const r = step(scored(), choose, siege)
     expect(r.state.match).toMatchObject({ choosing: null, builder: 1 })
     expect(r.state.built).toEqual([1, 2])
-    expect(r.state.points[1]).toBe(0)
+    expect(r.state.credits[1]).toBe(0)
     expect(r.events).toEqual([])
   })
 
@@ -372,7 +372,7 @@ describe('Siege defence turn: Rearrange', () => {
     for (const r of [place, tower, gone]) {
       expect(r.events).toContainEqual({ type: 'refused' })
       expect(r.state.objects).toEqual(s.objects)
-      expect(r.state.points[1]).toBe(0)
+      expect(r.state.credits[1]).toBe(0)
     }
   })
 

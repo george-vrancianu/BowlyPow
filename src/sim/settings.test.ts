@@ -4,7 +4,7 @@ import { defaultConfig, initialState } from './step'
 
 describe('settings', () => {
   it('defaults to Siege with the slider defaults', () => {
-    expect(defaultSettings).toEqual({ mode: 'siege', shots: 3, rounds: 5, wallPoints: 10, expiry: 'shoot' })
+    expect(defaultSettings).toEqual({ mode: 'siege', shots: 3, rounds: 5, credits: 10, expiry: 'shoot' })
     expect(configFrom(defaultSettings)).toEqual({ ...defaultConfig, mode: 'siege' })
   })
 
@@ -18,15 +18,15 @@ describe('settings', () => {
   })
 
   it('shows the rounds slider only in Rounds', () => {
-    expect(slidersFor('rounds')).toEqual(['shots', 'rounds', 'wallPoints'])
-    expect(slidersFor('siege')).toEqual(['shots', 'wallPoints'])
+    expect(slidersFor('rounds')).toEqual(['shots', 'rounds', 'credits'])
+    expect(slidersFor('siege')).toEqual(['shots', 'credits'])
   })
 
   it('chosen values reach the sim', () => {
-    const config = configFrom({ ...defaultSettings, mode: 'rounds', shots: 5, rounds: 3, wallPoints: 7 })
+    const config = configFrom({ ...defaultSettings, mode: 'rounds', shots: 5, rounds: 3, credits: 7 })
     const s = initialState(1, config)
     expect(s.possession.shots).toBe(5)
-    expect(s.points).toEqual({ 1: 7, 2: 7 })
+    expect(s.credits[s.match.builder!]).toBe(7)
     expect(config.rounds).toBe(3)
   })
 
@@ -35,6 +35,6 @@ describe('settings', () => {
   })
 
   it('values are clamped to the slider range', () => {
-    expect(configFrom({ ...defaultSettings, mode: 'rounds', shots: 99, rounds: 0, wallPoints: 10 })).toMatchObject({ shots: SLIDERS.shots.max, rounds: SLIDERS.rounds.min })
+    expect(configFrom({ ...defaultSettings, mode: 'rounds', shots: 99, rounds: 0, credits: 10 })).toMatchObject({ shots: SLIDERS.shots.max, rounds: SLIDERS.rounds.min })
   })
 })

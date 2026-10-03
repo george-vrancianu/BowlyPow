@@ -62,14 +62,14 @@ describe('hudModel', () => {
       expect(hudModel(s, c, { ...view, viewer: second }).phase).toMatch(/^Build · \d+ pts$/)
       expect(hudModel(s, c, { ...view, viewer: first }).phase).toBe('Build')
     })
-    it('Rounds build phases keep the score, the badges and the points', () => {
+    it('Rounds build phases keep the score, the badges and the Credits', () => {
       let s = initialState(1)
       const b = s.match.builder!
       s = step(s, { placeWall: { kind: 'tower', owner: b, power: 'steal', at: { gx: 4, gy: b === 1 ? 40 : 10 } } }, defaultConfig).state
       const m = hudModel(s, defaultConfig, { ...view, viewer: opponent(b) })
       expect([m.players[1].digit, m.players[2].digit]).toEqual(['0', '0'])
       expect(m.players[b].inventory.steal).toBe(2)
-      expect(m.phase).toMatch(/^Build · \d+ pts$/)
+      expect(m.phase).toBe('Build · 10 credits')
     })
   })
   it('Siege exposes each owner\'s structure count, towers included', () => {
