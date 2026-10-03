@@ -1,4 +1,5 @@
-import { BOARD, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH } from '../sim/pitch'
+import type { Match } from '../sim/match'
+import { BOARD, HALF_HEIGHT, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId } from '../sim/pitch'
 
 const MAX_VISIBLE_HEIGHT = 64
 const SMOOTHING_S = 0.15
@@ -37,8 +38,8 @@ export function viewOutline(canvas: { width: number; height: number }, map: Came
 }
 
 /** Manual pan: moves the view and holds it off the ball until recenter() (sim events call it too). */
-export function pan(cam: Camera, dy: number, visible: number): void {
-  cam.y = clampY(cam.y + dy, visible)
+export function pan(cam: Camera, dy: number, visible: number, blind?: PlayerId): void {
+  cam.y = clampY(cam.y + dy, visible, blind)
   cam.held = true
 }
 
@@ -52,9 +53,23 @@ export function layout({ width, height }: { width: number; height: number }) {
   return { scale, visibleHeight: MAX_VISIBLE_HEIGHT, pane: { x: (width - w) / 2, y: (height - h) / 2, w, h } }
 }
 
-export const clampY = (y: number, visible: number) => Math.min(Math.max(y, -BOARD + visible / 2), PITCH_HEIGHT + BOARD - visible / 2)
+/** The seat whose own half is the only one `viewer` may see: the viewer themselves while a Siege build is on (also while waiting on the opponent's build), else undefined. Rounds stays open information. Hiding is view-only; the sim state is complete. */
+export const blindSeat = (m: Match, viewer: PlayerId): PlayerId | undefined => (m.mode === 'siege' && m.builder ? viewer : undefined)
+
+/** World y range of the opponent's half left out for a blind viewer sitting at `seat`: boards and net included, up to the halfway line. */
+export const fogOf = (seat: PlayerId): { top: number; bottom: number } => (seat === 1 ? { top: MAP_TOP, bottom: HALF_HEIGHT } : { top: HALF_HEIGHT, bottom: MAP_TOP + MAP_HEIGHT })
+
+/**
+ * Keeps the view on the boards; for a `blind` seat, on its half plus the halfway line. The view (64) is taller than a half (54 + board), so it rests on the far board and the strip it still shows above the halfway line is what the fog covers.
+ */
+export function clampY(y: number, visible: number, blind?: PlayerId): number {
+  const top = blind === 1 ? HALF_HEIGHT : -BOARD
+  const bottom = blind === 2 ? HALF_HEIGHT : PITCH_HEIGHT + BOARD
+  const [lo, hi] = [top + visible / 2, bottom - visible / 2]
+  return blind === 2 ? Math.max(Math.min(y, hi), lo) : Math.min(Math.max(y, lo), hi)
+}
 
 /** Eases the camera toward the target over about 150 ms, clamped to the boards. */
-export function follow(cam: Camera, target: number, dt: number, visible: number): void {
-  cam.y = clampY(cam.y + (target - cam.y) * (1 - Math.exp(-dt / SMOOTHING_S)), visible)
+export function follow(cam: Camera, target: number, dt: number, visible: number, blind?: PlayerId): void {
+  cam.y = clampY(cam.y + (target - cam.y) * (1 - Math.exp(-dt / SMOOTHING_S)), visible, blind)
 }

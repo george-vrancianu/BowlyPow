@@ -12,7 +12,7 @@ import { createOverlay } from './hud/overlay'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
-import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
+import { blindSeat, follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
@@ -34,6 +34,8 @@ stage.append(canvas)
 const ONLINE_BUILD_SECONDS = 30
 let net: { me: PlayerId; peer: Peer; sync: ReturnType<typeof lockstep> } | undefined
 const mine = (p: PlayerId | null | undefined) => !net || p === net.me
+// Siege blind build: the seat whose half is the only one this screen may show. Hot-seat: whoever builds; online: my own seat, also while I wait.
+const blind = () => blindSeat(state.match, net ? net.me : (state.match.builder ?? transition.shown))
 const canvasPx = () => canvas.width / canvas.clientWidth
 const toWorld = (e: PointerEvent) => screenToWorld(canvas, camera, e.offsetX * canvasPx(), e.offsetY * canvasPx())
 let state = initialState()
@@ -119,7 +121,7 @@ addEventListener('keydown', (e) => {
 // Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
 const pointers = new Map<number, Point>()
 let panOnly = false
-const panBy = (dyPx: number) => pan(camera, (transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight)
+const panBy = (dyPx: number) => pan(camera, (transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight, blind())
 canvas.onwheel = (e) => (e.preventDefault(), panBy(-e.deltaY))
 addEventListener('keydown', (e) => e.code === 'Space' && (e.preventDefault(), recenter(camera)))
 canvas.onpointermove = (e) => {
@@ -150,7 +152,7 @@ canvas.onpointerup = (e) => {
 }
 canvas.onpointerdown = (e) => {
   if (mapOpen) {
-    pan(camera, screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y, layout(canvas).visibleHeight)
+    pan(camera, screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y, layout(canvas).visibleHeight, blind())
     toggleMap(false)
     return
   }
@@ -240,7 +242,7 @@ function edgeScroll(builder: PlayerId, dt: number) {
   const { visibleHeight } = layout(canvas)
   const dy = edgeScrollDy(camera.y, visibleHeight, builder, pxToWorld(drag!.px, drag!.py).y, dt)
   if (!dy) return
-  pan(camera, dy, visibleHeight)
+  pan(camera, dy, visibleHeight, blind())
   dragTo(drag!.px, drag!.py)
 }
 const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && mine(state.possession.shooter) && canArm(state, state.possession.shooter) && (armed = !armed) })
@@ -311,7 +313,7 @@ function frame(now: number) {
       lastBuilder = state.match.builder
       selection = landing = drag = undefined
       menuOpen = false
-      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight)
+      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight, blind())
       else recenter(camera)
     }
     if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
@@ -331,7 +333,7 @@ function frame(now: number) {
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
   overlay.update(overlayView(transition, now))
   if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
-  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
+  if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight, blind())
   lastFrame = now
   if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner))
   confirm.hidden = !state.possession.inHand || !!state.match.builder || !mine(state.possession.shooter)
@@ -343,11 +345,12 @@ function frame(now: number) {
   const shooter = state.possession.shooter
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
-  hud.update(hudModel(state, config, { active: transition.shown, buttons: building && [{ label: 'Done', onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  hud.update(hudModel(state, config, { active: transition.shown, viewer: net ? net.me : (b ?? transition.shown), buttons: building && [{ label: 'Done', onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
   render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
+    blind: blind(),
     ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
     landing: mapOpen ? undefined : landing?.spec,
     hidden: mapOpen ? [] : [selection?.movable ? selection.id : undefined, landing?.id].filter((id) => id !== undefined),
