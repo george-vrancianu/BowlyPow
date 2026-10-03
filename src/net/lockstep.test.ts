@@ -4,6 +4,7 @@ import { canBlastFrom } from '../sim/blast'
 import { canPlaceBall } from '../sim/possession'
 import { defaultConfig, initialState, step, type SimConfig, type SimInput, type SimState } from '../sim/step'
 import type { PlayerId } from '../sim/pitch'
+import { roundsMatch } from '../sim/testkit'
 
 const config: SimConfig = { ...defaultConfig, buildTime: 1 }
 const DELAY = 4
@@ -81,7 +82,7 @@ describe('lockstep', () => {
       expect(a).toEqual(b)
       expect(a.tick).toBeGreaterThanOrEqual(900)
       expect(a.match.builder).toBeNull()
-      expect(a.match.roundShots).toBeGreaterThan(0)
+      expect(roundsMatch(a).roundShots).toBeGreaterThan(0)
     }
   })
 

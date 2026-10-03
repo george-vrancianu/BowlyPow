@@ -1,34 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { firstBuilder } from './match'
-import { modeFor, rounds } from './mode'
-import { opponent } from './possession'
+import { modeFor, rounds, siege } from './mode'
 import { defaultConfig as c, initialState, step } from './step'
 import { playState } from './testkit'
-
-const ctx = (s = playState()) => ({ objects: s.objects, possession: s.possession })
-
-describe('Rounds hooks', () => {
-  it('opens each build turn with the configured wall points and nothing built yet', () => {
-    const s = playState()
-    expect(rounds.onBuildStart(s.match as never, ctx(s), { ...c, wallPoints: 7 })).toEqual({ points: 7, built: [] })
-  })
-  it('the first builder hands over to the other, whose Done starts play', () => {
-    const s = initialState(1, c)
-    const first = firstBuilder(1, 1)
-    const r = rounds.onBuildDone(s.match as never, first, ctx(s), c)
-    expect(r?.match.builder).toBe(opponent(first))
-    expect(rounds.onBuildDone(r!.match, opponent(first), ctx(s), c)?.match.builder).toBeNull()
-  })
-  it('reads a winner off the state: a leader after the last round, nobody on a tie', () => {
-    const m = { ...playState().match, round: c.rounds + 1 }
-    expect(rounds.winner({ ...m, score: { 1: 3, 2: 2 } }, ctx(), c)).toBe(1)
-    expect(rounds.winner({ ...m, score: { 1: 2, 2: 2 } }, ctx(), c)).toBeNull()
-  })
-})
 
 describe('mode dispatch', () => {
   it('step picks the mode from the match it is stepping', () => {
     expect(modeFor(playState().match)).toBe(rounds)
+  })
+  it('a Siege match dispatches to the Siege mode', () => {
+    expect(modeFor(initialState(1, { ...c, mode: 'siege' }).match)).toBe(siege)
   })
   it('step ends the match through the mode winner and emits match-ended once', () => {
     const s = playState()

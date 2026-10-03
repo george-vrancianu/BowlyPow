@@ -15,10 +15,11 @@ export function bands(size: { width: number; height: number }): { near: Band; fa
 }
 
 export type HudModel = {
-  players: Record<PlayerId, { score: number; inventory: Record<PowerUp, number> }>
+  players: Record<PlayerId, { score: number | null; inventory: Record<PowerUp, number> }>
   /** Whose turn it is; their strip goes to the bottom. */
   active: PlayerId
-  round: number
+  /** Null in modes without rounds. */
+  round: number | null
   rounds: number
   /** Seconds left and fraction of the clock remaining, or null when no clock runs. */
   clock: { seconds: number; fraction: number } | null
@@ -103,9 +104,11 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     for (const id of [1, 2] as const) {
       const s = strips[id]
       const p = m.players[id]
-      if (s.score.textContent !== String(p.score)) {
-        if (s.score.textContent) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], 400)
-        s.score.textContent = String(p.score)
+      s.score.style.display = p.score === null ? 'none' : ''
+      const shown = p.score === null ? '' : String(p.score)
+      if (s.score.textContent !== shown) {
+        if (s.score.textContent && shown) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], 400)
+        s.score.textContent = shown
       }
       for (const i of s.icons) {
         const n = p.inventory[i.p]
@@ -118,7 +121,8 @@ export function createHud(root: HTMLElement, actions: HudActions) {
         i.b.disabled = breaker && !live
       }
     }
-    round.textContent = `Round ${m.round} / ${m.rounds}`
+    round.style.display = m.round === null ? 'none' : ''
+    round.textContent = m.round === null ? '' : `Round ${m.round} / ${m.rounds}`
     clockNum.textContent = m.clock ? String(Math.ceil(m.clock.seconds)) : '-'
     const urgent = !!m.clock && m.clock.seconds <= 5
     clockNum.style.background = ring(m.clock?.fraction ?? 0, urgent ? '#ff4d4d' : undefined)
