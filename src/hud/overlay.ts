@@ -29,7 +29,7 @@ export function createOverlay(root: HTMLElement, onTap: () => void) {
         transform: v.kind === 'sweep' ? `translateX(${(0.5 - v.progress) * 200}%)` : '',
       })
       // Pinned labels sit below the HUD strip so they never cover its digit and badges.
-      text.style.cssText = top ? 'padding:1vmin 3vmin;margin-top:19vmin;background:rgba(11,15,26,0.7);border-radius:1vmin;font-size:6vmin;' : banner ? `width:100%;padding:2vmin 0;background:rgba(11,15,26,0.85);${v.kind === 'goal' ? `border-block:1vmin solid ${v.color};` : ''}` : ''
+      text.style.cssText = top ? 'padding:1vmin 3vmin;margin-top:max(19vmin,112px);background:rgba(11,15,26,0.7);border-radius:1vmin;font-size:6vmin;' : banner ? `width:100%;padding:2vmin 0;background:rgba(11,15,26,0.85);${v.kind === 'goal' ? `border-block:1vmin solid ${v.color};` : ''}` : ''
     },
   }
 }

@@ -136,7 +136,7 @@ export const siege: GameMode<SiegeMatch> = {
 }
 
 /** Every mode by name: the one place a new mode registers. */
-const MODES: Record<GameModeName, GameMode> = { rounds: rounds as GameMode, siege: siege as GameMode }
+const MODES: Record<GameModeName, GameMode> = { rounds, siege }
 
 /** The mode a match is being played in, read off the match itself. */
 export const modeFor = (m: Match): GameMode => MODES[m.mode]

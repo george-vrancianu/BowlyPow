@@ -158,7 +158,7 @@ canvas.onpointerup = (e) => {
   charge = undefined
 }
 canvas.onpointerdown = (e) => {
-  // The map stays usable; everything else is ignored behind a blocking hold, so a tap there cannot carry into the next player's turn.
+  // The Map and Close buttons still work; everything else is ignored behind a blocking hold, so a tap there cannot carry into the next player's turn.
   if (blocking(transition) && !mapOpen) return
   if (mapOpen) {
     panWorld(screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y)
@@ -344,7 +344,7 @@ function frame(now: number) {
 
   announce([])
   // A ghost ball or half-made gesture does not survive a blocking hold into the next player's turn.
-  if (blocking(transition)) (ballGhost = tap = undefined), (draggingBall = false)
+  if (blocking(transition)) (ballGhost = tap = charge = undefined), (draggingBall = false)
   const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
   if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), recenter(camera)
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
@@ -365,7 +365,7 @@ function frame(now: number) {
   // The defence turn: the scorer is offered Repair or Rearrange once the GOAL banner is gone.
   const buttons = phaseButtons(state, config, { mine, current: () => state, send: (i) => (pending = i), choosable: !blocking(transition) })
   hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons, armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
-  fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
+  fab.update(building && !mapOpen && !blocking(transition) ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
   render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen || revealing(transition) ? mapCam : camera, {
