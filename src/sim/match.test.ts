@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { blindSeat, coinFlip } from './match'
+import { coinFlip } from './match'
+import { blindSeat } from './mode'
 import { defaultConfig as c, initialState, step, type SimState } from './step'
 import { playState, roundsMatch } from './testkit'
 

@@ -121,12 +121,24 @@ describe('lockstep', () => {
         expect(a.objects.map((o) => o.hp)).toEqual([3, 1])
       }
     })
-    it('a late Rearrange choice from the scorer lands on the same tick for both peers and its window then expires', () => {
-      const late = (s: SimState, me: PlayerId): SimInput => (me === 1 && s.match.choosing === 1 && s.clock.left < 600 ? { defence: { player: 1, choice: 'rearrange' } } : {})
-      const [a, b] = match(5, 3, 700, late, siege, scoring)
-      expect(a).toEqual(b)
-      expect(a.match).toMatchObject({ choosing: null, builder: null })
-      expect(a.objects.map((o) => o.hp)).toEqual([1, 1])
+    // The window is 60 ticks; the choice is submitted when `left` drops under `at`, and arrives DELAY ticks later (plus the link lag).
+    const choosesAt = (at: number) => (s: SimState, me: PlayerId): SimInput => (me === 1 && s.match.choosing === 1 && s.clock.left < at ? { defence: { player: 1, choice: 'rearrange' } } : {})
+    it('a Rearrange choice made near the end of the window lands on the same tick for both peers and its window then expires', () => {
+      for (const lag of [0, 3]) {
+        const [a, b] = match(5, lag, 700, choosesAt(10), siege, scoring)
+        expect(a).toEqual(b)
+        expect(a.match).toMatchObject({ choosing: null, builder: null })
+        // Not repaired: the Rearrange got in before the timeout.
+        expect(a.objects.map((o) => o.hp)).toEqual([1, 1])
+      }
+    })
+    it('a Rearrange choice that arrives after the window ran out is refused identically on both peers: the timeout Repair stands', () => {
+      for (const lag of [0, 3]) {
+        const [a, b] = match(5, lag, 700, choosesAt(2), siege, scoring)
+        expect(a).toEqual(b)
+        expect(a.match).toMatchObject({ choosing: null, builder: null })
+        expect(a.objects.map((o) => o.hp)).toEqual([3, 1])
+      }
     })
   })
 

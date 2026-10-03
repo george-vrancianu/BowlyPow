@@ -2,7 +2,7 @@ import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import { coinFlip, firstBuilder, startingPossession, type GameModeName, type Match, type RoundsMatch, type SiegeMatch } from './match'
 import { opponent, type Possession } from './possession'
 import type { SimConfig, SimEvent } from './step'
-import { maxHp, structureCost, type Structure, type StructureSpec } from './wall'
+import { maxHp, structureCost, structuresOf, type Structure, type StructureSpec } from './wall'
 
 /** The board a hook may read when deciding: read-only, so hooks stay pure. */
 export type ModeContext = {
@@ -45,6 +45,8 @@ export type GameMode<M extends Match = Match> = {
   onBuildTimeout(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): StructureSpec | null
   /** Whether the current build turn may place and demolish pieces (moving is always allowed); false in a Rearrange turn. */
   mayEdit(m: M): boolean
+  /** Whether the match is in its blind opening build phase (a build turn that is not a Rearrange); fog and the reveal key on it. */
+  opening(m: M): boolean
   /** A build turn just opened for `m.builder`. */
   onBuildStart(m: M, ctx: ModeContext, c: SimConfig): BuildTurn
   /** Who has won, if anyone; derived from state. */
@@ -79,6 +81,7 @@ export const rounds: GameMode<RoundsMatch> = {
   choiceTimeout: () => 'repair',
   onBuildTimeout: () => null,
   mayEdit: () => true,
+  opening: () => false,
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
   // The last round is over and the score is not tied; a tie means sudden death.
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
@@ -100,53 +103,52 @@ export const siege: GameMode<SiegeMatch> = {
       match: { ...m, choosing: null },
       objects: ctx.objects.map((o) => (o.owner === player ? { ...o, hp: maxHp(o) } : o)),
       // One per surviving own structure, full-HP ones included, so the sweep and flash always fire.
-      events: ctx.objects.filter((o) => o.owner === player).map((o) => ({ type: 'repaired', id: o.id, player })),
+      events: structuresOf(ctx.objects, player).map((o) => ({ type: 'repaired', id: o.id, player })),
     }
   },
   // An empty defence would be an instant loss, so Done is refused until the builder owns a structure.
   // The opening build hands on to the opponent, then to play; a Rearrange turn (not `opening`) ends straight into play.
   onBuildDone: (m, builder, ctx) => {
-    if (!ctx.objects.some((o) => o.owner === builder)) return null
+    if (!structuresOf(ctx.objects, builder).length) return null
     const next = m.opening && builder === firstBuilder(m.seed, 1) ? opponent(builder) : null
     return { match: { ...m, builder: next, opening: m.opening && next !== null }, events: [] }
   },
-  // A builder with nothing owned has the full budget: a straight wall on their half if it fits, else a Repulsor (free, always in stock at the opening).
+  // A builder with nothing owned has the full budget (a fresh piece demolished refunds in full), so affordability is judged from `wallPoints`:
+  // a straight wall on their half if it fits, else a Repulsor (free, always in stock at the opening).
+  // The spot mirrors across the halfway line (P1 gy 40, P2 gy 54 - 40) and is legal for either seat: inside the half, clear of the no-build zone,
+  // and the builder owns nothing yet, so it cannot block their own goal. Both pieces therefore always place (tested for each seat).
   onBuildTimeout: (m, builder, _ctx, c) => {
     if (!m.opening) return null
-    const at = { gx: 10, gy: builder === 1 ? 40 : 10 }
+    const at = { gx: 10, gy: builder === 1 ? 40 : 14 }
     const wall: StructureSpec = { kind: 'wall', owner: builder, shape: 'straight', rotation: 0, at }
     return structureCost(wall) <= c.wallPoints ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
   },
   mayEdit: (m) => m.opening,
+  opening: (m) => m.opening && m.builder !== null,
   // A Rearrange turn has no wall points and every own structure counts as placed this turn, so all of them can be moved.
-  onBuildStart: (m, ctx, c) => (m.opening ? { points: c.wallPoints, built: [] } : { points: 0, built: ctx.objects.filter((o) => o.owner === m.builder).map((o) => o.id) }),
+  onBuildStart: (m, ctx, c) => (m.opening ? { points: c.wallPoints, built: [] } : { points: 0, built: m.builder ? structuresOf(ctx.objects, m.builder).map((o) => o.id) : [] }),
   winner: (_m, ctx) => {
-    const left = (p: PlayerId) => ctx.objects.some((o) => o.owner === p)
+    const left = (p: PlayerId) => structuresOf(ctx.objects, p).length > 0
     if (left(1) && left(2)) return null
     // Wipe-out; if both are at zero the shooter loses.
     return !left(1) && !left(2) ? opponent(ctx.shooter) : left(1) ? 1 : 2
   },
 }
 
+/** Every mode by name: the one place a new mode registers. */
+const MODES: Record<GameModeName, GameMode> = { rounds: rounds as GameMode, siege: siege as GameMode }
+
 /** The mode a match is being played in, read off the match itself. */
-export function modeFor(m: Match): GameMode {
-  switch (m.mode) {
-    case 'rounds':
-      return rounds
-    case 'siege':
-      return siege
-  }
-}
+export const modeFor = (m: Match): GameMode => MODES[m.mode]
 
 /** The mode a new match starts in. */
-export const modeNamed = (name: GameModeName): GameMode => {
-  switch (name) {
-    case 'rounds':
-      return rounds
-    case 'siege':
-      return siege
-  }
-}
+export const modeNamed = (name: GameModeName): GameMode => MODES[name]
+
+/** The Siege opening build is in progress: a build turn in the mode's opening phase (a Rearrange turn is not). Fog, the reveal and the build label key on this. */
+export const openingBuild = (m: Match): boolean => modeFor(m).opening(m)
+
+/** The seat whose own half is the only one `viewer` may see: the viewer themselves while a blind opening build is on (also while waiting on the opponent's build; not a Rearrange turn), else undefined. Rounds stays open information. A pure function of state; hiding is view-only, so the sim stays complete. */
+export const blindSeat = (m: Match, viewer: PlayerId): PlayerId | undefined => (openingBuild(m) ? viewer : undefined)
 
 /** The phase label of the match right now: a build turn that may only move pieces is a Rearrange. */
 export const buildPhase = (m: Match): 'Build' | 'Rearrange' | 'Play' => (m.builder === null ? 'Play' : modeFor(m).mayEdit(m) ? 'Build' : 'Rearrange')

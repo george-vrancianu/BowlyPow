@@ -8,8 +8,8 @@ export type PhaseSeam = {
   /** The live state. Handlers read it at click time: the HUD keeps a button row while its labels are unchanged, so a handler must never carry the player it was created for. */
   current(): SimState
   send(input: SimInput): void
-  /** The defence choice is offered only while the defence choice is not hidden behind an overlay. */
-  repairable?: boolean
+  /** False while an overlay (the GOAL banner, the turn card) hides the board: the defence choice, Repair and Rearrange alike, is offered only when it is not. Default true. */
+  choosable?: boolean
 }
 
 /** The phase buttons under the shared strip: Done in a build turn, Repair and Rearrange when the scorer owes a defence choice. */
@@ -25,7 +25,7 @@ export function phaseButtons(s: SimState, config: SimConfig, h: PhaseSeam): Butt
       },
     }]
   }
-  if (choosing && h.mine(choosing) && h.repairable !== false) {
+  if (choosing && h.mine(choosing) && h.choosable !== false) {
     return (['repair', 'rearrange'] as const).map((choice) => ({
       label: choice === 'repair' ? 'Repair' : 'Rearrange',
       onClick: () => {

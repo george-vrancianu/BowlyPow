@@ -9,7 +9,8 @@ const SWEEP_MS = 1000
 const REVEAL_MS = 1500
 const DISMISS_MS = 1000
 
-type Overlay = { kind: 'turn' | 'goal' | 'sweep' | 'reveal'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point }
+/** `holds` = the handover waits for this overlay and the sim is paused while it is up (the REPAIRED sweep; the goal, turn and reveal kinds always hold). */
+type Overlay = { kind: 'turn' | 'goal' | 'sweep' | 'reveal'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point; holds?: true }
 /** `shown` is whose end of the pitch is at the bottom of the screen; `due` = a handover is waiting (e.g. for the goal hold to end); `opening` = the last frame saw a Siege opening build (the reveal fires when it ends). */
 export type Transition = { shown: PlayerId; flip?: { at: number; ms: number; from: PlayerId; to: PlayerId }; overlay?: Overlay; due?: boolean; phase?: string; opening?: boolean }
 
@@ -28,13 +29,13 @@ export function advance(t: Transition, f: Frame): Transition {
   for (const ev of f.events) {
     if (ev.type === 'goal') overlay = { kind: 'goal', at: f.now, player: ev.scorer, text: 'GOAL', ms: GOAL_MS, net: ev.at }
     if (ev.type === 'round-ended') due = true
-    if (ev.type === 'repaired') overlay = { kind: 'sweep', at: f.now, player: ev.player, text: 'REPAIRED', ms: SWEEP_MS }
+    if (ev.type === 'repaired') overlay = { kind: 'sweep', at: f.now, player: ev.player, text: 'REPAIRED', ms: SWEEP_MS, holds: true }
   }
   // The second Done of a Siege opening build lifts the fog into a 1.5 s hold on the whole pitch; the same hold under reduced motion (it has no animation to drop).
   if (t.opening && !f.opening) (overlay = { kind: 'reveal', at: f.now, player: f.active, text: 'REVEAL', ms: REVEAL_MS }), (due = true)
   if (t.phase !== undefined && t.phase !== f.phase && overlay?.kind !== 'goal' && overlay?.kind !== 'reveal') overlay = { kind: 'sweep', at: f.now, player: f.active, text: f.phase.toUpperCase(), ms: SWEEP_MS }
   // The handover waits for the REPAIRED sweep, so the flash and label are seen before the turn flips.
-  const repairing = overlay?.kind === 'sweep' && overlay.text === 'REPAIRED'
+  const repairing = overlay?.kind === 'sweep' && !!overlay.holds
   if (f.handover === false) due = false
   else if ((due || f.active !== shown) && !flip && !repairing && overlay?.kind !== 'goal' && overlay?.kind !== 'reveal' && overlay?.kind !== 'turn') {
     const ms = f.reduced ? 0 : FLIP_MS
@@ -49,7 +50,7 @@ export function advance(t: Transition, f: Frame): Transition {
 }
 
 /** The shell stops stepping the sim while a flip, goal, turn, reveal or REPAIRED overlay is up: the conceder's clock and ball are out of reach until the handover is seen. */
-export const blocking = (t: Transition) => !!t.flip || t.overlay?.kind === 'goal' || t.overlay?.kind === 'turn' || t.overlay?.kind === 'reveal' || (t.overlay?.kind === 'sweep' && t.overlay.text === 'REPAIRED')
+export const blocking = (t: Transition) => !!t.flip || t.overlay?.kind === 'goal' || t.overlay?.kind === 'turn' || t.overlay?.kind === 'reveal' || (t.overlay?.kind === 'sweep' && !!t.overlay.holds)
 
 /** The reveal hold is up: the shell shows the whole pitch through the map camera. */
 export const revealing = (t: Transition) => t.overlay?.kind === 'reveal'

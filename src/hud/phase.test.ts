@@ -49,3 +49,31 @@ describe('defence choice buttons', () => {
   })
 })
 
+describe('phase buttons gating', () => {
+  const owing = (player: 1 | 2): SimState => {
+    const s = initialState(1, { ...c, mode: 'siege' })
+    return { ...s, match: { ...s.match, builder: null, opening: false, choosing: player } as SimState['match'] }
+  }
+  const seam = (state: SimState, over: Partial<Parameters<typeof phaseButtons>[2]> = {}) => ({ mine: hotSeat, current: () => state, send: () => {}, ...over })
+  it('Repair sends the chooser at click time, and nothing once the choice has passed', () => {
+    let state = owing(1)
+    const sent: SimInput[] = []
+    const row = phaseButtons(state, c, seam(state, { current: () => state, send: (i) => sent.push(i) }))!
+    row[0]!.onClick()
+    state = { ...state, match: { ...state.match, choosing: null } }
+    row[0]!.onClick()
+    expect(sent).toEqual([{ defence: { player: 1, choice: 'repair' } }])
+  })
+  it('offers no defence choice online to the peer who is not choosing', () => {
+    expect(phaseButtons(owing(1), c, seam(owing(1), { mine: (p) => p === 2 }))).toBeUndefined()
+    expect(phaseButtons(owing(1), c, seam(owing(1), { mine: (p) => p === 1 }))!.map((b) => b.label)).toEqual(['Repair', 'Rearrange'])
+  })
+  it('offers no defence choice while an overlay hides the board', () => {
+    expect(phaseButtons(owing(1), c, seam(owing(1), { choosable: false }))).toBeUndefined()
+  })
+  it('offers no Done online to the peer who is not building', () => {
+    const s = buildState(1)
+    expect(phaseButtons(s, c, seam(s, { mine: (p) => p === 2 }))).toBeUndefined()
+  })
+})
+

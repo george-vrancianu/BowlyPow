@@ -1,7 +1,10 @@
-import { buttonRow, el, FONT } from '../hud/hud'
+import { buttonRow, el, FONT, type ButtonSpec } from '../hud/hud'
 import { PLAYER_COLORS } from '../sim/player'
 import { defaultSettings, MODES, SLIDERS, slidersFor, type Settings } from '../sim/settings'
 import type { PlayerId } from '../sim/pitch'
+
+/** The mode picker's buttons: the chosen mode reads as pressed (aria-pressed and a filled look), not just bracketed text. */
+export const modePicker = (current: Settings['mode'], pick: (mode: Settings['mode']) => void): ButtonSpec[] => MODES.map(({ mode, label }) => ({ label, pressed: mode === current, onClick: () => pick(mode) }))
 
 export type ScreenActions = { onStart(s: Settings): void; onRematch(): void; onMenu(): void; onOnline(): void }
 
@@ -17,9 +20,7 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
   }
 
   const settingsScreen = () => {
-    const picker = buttonRow(
-      MODES.map(({ mode, label }) => ({ label: settings.mode === mode ? `[ ${label} ]` : label, onClick: () => ((settings.mode = mode), settingsScreen()) })),
-    )
+    const picker = buttonRow(modePicker(settings.mode, (mode) => ((settings.mode = mode), settingsScreen())))
     const rows = slidersFor(settings.mode).map((k) => {
       const { label, min, max } = SLIDERS[k]
       const value = el('span', '', String(settings[k]))

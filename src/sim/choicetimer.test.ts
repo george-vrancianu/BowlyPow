@@ -81,11 +81,4 @@ describe('defence turn under the build timer', () => {
   it('without a build timer the choice waits indefinitely', () => {
     expect(run(choice(hotseat), 50_000, hotseat).s.match).toMatchObject({ choosing: 1, builder: null })
   })
-
-  it('is deterministic: the same inputs give the same state on both peers', () => {
-    const a = run(choice(timed), TICKS + 5, timed)
-    const b = run(choice(timed), TICKS + 5, timed)
-    expect(a.s).toEqual(b.s)
-    expect(a.events).toEqual(b.events)
-  })
 })
