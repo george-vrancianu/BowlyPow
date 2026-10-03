@@ -73,7 +73,7 @@ describe('aim gesture view', () => {
     expect(aimViewOf(press(p(0, 0)))).toBeUndefined()
   })
   it('shows the Touch control radius and no direction before the drag', () => {
-    expect(aimViewOf(press())).toEqual({ phase: 'holding', tier: 0, radiusPx: 220 })
+    expect(aimViewOf(press())).toEqual({ phase: 'holding', tier: 0, radiusPx: 220, ghost: { until: { contacts: 1 }, scale: 1 } })
   })
   it('shows the aim once dragging', () => {
     const v = aimViewOf(dragTo(100, 520))

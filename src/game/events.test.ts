@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { visual } from '../config/visual'
 import { defaultConfig } from '../sim/step'
+import { playState } from '../sim/testkit'
 import type { SimEvent } from '../sim/step'
 import type { Structure } from '../sim/wall'
 import { Aim } from './entities/Aim'
@@ -17,7 +18,7 @@ const tower: Structure = { id: 2, kind: 'tower', owner: 2, power: 'repulsor', at
 function setup(objects: Structure[]) {
   const t = { camera: new Camera(54), structures: new Structures(), ball: new Ball(), aim: new Aim(), vibrate: vi.fn() }
   t.structures.sync(objects)
-  t.aim.sync({ ball: t.ball.state }, defaultConfig)
+  t.aim.sync({ ...playState(), ball: t.ball.state }, defaultConfig)
   const route = (events: SimEvent[], left: Structure[], reduced = false) => routeEvents(events, t, left, reduced)
   return { ...t, route }
 }

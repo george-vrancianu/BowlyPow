@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { visual } from '../../config/visual'
-import { defaultConfig, step } from '../../sim/step'
-import { buildState } from '../../sim/testkit'
+import { defaultConfig, step, type SimState } from '../../sim/step'
+import { buildState, playState } from '../../sim/testkit'
 import type { WallSpec } from '../../sim/wall'
-import { Aim } from './Aim'
+import { Aim, type AimLine } from './Aim'
 
 const wall: WallSpec = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 10, gy: 40 } }
 const placed = () => step(buildState(1), { placeWall: wall }, defaultConfig).state
@@ -20,33 +20,38 @@ describe('Aim', () => {
   })
 })
 
-describe('Aim direction line', () => {
-  const ball = { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }
+describe('Aim Ghost', () => {
+  // Straight up the left of the pitch, from 19 units below the end board: the ball (radius 1) first touches it at y = 1.
+  const shooting = (): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, ball: { pos: { x: 10, y: 20 }, vel: { x: 0, y: 0 }, rolled: 0 } })
+  const touch = { until: { contacts: 1 }, scale: 1 } as const
+  const ghostOf = (ghost: AimLine['ghost'], aim: Partial<AimLine> = { dir: { x: 0, y: -1 }, power: 0.5 }) => {
+    const a = new Aim()
+    a.sync(shooting(), defaultConfig)
+    a.aim = { tier: 0, ghost, ...aim }
+    return a.ghost
+  }
 
-  it('runs from the ball the way the ball will go', () => {
-    const a = new Aim()
-    a.sync({ ball }, defaultConfig)
-    a.aim = { tier: 0, dir: { x: 0.6, y: -0.8 }, power: 0.3 }
-    const { from, to } = a.line!
-    const len = Math.hypot(to.x - from.x, to.y - from.y)
-    expect(from).toEqual({ x: 20, y: 80 })
-    expect((to.x - from.x) / len).toBeCloseTo(0.6)
-    expect((to.y - from.y) / len).toBeCloseTo(-0.8)
+  it('is the predicted path from the ball to its first contact', () => {
+    const g = ghostOf(touch)!
+    expect(g[0]).toEqual({ x: 10, y: 20 })
+    expect(g.at(-1)!.x).toBeCloseTo(10)
+    expect(g.at(-1)!.y).toBeCloseTo(1)
   })
-  it('is longer for a stronger aim', () => {
-    const a = new Aim()
-    a.sync({ ball }, defaultConfig)
-    const length = (power: number) => {
-      a.aim = { tier: 0, dir: { x: 0, y: -1 }, power }
-      return a.line!.from.y - a.line!.to.y
-    }
-    expect(length(0.5)).toBeGreaterThan(length(0.15))
+  it('is cut to its scale of the path length', () => {
+    // Half of the 19-unit path.
+    const g = ghostOf({ ...touch, scale: 0.5 })!
+    expect(g[0]).toEqual({ x: 10, y: 20 })
+    expect(g.at(-1)!.x).toBeCloseTo(10)
+    expect(g.at(-1)!.y).toBeCloseTo(10.5)
   })
-  it('shows no line before the drag', () => {
-    const a = new Aim()
-    a.sync({ ball }, defaultConfig)
-    a.aim = { tier: 0 }
-    expect(a.line).toBeUndefined()
+  it('follows whatever ghost config is in effect', () => {
+    // Off the left board first, then on to the end board.
+    const g = ghostOf({ until: { contacts: 2 }, scale: 1 }, { dir: { x: -0.6, y: -0.8 }, power: 1 })!
+    expect(g.some((p) => Math.abs(p.x - 1) < 1e-6)).toBe(true)
+    expect(g.at(-1)!.y).toBeCloseTo(1)
+  })
+  it('shows no Ghost before the drag', () => {
+    expect(ghostOf(touch, {})).toBeUndefined()
   })
 })
 
@@ -55,8 +60,8 @@ describe('Aim reset', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
     a.wave({ x: 20, y: 70 }, 0.5)
-    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.5 }
+    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.5, ghost: { until: { contacts: 1 }, scale: 1 } }
     a.reset()
-    expect([a.waveCount, a.line]).toEqual([0, undefined])
+    expect([a.waveCount, a.ghost]).toEqual([0, undefined])
   })
 })

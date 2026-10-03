@@ -29,12 +29,13 @@ export function aimMove(g: AimGesture, at: Point, _now: number): AimGesture {
   return { ...g, at, phase: g.phase === 'aiming' || past ? 'aiming' : 'holding' }
 }
 
-/** What the gesture shows: its phase and tier, the tier's control radius in screen px, and the aim once there is one. */
-export type GestureView = { phase: 'holding' | 'aiming'; tier: number; radiusPx: number; dir?: Point; power?: number }
+/** What the gesture shows: its phase and tier, the tier's control radius in screen px and Ghost config, and the aim once there is one. */
+export type GestureView = { phase: 'holding' | 'aiming'; tier: number; radiusPx: number; ghost: Tier['ghost']; dir?: Point; power?: number }
 
 export function aimViewOf(g: AimGesture): GestureView | undefined {
   if (g.phase === 'pan') return undefined
-  return { phase: g.phase, tier: g.tier, radiusPx: tierOf(g.tier).radiusPx, ...aimOf(g) }
+  const { radiusPx, ghost } = tierOf(g.tier)
+  return { phase: g.phase, tier: g.tier, radiusPx, ghost, ...aimOf(g) }
 }
 
 /** A second finger keeps the usual pinch/pan and abandons the aim. */

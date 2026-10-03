@@ -100,8 +100,8 @@ export const visual = {
     ballHitPx: 28,
     /** Pointer travel from the press, in screen px, before a drag counts: releasing within it cancels, and full power range starts at its edge. */
     slopPx: 8,
-    /** The direction line: world units of length per unit of launch speed (power * maxSpeed). */
-    line: { color: '#4ade80', width: 0.3, scale: 0.4 },
+    /** The Ghost: the ball's predicted path while aiming. */
+    ghost: { color: '#4ade80', width: 0.3 },
     waveMs: 250,
     wave: cream,
     waveWidth: 0.3,

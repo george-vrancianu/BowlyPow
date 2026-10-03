@@ -74,7 +74,8 @@ export function rollBall(ball: Ball, objects: Structure[], c: SimConfig, breaker
     rolled += len * best.t
     left *= 1 - best.t
     const speed = Math.hypot(vel.x, vel.y)
-    if (best.wall) {
+    if (!best.wall) events.push({ type: 'ball-hit-board', speed, at: pos })
+    else {
       events.push({ type: 'ball-hit-wall', wall: best.wall.id, speed, at: pos })
       if (breaker) {
         breaker = false
