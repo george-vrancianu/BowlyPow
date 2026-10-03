@@ -184,7 +184,9 @@ export function step(
     } else events.push({ type: 'refused' })
   }
   let chose = false
-  const { defence } = input
+  // The build window covers a pending defence choice too; when it runs out the mode picks for the chooser.
+  const choiceExpired = waiting && config.buildTime > 0 && state.clock.left <= 1
+  const defence = input.defence ?? (choiceExpired && match.choosing ? { player: match.choosing, choice: mode.choiceTimeout(match) } : undefined)
   if (defence) {
     const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, possession.shooter), config) : null
     if (r) {
@@ -198,7 +200,7 @@ export function step(
   }
   let { clock } = state
   const buildExpired = building && config.buildTime > 0 && clock.left <= 1
-  if (building && config.buildTime > 0) clock = { ...clock, left: Math.max(0, clock.left - 1) }
+  if ((building || waiting) && config.buildTime > 0) clock = { ...clock, left: Math.max(0, clock.left - 1) }
   const expired = !building && !waiting && !possession.live && clock.left <= 1
   if (!building && !waiting && !possession.live) clock = { ...clock, left: clock.left - 1 }
   const { charging } = input
@@ -295,10 +297,13 @@ export function step(
     const t = mode.onBuildStart(match, ctxOf(rolled.objects, possession, shooter), config)
     built = t.built
     points = { ...points, [match.builder]: t.points }
-    if (config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
+    // A turn opened by a defence choice continues the window the choice was made in.
+    if (config.buildTime && !chose) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
   }
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
   if (possession.shooter !== state.possession.shooter || fired || ended || chose) clock = { ...clock, expiries: 0 }
   if (expired || fired || ended || (chose && !match.builder) || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
+  // A goal opens the choice: its window is the build window, set after the resets above.
+  if (match.choosing && !state.match.choosing && config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
   return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, built, ball: landed }, events }
 }

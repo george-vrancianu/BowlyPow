@@ -39,6 +39,8 @@ export type GameMode<M extends Match = Match> = {
   onBuildDone(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): ModeResult<M> | null
   /** `player` (the one the match is waiting on) made a defence choice: the result, or null to refuse. */
   onDefenceChoice(m: M, player: PlayerId, choice: DefenceChoice, ctx: ModeContext, c: SimConfig): ModeResult<M> | null
+  /** The build window ran out while `m.choosing` still owed a defence choice: what the sim picks for them. */
+  choiceTimeout(m: M): DefenceChoice
   /** A timed-out Done was refused: a piece to place for the builder before finishing the turn, or null for none. */
   onBuildTimeout(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): StructureSpec | null
   /** Whether the current build turn may place and demolish pieces (moving is always allowed); false in a Rearrange turn. */
@@ -74,6 +76,7 @@ export const rounds: GameMode<RoundsMatch> = {
   onGoal: (m, scorer, _ctx, c) => endRound(m, scorer, c),
   onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, m.round) ? opponent(builder) : null }, events: [] }),
   onDefenceChoice: () => null,
+  choiceTimeout: () => 'repair',
   onBuildTimeout: () => null,
   mayEdit: () => true,
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
@@ -88,6 +91,8 @@ export const siege: GameMode<SiegeMatch> = {
   onShotConsumed: () => null,
   // The scorer owes a defence choice; step holds play until it is made. The conceder's ball-in-hand is set up here, once, and stays unusable while `choosing`.
   onGoal: (m, scorer, _ctx, c) => ({ match: { ...m, choosing: scorer }, possession: startingPossession(opponent(scorer), c), ball: { ...center }, events: [] }),
+  // Nothing chosen in time takes the no-input option.
+  choiceTimeout: () => 'repair',
   onDefenceChoice: (m, player, choice, ctx) => {
     // Rearrange opens a build-style turn for the scorer (step then asks `onBuildStart` for it); no event, nothing is restored.
     if (choice === 'rearrange') return { match: { ...m, choosing: null, builder: player }, events: [] }

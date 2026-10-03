@@ -1,5 +1,6 @@
 import { PLAYER_COLORS } from '../sim/player'
 import type { PlayerId, Point } from '../sim/pitch'
+import type { Match } from '../sim/match'
 import type { SimEvent } from '../sim/step'
 
 const FLIP_MS = 400
@@ -66,9 +67,14 @@ export function angle(t: Transition, now: number): number {
 /** Where the ball rests in the net during the goal hold (the sim has already reset it). */
 export const goalBall = (t: Transition) => (t.overlay?.kind === 'goal' ? t.overlay.net : undefined)
 
-export function overlayView(t: Transition, now: number) {
+export type Notice = { player: PlayerId; text: string }
+
+/** A label for the peer waiting on the scorer's defence choice (online only: `mine` is false for the chooser's seat), else undefined. The pitch stays visible and the sim keeps running. */
+export const choosingNotice = (m: Match, mine: (p: PlayerId | null | undefined) => boolean): Notice | undefined => (m.choosing && !mine(m.choosing) ? { player: m.choosing, text: 'Opponent is choosing' } : undefined)
+
+export function overlayView(t: Transition, now: number, notice?: Notice) {
   const o = t.overlay
-  if (!o) return undefined
+  if (!o) return notice && { kind: 'notice' as const, placement: 'top' as const, band: false, text: notice.text, hint: undefined, color: PLAYER_COLORS[notice.player], opacity: 1, progress: 1, dismissable: false }
   const half = t.flip ? t.flip.ms / 2 : 0
   const opacity = o.kind === 'turn' && t.flip ? Math.max(0, Math.min(1, (now - t.flip.at - half) / half)) : 1
   return { kind: o.kind, placement: o.kind === 'reveal' ? ('top' as const) : ('center' as const), band: o.kind === 'goal' || o.kind === 'sweep', text: o.text, hint: o.hint, color: PLAYER_COLORS[o.player], opacity, progress: Math.min(1, (now - o.at) / o.ms), dismissable: o.kind === 'turn' && !t.flip && now - o.at >= DISMISS_MS }

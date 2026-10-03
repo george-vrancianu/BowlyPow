@@ -29,7 +29,7 @@ export function hudModel(s: SimState, c: SimConfig, v: HudView): HudModel {
   const hidden = blindSeat(s.match, v.viewer) ? opponent(v.viewer) : null
   const inventoryOf = (p: PlayerId) => (p === hidden ? STARTING_INVENTORY : s.players[p].inventory)
   const digitOf = (p: PlayerId) => (p === hidden ? '?' : digit?.[p] ?? null)
-  const timed = b ? c.buildTime : c.shotClock
+  const timed = b || s.match.choosing ? c.buildTime : c.shotClock
   return {
     players: { 1: { digit: digitOf(1), inventory: inventoryOf(1) }, 2: { digit: digitOf(2), inventory: inventoryOf(2) } },
     active: v.active,

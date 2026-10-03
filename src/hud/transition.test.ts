@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PLAYER_COLORS } from '../sim/player'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, revealing, type Frame, type Transition } from './transition'
+import { advance, angle, blocking, choosingNotice, dismiss, goalBall, newTransition, overlayView, revealing, type Frame, type Transition } from './transition'
 
 const base: Frame = { active: 1, round: 1, inHand: true, phase: 'Play', events: [], now: 0, reduced: false }
 const go = (t: Transition, o: Partial<Frame>) => advance(t, { ...base, ...o })
@@ -187,5 +187,26 @@ describe('reveal', () => {
     expect(revealing(t)).toBe(false)
     expect(t.overlay).toBeUndefined()
     expect(t.shown).toBe(2)
+  })
+})
+
+describe('opponent is choosing notice', () => {
+  const siegeMatch = (choosing: 1 | 2 | null) => ({ mode: 'siege' as const, seed: 1, winner: null, builder: null, choosing, opening: false })
+  const mineIs = (me: 1 | 2) => (p: 1 | 2 | null | undefined) => p === me
+  it('shows to the peer waiting on the chooser, in the chooser colour, as a non-blocking label', () => {
+    const n = choosingNotice(siegeMatch(1), mineIs(2))
+    expect(n).toEqual({ player: 1, text: 'Opponent is choosing' })
+    const v = overlayView(newTransition(2), 0, n)
+    expect(v).toMatchObject({ kind: 'notice', text: 'Opponent is choosing', color: PLAYER_COLORS[1], placement: 'top', band: false })
+  })
+  it('does not show to the chooser, in hot-seat, or when nobody is choosing', () => {
+    expect(choosingNotice(siegeMatch(1), mineIs(1))).toBeUndefined()
+    expect(choosingNotice(siegeMatch(1), () => true)).toBeUndefined()
+    expect(choosingNotice(siegeMatch(null), mineIs(2))).toBeUndefined()
+  })
+  it('never blocks the sim and yields to a real overlay', () => {
+    expect(blocking(newTransition(2))).toBe(false)
+    const t = go(go(newTransition(2), { active: 2 }), { now: 10, active: 2 })
+    expect(overlayView(t, 10, { player: 1, text: 'x' })?.kind).toBe('turn')
   })
 })
