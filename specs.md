@@ -58,9 +58,11 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 ### Siege
 
 - No score and no rounds. One opening build phase with the Rounds ordering (coin-flip loser builds first, the winner gets ball-in-hand), then play; there are no further build phases.
+- Done is refused (`refused` event, the turn continues) until the builder owns a structure, and the Done button is disabled meanwhile; otherwise an empty defence would be an instant loss.
+- If the build timer runs out while the builder owns nothing, the sim places a fallback piece (a straight wall at a fixed cell on the builder's half, or a Repulsor if the wall is unaffordable) and then finishes the turn, with no `refused` event. The build clock never goes below 0.
 - A goal emits the goal event, resets the ball to the pitch center and gives the conceder ball-in-hand with a fresh shot counter. Own goals count for the opponent.
 - There is no shot cap: shots never end anything.
-- The HUD shows no score digit and no round label.
+- The HUD shows each player's remaining structure count, towers included, in place of the score digit, and no round label.
 - The match has no end condition yet.
 - Wall points default to 10; a value to tune after play-testing.
 
@@ -78,7 +80,7 @@ The match structure below is Rounds.
 
 - Open information: both players see everything. Players build one after the other. Round 1 order is the coin-flip loser first, then order alternates each round.
 - Each player gets the configured wall points (default 10). Unspent points are lost, no carry-over.
-- A "Done" button ends your build. No timer in hot-seat (add one for P2P). Tapping Done with nothing placed skips the phase.
+- A "Done" button ends your build. No timer in hot-seat (add one for P2P). In Rounds, tapping Done with nothing placed skips the phase; Siege refuses it (see Game modes).
 - Walls persist for the whole match.
 - Placement: tap a shape in the palette, a ghost appears on your half, drag the ghost to position it (dragging elsewhere pans), tap Rotate, tap Confirm. The ghost turns red where placement is illegal.
 - Walls snap to the grid and rotate in 90-degree steps. No diagonals in v1.
