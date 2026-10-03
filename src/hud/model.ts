@@ -1,7 +1,7 @@
-import type { Match } from '../sim/match'
+import { blindSeat, type Match } from '../sim/match'
 import type { PlayerId } from '../sim/pitch'
+import { STARTING_INVENTORY } from '../sim/player'
 import { opponent } from '../sim/possession'
-import { blindSeat } from '../render/camera'
 import type { SimConfig, SimState } from '../sim/step'
 import type { Structure } from '../sim/wall'
 import type { ButtonSpec, HudModel } from './hud'
@@ -26,17 +26,19 @@ export function hudModel(s: SimState, c: SimConfig, v: HudView): HudModel {
   const { digit, round } = matchView(s.match, s.objects)
   // Blind opening build: the viewer's opponent's count is a guess, not information.
   const hidden = blindSeat(s.match, v.viewer) ? opponent(v.viewer) : null
+  const inventoryOf = (p: PlayerId) => (p === hidden ? STARTING_INVENTORY : s.players[p].inventory)
   const digitOf = (p: PlayerId) => (p === hidden ? '?' : digit?.[p] ?? null)
   const timed = b ? c.buildTime : c.shotClock
   return {
-    players: { 1: { digit: digitOf(1), inventory: s.players[1].inventory }, 2: { digit: digitOf(2), inventory: s.players[2].inventory } },
+    players: { 1: { digit: digitOf(1), inventory: inventoryOf(1) }, 2: { digit: digitOf(2), inventory: inventoryOf(2) } },
     active: v.active,
     round,
     rounds: c.rounds,
     clock: timed ? { seconds: s.clock.left / c.tickHz, fraction: s.clock.left / (timed * c.tickHz) } : null,
     shotsLeft: s.possession.shots,
     shotsMax: c.shots,
-    phase: b ? `Build · ${s.points[b]} pts` : 'Play',
+    // Waiting on a blind opponent's build, the spent points would show what they placed.
+    phase: b ? (b === hidden ? 'Build' : `Build · ${s.points[b]} pts`) : 'Play',
     buttons: v.buttons,
     breaker: { armed: v.armed, tappable: v.tappable },
   }

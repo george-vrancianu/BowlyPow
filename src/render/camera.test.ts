@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blindSeat, follow, fogOf, layout, MAP_Y, pan, recenter, viewOf, viewOutline } from './camera'
+import { follow, fogOf, layout, MAP_Y, pan, recenter, viewOf, viewOutline } from './camera'
 
 
 describe('manual pan', () => {
@@ -107,15 +107,5 @@ describe('blind build', () => {
   it('fogs the opponent\'s half up to the halfway line, boards and net included', () => {
     expect(fogOf(1)).toEqual({ top: -4, bottom: 54 })
     expect(fogOf(2)).toEqual({ top: 54, bottom: 112 })
-  })
-})
-
-describe('blindSeat', () => {
-  const m = (mode: 'rounds' | 'siege', builder: 1 | 2 | null) => ({ mode, builder, winner: null, seed: 1, round: 1, score: { 1: 0, 2: 0 }, roundShots: 0 }) as never
-  it('is the viewer during a Siege build, builder or not, never in Rounds or in play', () => {
-    expect(blindSeat(m('siege', 2), 1)).toBe(1)
-    expect(blindSeat(m('siege', 2), 2)).toBe(2)
-    expect(blindSeat(m('siege', null), 1)).toBeUndefined()
-    expect(blindSeat(m('rounds', 1), 1)).toBeUndefined()
   })
 })

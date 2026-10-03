@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, initialState, step, type SimState } from '../sim/step'
+import { firstBuilder } from '../sim/match'
+import { opponent } from '../sim/possession'
+import type { TowerSpec, WallSpec } from '../sim/wall'
 import { hudModel } from './model'
 
 const view = { active: 1 as const, viewer: 1 as const, armed: false, tappable: false }
@@ -17,30 +20,56 @@ describe('hudModel', () => {
   })
   describe('blind opening build', () => {
     const c = { ...defaultConfig, mode: 'siege' as const }
-    const wall = (id: number, owner: 1 | 2) => ({ id, hp: 3, kind: 'wall' as const, owner, shape: 'straight' as const, rotation: 0 as const, at: { gx: 2, gy: id } })
-    const built = (): SimState => ({ ...initialState(1, c), objects: [wall(1, 1), wall(2, 1), wall(3, 2)] })
-    it('shows "?" for the opponent of the viewer while a build is on, and the viewer\'s own count', () => {
-      const s = built()
-      expect(s.match.builder).not.toBeNull()
-      const m1 = hudModel(s, c, { ...view, viewer: 1 })
-      expect([m1.players[1].digit, m1.players[2].digit]).toEqual(['2', '?'])
-      const m2 = hudModel(s, c, { ...view, viewer: 2 })
-      expect([m2.players[1].digit, m2.players[2].digit]).toEqual(['?', '1'])
+    const piece = (owner: 1 | 2): WallSpec => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 10, gy: owner === 1 ? 40 : 10 } })
+    const steal = (owner: 1 | 2): TowerSpec => ({ kind: 'tower', owner, power: 'steal', at: { gx: 4, gy: owner === 1 ? 40 : 10 } })
+    /** Drives the opening: the builder places a wall and a Steal tower (or just a wall). */
+    const build = (s: SimState, spec: WallSpec | TowerSpec) => step(s, { placeWall: spec }, c).state
+    const done = (s: SimState) => step(s, { done: s.match.builder! }, c).state
+    const first = firstBuilder(1, 1)
+    const second = opponent(first)
+    const afterFirst = () => done(build(build(initialState(1, c), piece(first)), steal(first)))
+    const afterSecond = () => done(build(afterFirst(), piece(second)))
+    const digits = (s: SimState, viewer: 1 | 2, active: 1 | 2 = viewer) => {
+      const m = hudModel(s, c, { ...view, active, viewer })
+      return [m.players[1].digit, m.players[2].digit]
+    }
+
+    it('shows "?" for the viewer\'s opponent while a build is on, and the viewer\'s own count', () => {
+      const s = afterFirst()
+      expect(s.match.builder).toBe(second)
+      expect(digits(s, second)).toEqual(second === 1 ? ['0', '?'] : ['?', '0'])
+      expect(digits(s, first)).toEqual(first === 1 ? ['2', '?'] : ['?', '2'])
     })
     it('is decided by the viewer, not by whose strip is shown', () => {
-      const m = hudModel(built(), c, { ...view, active: 2, viewer: 1 })
-      expect([m.players[1].digit, m.players[2].digit]).toEqual(['2', '?'])
+      expect(digits(afterFirst(), first, second)).toEqual(first === 1 ? ['2', '?'] : ['?', '2'])
     })
-    it('shows the number once play starts', () => {
-      const s = { ...built(), match: { ...built().match, builder: null } }
-      const m = hudModel(s, c, view)
-      expect([m.players[1].digit, m.players[2].digit]).toEqual(['2', '1'])
+    it('shows the number once the second Done starts play', () => {
+      const s = afterSecond()
+      expect(s.match.builder).toBeNull()
+      expect(digits(s, 1)[first - 1]).toBe('2')
+      expect(digits(s, 1)[second - 1]).toBe('1')
     })
-    it('Rounds build phases keep showing the score', () => {
-      const s = initialState(1)
-      expect(s.match.builder).not.toBeNull()
-      const m = hudModel(s, defaultConfig, view)
+    it('does not reveal the opponent\'s towers through their inventory badges', () => {
+      const s = afterFirst()
+      expect(s.players[first].inventory.steal).toBe(2)
+      const m = hudModel(s, c, { ...view, viewer: second })
+      expect(m.players[first].inventory).toEqual({ breaker: 3, repulsor: 3, steal: 3 })
+      expect(hudModel(s, c, { ...view, viewer: first }).players[first].inventory.steal).toBe(2)
+      expect(hudModel(afterSecond(), c, { ...view, viewer: second }).players[first].inventory.steal).toBe(2)
+    })
+    it('shows build points only for the viewer\'s own build', () => {
+      const s = build(afterFirst(), piece(second))
+      expect(hudModel(s, c, { ...view, viewer: second }).phase).toMatch(/^Build · \d+ pts$/)
+      expect(hudModel(s, c, { ...view, viewer: first }).phase).toBe('Build')
+    })
+    it('Rounds build phases keep the score, the badges and the points', () => {
+      let s = initialState(1)
+      const b = s.match.builder!
+      s = step(s, { placeWall: { kind: 'tower', owner: b, power: 'steal', at: { gx: 4, gy: b === 1 ? 40 : 10 } } }, defaultConfig).state
+      const m = hudModel(s, defaultConfig, { ...view, viewer: opponent(b) })
       expect([m.players[1].digit, m.players[2].digit]).toEqual(['0', '0'])
+      expect(m.players[b].inventory.steal).toBe(2)
+      expect(m.phase).toMatch(/^Build · \d+ pts$/)
     })
   })
   it('Siege exposes each owner\'s structure count, towers included', () => {

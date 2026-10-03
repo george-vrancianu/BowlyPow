@@ -1,4 +1,3 @@
-import type { Match } from '../sim/match'
 import { BOARD, HALF_HEIGHT, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId } from '../sim/pitch'
 
 const MAX_VISIBLE_HEIGHT = 64
@@ -52,9 +51,6 @@ export function layout({ width, height }: { width: number; height: number }) {
   const h = MAX_VISIBLE_HEIGHT * scale
   return { scale, visibleHeight: MAX_VISIBLE_HEIGHT, pane: { x: (width - w) / 2, y: (height - h) / 2, w, h } }
 }
-
-/** The seat whose own half is the only one `viewer` may see: the viewer themselves while a Siege build is on (also while waiting on the opponent's build), else undefined. Rounds stays open information. Hiding is view-only; the sim state is complete. */
-export const blindSeat = (m: Match, viewer: PlayerId): PlayerId | undefined => (m.mode === 'siege' && m.builder ? viewer : undefined)
 
 /** World y range of the opponent's half left out for a blind viewer sitting at `seat`: boards and net included, up to the halfway line. */
 export const fogOf = (seat: PlayerId): { top: number; bottom: number } => (seat === 1 ? { top: MAP_TOP, bottom: HALF_HEIGHT } : { top: HALF_HEIGHT, bottom: MAP_TOP + MAP_HEIGHT })
