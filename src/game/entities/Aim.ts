@@ -1,4 +1,4 @@
-import type { Tier } from '../../config/rules'
+import { rules, type Tier } from '../../config/rules'
 import { visual } from '../../config/visual'
 import { predictPath } from '../../sim/predict'
 import { splashRadius } from '../../sim/splash'
@@ -8,6 +8,9 @@ import { Entity } from './Entity'
 
 /** The aim in progress, as far as the Ghost needs it: `dir` and `power` once the shooter is dragging, the ghost config in effect; `cancel` while cancel-armed. */
 export type AimLine = { tier: number; dir?: Point; power?: number; ghost: Tier['ghost']; cancel?: true }
+
+/** A tier's colour (Touch green, Power red), for its Ghost and hold ring. */
+export const tierColor = (tier: number): string => visual.aim.tierColors[rules.shot.tiers[tier]?.name] ?? visual.aim.tierColors.Touch
 
 /** The first `scale` of a polyline's length. */
 function cut(points: Point[], scale: number): Point[] {
@@ -76,18 +79,24 @@ export class Aim extends Entity {
     return aim?.cancel && state ? { at: state.ball.pos, color: visual.aim.cancel.color } : undefined
   }
 
+  /** The Ghost's colour: its tier's, or the cancel grey while cancel is armed. */
+  get ghostColor(): string | undefined {
+    const { aim } = this
+    return aim && (aim.cancel ? visual.aim.cancel.color : tierColor(aim.tier))
+  }
+
   override update(dt: number): void {
     super.update(dt)
     this.waves = this.waves.filter((w) => this.clock - w.born < visual.aim.waveMs)
   }
 
   protected override render(ctx: CanvasRenderingContext2D): void {
-    const { ghost, cancel } = this
-    if (ghost) {
+    const { ghost, cancel, ghostColor } = this
+    if (ghost && ghostColor) {
       ctx.beginPath()
       ghost.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)))
       ctx.lineCap = ctx.lineJoin = 'round'
-      ctx.strokeStyle = cancel?.color ?? visual.aim.ghost.color
+      ctx.strokeStyle = ghostColor
       ctx.lineWidth = visual.aim.ghost.width
       ctx.stroke()
     }

@@ -1,6 +1,7 @@
 import { visual } from '../../config/visual'
 import type { Ball as BallState } from '../../sim/ball'
 import type { PlayerId, Point } from '../../sim/pitch'
+import { tierColor } from './Aim'
 import { Entity } from './Entity'
 
 /** Disc with a speed-scaled fading trail behind it and a dot that rolls with the distance travelled. */
@@ -10,11 +11,16 @@ export class Ball extends Entity {
   placement?: { at: Point; legal: boolean; radius: number }
   /** The shooter whose ball gets the Breaker outline. */
   armed?: PlayerId
-  /** The aim in progress: its control radius in screen px, and how many screen px a world unit spans. */
-  aim?: { radiusPx: number; pxPerUnit: number }
+  /** The aim in progress: its phase and tier, the hold's climb to the next tier, its control radius in screen px, and how many screen px a world unit spans. */
+  aim?: { phase: 'holding' | 'aiming'; tier: number; holdProgress: number; radiusPx: number; pxPerUnit: number }
+  /** Reduced motion: reaching a tier changes the hold ring's colour without the pulse. */
+  reduced = false
   /** The clock when a Repulsor fired (the trail runs bright for `visual.ball.trailMs`), and the steal sink in progress. */
   private pulsedAt?: number
   private sinking?: { from: Point; to: Point; age: number }
+  // The tier last seen, and the clock when the hold reached a higher one.
+  private lastTier?: number
+  private reachedAt?: number
 
   sync(state: BallState): void {
     this.state = state
@@ -43,12 +49,25 @@ export class Ball extends Entity {
     return this.aim && { at: this.state.pos, radius: this.aim.radiusPx / this.aim.pxPerUnit }
   }
 
+  /** While holding still on the ball: the ring filling towards the next tier, in the tier's colour, pulsing (`scale` > 1) just after reaching one. */
+  get holdRing(): { at: Point; radius: number; progress: number; color: string; scale: number } | undefined {
+    const { aim } = this
+    if (aim?.phase !== 'holding') return undefined
+    const { radiusPx, pulseMs, grow } = visual.ball.hold
+    const k = this.reachedAt === undefined ? 1 : (this.clock - this.reachedAt) / pulseMs
+    const scale = !this.reduced && k < 1 ? 1 + grow * Math.sin(Math.PI * k) : 1
+    return { at: this.state.pos, radius: radiusPx / aim.pxPerUnit, progress: aim.holdProgress, color: tierColor(aim.tier), scale }
+  }
+
   /** A new match: no pulse, no steal sink, no ghost, no aim. */
   reset(): void {
-    this.pulsedAt = this.sinking = this.placement = this.armed = this.aim = undefined
+    this.pulsedAt = this.sinking = this.placement = this.armed = this.aim = this.lastTier = this.reachedAt = undefined
   }
 
   override update(dt: number): void {
+    const tier = this.aim?.phase === 'holding' ? this.aim.tier : undefined
+    if (tier !== undefined && this.lastTier !== undefined && tier > this.lastTier) this.reachedAt = this.clock
+    this.lastTier = tier
     super.update(dt)
     if (this.sinking) this.sinking.age += dt * 1000
   }
@@ -77,6 +96,22 @@ export class Ball extends Entity {
       ctx.lineWidth = width
       ctx.stroke()
       ctx.globalAlpha = 1
+    }
+    const hold = this.holdRing
+    if (hold) {
+      const { width, trackAlpha } = visual.ball.hold
+      const r = hold.radius * hold.scale
+      ctx.lineWidth = width
+      ctx.strokeStyle = hold.color
+      ctx.globalAlpha = trackAlpha
+      ctx.beginPath()
+      ctx.arc(hold.at.x, hold.at.y, r, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+      ctx.beginPath()
+      ctx.arc(hold.at.x, hold.at.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hold.progress)
+      ctx.lineCap = 'round'
+      ctx.stroke()
     }
     if (this.placement) {
       ctx.globalAlpha = visual.ball.ghostAlpha

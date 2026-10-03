@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { feedbackFor, vibration } from './feedback'
+import { visual } from '../config/visual'
+import { feedbackFor, tierBuzz, vibration } from './feedback'
 
 describe('vibration', () => {
   it('pulses longer for a stronger shot', () => {
@@ -41,5 +42,21 @@ describe('feedbackFor', () => {
   it('a shot shakes in proportion to power, none below 30%', () => {
     expect(feedbackFor([{ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 0, power: 0.2 }], [], false).shakes).toEqual([])
     expect(feedbackFor([{ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 1, power: 1 }], [], false).shakes).toEqual([4])
+  })
+})
+
+describe('tierBuzz', () => {
+  const holding = (tier: number) => ({ phase: 'holding' as const, tier })
+  it('buzzes once when the hold reaches a higher tier', () => {
+    expect(tierBuzz(holding(0), holding(1), false)).toBe(visual.aim.vibration.tier)
+    expect(tierBuzz(holding(1), holding(1), false)).toBeUndefined()
+  })
+  it('does not buzz on starting a hold, on dragging, or on letting go', () => {
+    expect(tierBuzz(undefined, holding(0), false)).toBeUndefined()
+    expect(tierBuzz(holding(1), { phase: 'aiming', tier: 1 }, false)).toBeUndefined()
+    expect(tierBuzz(holding(1), undefined, false)).toBeUndefined()
+  })
+  it('stays still under reduced motion', () => {
+    expect(tierBuzz(holding(0), holding(1), true)).toBeUndefined()
   })
 })

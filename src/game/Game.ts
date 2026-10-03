@@ -16,7 +16,7 @@ import { Fog } from './entities/Fog'
 import { Pitch } from './entities/Pitch'
 import { Structures } from './entities/Structures'
 import { routeEvents } from './events'
-import { reducedMotion } from './feedback'
+import { reducedMotion, tierBuzz } from './feedback'
 import { InputController } from './input/InputController'
 import { buildMenu, type BuildActions, type BuildMenu } from './view/buildMenu'
 import { hudModel, roundOf, type HudModel } from './view/hudModel'
@@ -230,6 +230,7 @@ export class Game implements Sink {
     const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
     if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), camera.recenter()
     this.input.edgeScroll(dt)
+    this.input.tickAim()
     if (!camera.held) camera.follow(state.ball.pos.y, dt)
     this.present()
     this.draw()
@@ -249,7 +250,11 @@ export class Game implements Sink {
     structures.selected = !mapOpen && sel && !sel.movable ? sel.id : undefined
     structures.movable = builder && !mapOpen ? state.built : []
     const aim = mapOpen ? undefined : input.aimView()
+    const reduced = reducedMotion()
+    const buzz = tierBuzz(this.ball.aim, aim, reduced)
+    if (buzz) navigator.vibrate?.(buzz)
     this.aim.aim = this.ball.aim = aim
+    this.ball.reduced = reduced
     structures.mark()
     this.pitch.builder = builder ?? undefined
     // During the goal hold the ball rests in the net (the sim has already reset it).

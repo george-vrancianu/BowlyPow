@@ -55,6 +55,25 @@ describe('Aim Ghost', () => {
   })
 })
 
+describe('Aim Ghost colour', () => {
+  const ball = { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }
+  const colourOf = (aim: AimLine) => {
+    const a = new Aim()
+    a.sync({ ...playState(), ball }, defaultConfig)
+    a.aim = aim
+    return a.ghostColor
+  }
+  it('is green for a Touch aim', () => {
+    expect(colourOf({ tier: 0, dir: { x: 0, y: -1 }, power: 0.3, ghost: { until: { contacts: 1 }, scale: 1 } })).toBe('#4ade80')
+  })
+  it('is red for a Power aim', () => {
+    expect(colourOf({ tier: 1, dir: { x: 0, y: -1 }, power: 0.8, ghost: { until: { contacts: 1 }, scale: 0.3 } })).toBe('#f87171')
+  })
+  it('is grey while cancel is armed, whatever the tier', () => {
+    expect(colourOf({ tier: 1, dir: { x: 0, y: -1 }, power: 0.8, ghost: { until: { contacts: 1 }, scale: 0.3 }, cancel: true })).toBe(visual.aim.cancel.color)
+  })
+})
+
 describe('Aim cancel state', () => {
   const ball = { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }
   const ghost = { until: { contacts: 1 }, scale: 1 } as const
