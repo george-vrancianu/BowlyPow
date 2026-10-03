@@ -28,8 +28,8 @@ export function coinFlip(seed: number, round: number): PlayerId {
 
 export const startingPossession = (shooter: PlayerId, c: SimConfig): Possession => ({ shooter, shots: c.shots, inHand: true, live: false })
 
-/** The seat whose own half is the only one `viewer` may see: the viewer themselves while the Siege opening build is on (also while waiting on the opponent's build; not a Rearrange turn), else undefined. Rounds stays open information. A pure function of state; hiding is view-only, so the sim stays complete. */
 /** The Siege opening build is in progress: a build turn while `opening` is set (a Rearrange turn has it cleared). Fog, the reveal and the build label key on this. */
 export const openingBuild = (m: Match): boolean => m.mode === 'siege' && m.opening && m.builder !== null
 
+/** The seat whose own half is the only one `viewer` may see: the viewer themselves while the Siege opening build is on (also while waiting on the opponent's build; not a Rearrange turn), else undefined. Rounds stays open information. A pure function of state; hiding is view-only, so the sim stays complete. */
 export const blindSeat = (m: Match, viewer: PlayerId): PlayerId | undefined => (openingBuild(m) ? viewer : undefined)

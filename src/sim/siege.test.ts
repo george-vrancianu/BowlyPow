@@ -331,9 +331,9 @@ describe('Siege defence turn: Rearrange', () => {
     expect(s.objects.find((o) => o.id === 2)).toMatchObject({ at: { gx: 10, gy: 46 }, hp: 3 })
   })
 
-  it('refuses moves that break placement, no-build or reachability rules, and the opponent structure', () => {
+  it('refuses moves off the pitch, off their half, into the no-build zone, and of the opponent structure', () => {
     const s = rearranging()
-    for (const input of [move(1, 99, 40), move(1, 5, 10), move(3, 20, 44)]) {
+    for (const input of [move(1, 99, 40), move(1, 5, 10), move(1, 10, 54), move(3, 20, 44)]) {
       const r = step(s, input, siege)
       expect(r.events).toContainEqual({ type: 'refused' })
       expect(r.state.objects).toEqual(s.objects)
