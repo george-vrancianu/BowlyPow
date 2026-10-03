@@ -42,7 +42,7 @@ export function buttonRow(specs: ButtonSpec[]): HTMLElement {
 
 const ring = (f: number, color: string = visual.hud.ink) => `conic-gradient(${color} ${f * 360}deg,${visual.hud.track} 0)`
 
-/** DOM overlay mounted over the canvas; call `update` every frame with the current model and canvas size. */
+/** DOM overlay mounted over the canvas; call `update` with the current model and canvas size whenever the view changes. */
 export function createHud(root: HTMLElement, actions: HudActions) {
   const mk = (id: PlayerId) => {
     const color = visual.player.colors[id]

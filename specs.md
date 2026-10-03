@@ -21,7 +21,7 @@ A two-player, turn-based pitch game. Blast a ball into the opponent's goal throu
 - A driver feeds the sim to `Game`. `LocalDriver` (`src/game/driver.ts`) is the hot-seat one: it alone calls `step` and feeds both players' inputs into one sim. A P2P peer would be another driver, so P2P is additive.
 - The DOM HUD and screens are fed only from `Game`'s `onView` callback (fired when the view changes) and drive it through `GameActions`. The pure view models live in `src/game/view/`.
 - Physics is hand-rolled: one ball, static walls, swept circle-vs-segment collision per tick so the ball cannot tunnel through zero-thickness walls at max speed.
-- The sim has unit tests from day one. The renderer has none.
+- The sim has unit tests from day one. Entities and `Game` are tested by behaviour, not pixels.
 
 ## World
 

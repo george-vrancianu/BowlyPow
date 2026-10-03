@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { visual } from '../config/visual'
 import { defaultSettings } from '../sim/settings'
 import { Game, type HudView } from './Game'
 
@@ -113,6 +114,30 @@ describe('Game', () => {
     expect([game.camera.blind, game.fog.blind]).toEqual([builder, builder])
     game.actions.start({ ...defaultSettings, mode: 'rounds' })
     expect(game.fog.blind).toBeUndefined()
+  })
+
+  it('draws the overlay layer last, above the ball and aim', () => {
+    const game = make()
+    expect(game.camera.children.slice(-3)).toEqual([game.ball, game.aim, game.structures.overlay])
+  })
+
+  it('the reveal shows the whole pitch through the map camera with the fog lifted, then returns to the main camera', () => {
+    const game = make()
+    game.actions.start({ ...defaultSettings, mode: 'siege' })
+    const t = performance.now()
+    frame(t)
+    const { match } = game.state
+    if (match.mode !== 'siege') throw new Error('expected siege')
+    game.apply({ ...game.state, match: { ...match, builder: null, opening: false } }, [])
+    const map = vi.spyOn(game.mapCam, 'draw')
+    const main = vi.spyOn(game.camera, 'draw')
+    frame(t)
+    expect(map).toHaveBeenCalledTimes(1)
+    expect(main).not.toHaveBeenCalled()
+    expect(game.fog.blind).toBeUndefined()
+    frame(t + visual.transition.revealMs)
+    expect(main).toHaveBeenCalledTimes(1)
+    expect(map).toHaveBeenCalledTimes(1)
   })
 
   it('a new match forgets the last one\'s visual state', () => {

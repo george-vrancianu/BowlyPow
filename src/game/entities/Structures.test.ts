@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { visual } from '../../config/visual'
 import type { Structure } from '../../sim/wall'
 import { Structures } from './Structures'
@@ -74,42 +74,18 @@ describe('Structures', () => {
   })
 })
 
-/** A context that counts every call by name; assignments are swallowed. */
-const counter = () => {
-  const calls: Record<string, number> = {}
-  const ctx = new Proxy({} as Record<string, unknown>, {
-    get: (_t, k: string) => (k === 'canvas' ? {} : (..._a: unknown[]) => ((calls[k] = (calls[k] ?? 0) + 1), { addColorStop() {} })),
-    set: () => true,
-  })
-  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls }
-}
+/** A context that swallows every call: only the draw methods are under test. */
+const ctx = new Proxy({}, { get: () => () => {}, set: () => true }) as unknown as CanvasRenderingContext2D
+const spyDraws = (s: Structures) => ({ shatter: vi.spyOn(s, 'drawShatter'), particles: vi.spyOn(s, 'drawParticles'), pieces: vi.spyOn(s, 'drawPieces') })
 
 describe('draw order', () => {
-  it('shatter fragments are drawn by the overlay, which sits above the ball and aim, not by the structures', () => {
+  it('fragments, particles, the landing piece and the build ghost are drawn by the overlay, not by the structures', () => {
     const s = new Structures()
-    s.sync([wall(1)])
-    s.shatter(1, from)
-    run(s, 100)
-    const under = counter()
-    s.draw(under.ctx)
-    expect(under.calls.stroke ?? 0).toBe(0)
-    const over = counter()
-    s.overlay.draw(over.ctx)
-    expect(over.calls.stroke).toBeGreaterThan(0)
-  })
-
-  it('particles, the landing piece and the build ghost are drawn by the overlay too', () => {
-    const s = new Structures()
-    s.burst(from, 'red', 3)
-    s.landing = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 10, gy: 40 } }
-    s.ghost = { kind: 'tower', owner: 1, power: 'steal', at: { gx: 4, gy: 40 } }
-    const under = counter()
-    s.draw(under.ctx)
-    expect(under.calls.fillRect ?? 0).toBe(0)
-    const over = counter()
-    s.overlay.draw(over.ctx)
-    expect(over.calls.fillRect).toBeGreaterThanOrEqual(3)
-    expect(over.calls.stroke).toBeGreaterThan(0)
+    const spies = spyDraws(s)
+    s.draw(ctx)
+    for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled()
+    s.overlay.draw(ctx)
+    for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -138,8 +114,8 @@ describe('Structures reset', () => {
     s.sync([tower(1)])
     expect(s.get(1)).toBeInstanceOf(Tower)
     run(s, visual.wall.particles.ms)
-    const c = counter()
-    s.drawParticles(c.ctx)
-    expect(c.calls.fillRect ?? 0).toBe(0)
+    const fillRect = vi.fn()
+    s.drawParticles({ save() {}, restore() {}, fillRect } as unknown as CanvasRenderingContext2D)
+    expect(fillRect).not.toHaveBeenCalled()
   })
 })

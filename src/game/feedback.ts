@@ -4,7 +4,7 @@ import type { SimEvent } from '../sim/step'
 
 /** Events other tickets add to the sim; power is 0..1.. */
 type LaterEvent = { type: 'goal' } | { type: 'charge-full' }
-export type FxEvent = SimEvent | LaterEvent
+type FxEvent = SimEvent | LaterEvent
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 

@@ -18,6 +18,11 @@ export class Fog extends Entity {
   /** The seat whose half is the only one shown; undefined = nothing hidden. */
   blind?: PlayerId
 
+  /** The pitch range hidden right now (the opponent's half); undefined once nothing is blind. */
+  get covered(): { top: number; bottom: number } | undefined {
+    return this.blind && fogOf(this.blind)
+  }
+
   /** `shake` is the offset the world is drawn with, so the fog moves with it. */
   constructor(private camera: () => Camera, private shake: () => Point) {
     super()
@@ -25,7 +30,7 @@ export class Fog extends Entity {
 
   protected override render(ctx: CanvasRenderingContext2D): void {
     const cam = this.camera()
-    if (this.blind) cam.through(ctx, this.shake(), () => this.cover(ctx, this.blind!))
+    if (this.blind) cam.through(ctx, this.shake(), () => this.cover(ctx, this.covered!))
     const { x, y, w, h } = viewOf(ctx.canvas, cam).pane
     const { top, bottom } = fogEdges(cam, ctx.canvas)
     const fade = h * visual.fog.fadeFraction
@@ -40,8 +45,7 @@ export class Fog extends Entity {
   }
 
   /** Over everything, so neither structures, grid, arc nor the ball betray the other half; the halfway line stays. */
-  private cover(ctx: CanvasRenderingContext2D, seat: PlayerId): void {
-    const { top, bottom } = fogOf(seat)
+  private cover(ctx: CanvasRenderingContext2D, { top, bottom }: { top: number; bottom: number }): void {
     const { bleed } = visual.fog
     ctx.fillStyle = visual.camera.bg
     ctx.fillRect(-bleed, top, rules.pitchWidth + 2 * bleed, bottom - top)

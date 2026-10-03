@@ -135,21 +135,6 @@ describe('blind build', () => {
   })
 })
 
-describe('map shake', () => {
-  const ctxWith = (translate: (...a: unknown[]) => void) => ({ canvas: { width: 400, height: 640 }, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, fillRect() {}, scale() {}, translate }) as unknown as CanvasRenderingContext2D
-  it('draws the map through the main camera\'s shake offset', () => {
-    const main = new Camera(54)
-    main.shake(4)
-    main.update(0.05)
-    expect(main.shakeNow).not.toEqual({ x: 0, y: 0 })
-    const shaken: unknown[][] = []
-    const still: unknown[][] = []
-    new Camera(rules.mapY, { stretch: false }).draw(ctxWith((...a) => shaken.push(a)), [], main.shakeNow)
-    new Camera(rules.mapY, { stretch: false }).draw(ctxWith((...a) => still.push(a)), [])
-    expect(shaken[0]).not.toEqual(still[0])
-  })
-})
-
 describe('reset', () => {
   it('ends a shake, the hold and the blind clamp', () => {
     const cam = new Camera(54)

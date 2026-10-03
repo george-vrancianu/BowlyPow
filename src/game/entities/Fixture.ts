@@ -87,9 +87,9 @@ export abstract class Fixture extends Entity {
     return !!this.shattering
   }
 
-  /** A ball hit: a bright flash after damage, a dim one otherwise. */
+  /** A ball hit: a bright flash after damage, a dim one otherwise. A flash still running is kept, so rapid re-hits show the oldest. */
   hit(dim: boolean): void {
-    this.flash = { dim, age: 0 }
+    this.flash ??= { dim, age: 0 }
   }
 
   /** Breaks into one fragment per cell flying from `from`, after `delay` ms (the structure stays whole until then). */

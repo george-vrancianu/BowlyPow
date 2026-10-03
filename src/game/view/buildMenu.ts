@@ -45,11 +45,11 @@ export function legal(s: SimState, sel: Selection): boolean {
   return canPlace(others, sel.spec) && (sel.id !== undefined || s.points[sel.spec.owner] >= structureCost(sel.spec))
 }
 
-/** How far to pan while a piece is held near the top or bottom tenth of the view: toward any of the builder's half that is off screen, never past it. */
+/** How far to pan while a piece is held near the top or bottom `edgeBand` of the view: toward any of the builder's half that is off screen, never past it. */
 export function edgeScrollDy(camY: number, visibleHeight: number, builder: PlayerId, pointerY: number, dt: number): number {
   const [lo, hi] = builder === 1 ? [rules.halfHeight, rules.pitchHeight] : [0, rules.halfHeight]
   const [top, bottom] = [camY - visibleHeight / 2, camY + visibleHeight / 2]
-  const margin = visibleHeight / 10
+  const margin = visibleHeight * visual.input.edgeBand
   return pointerY < top + margin && top > lo ? -Math.min(visual.input.edgeScrollSpeed * dt, top - lo) : pointerY > bottom - margin && bottom < hi ? Math.min(visual.input.edgeScrollSpeed * dt, hi - bottom) : 0
 }
 

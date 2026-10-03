@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { rules } from '../../config/rules'
-import { visual } from '../../config/visual'
 import { Camera, fogOf } from './Camera'
 import { Fog, fogEdges } from './Fog'
 
@@ -18,49 +17,16 @@ describe('fogEdges', () => {
   })
 })
 
-/** A context that records the rects it fills, with the fill style each used. */
-const recorder = () => {
-  const fills: { style: unknown; rect: number[] }[] = []
-  const ctx = {
-    canvas,
-    fillStyle: '' as unknown,
-    save() {},
-    restore() {},
-    beginPath() {},
-    rect() {},
-    clip() {},
-    translate() {},
-    scale() {},
-    createLinearGradient: () => ({ addColorStop() {} }),
-    fillRect(...rect: number[]) {
-      fills.push({ style: ctx.fillStyle, rect })
-    },
-  }
-  return { ctx: ctx as unknown as CanvasRenderingContext2D, fills }
-}
-
 describe('blind fog', () => {
-  const draw = (blind?: 1 | 2) => {
-    const fog = new Fog(() => new Camera(rules.mapY, { stretch: false }), () => ({ x: 0, y: 0 }))
-    fog.blind = blind
-    const r = recorder()
-    fog.draw(r.ctx)
-    return r.fills
-  }
+  const fog = (blind?: 1 | 2) => Object.assign(new Fog(() => new Camera(54), () => ({ x: 0, y: 0 })), { blind })
 
-  it('covers the opponent\'s half up to the halfway line and keeps the line', () => {
-    const { top, bottom } = fogOf(1)
-    const fills = draw(1)
-    expect(fills[0]).toEqual({ style: visual.camera.bg, rect: [-visual.fog.bleed, top, rules.pitchWidth + 2 * visual.fog.bleed, bottom - top] })
-    expect(fills[1]).toEqual({ style: visual.pitch.line, rect: [0, rules.halfHeight - visual.pitch.halfLineWidth / 2, rules.pitchWidth, visual.pitch.halfLineWidth] })
-  })
-
-  it('covers the other half for seat 2', () => {
-    const { top, bottom } = fogOf(2)
-    expect(draw(2)[0]!.rect.slice(1)).toEqual([top, rules.pitchWidth + 2 * visual.fog.bleed, bottom - top])
+  it('covers the opponent\'s half, up to the halfway line', () => {
+    expect(fog(1).covered).toEqual(fogOf(1))
+    expect(fog(2).covered).toEqual(fogOf(2))
+    expect(fogOf(1).bottom).toBe(rules.halfHeight)
   })
 
   it('covers nothing once the opening build is over (the reveal)', () => {
-    expect(draw(undefined)).toEqual([])
+    expect(fog(undefined).covered).toBeUndefined()
   })
 })

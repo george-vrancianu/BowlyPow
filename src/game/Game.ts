@@ -20,7 +20,7 @@ import { InputController } from './input/InputController'
 import { buildMenu, type BuildActions, type BuildMenu } from './view/buildMenu'
 import { hudModel, type HudModel } from './view/hudModel'
 import { phaseButtons } from './view/phaseButtons'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, revealing, type OverlayView } from './view/transition'
+import { advance, angle, blocking, dismiss, goalBall, newTransition, choosingNotice, overlayView, revealing, type OverlayView } from './view/transition'
 
 /** Everything the HUD and screens draw from. Data only: pushed up through `onView` when it changes, never read back. */
 export type HudView = {
@@ -56,6 +56,9 @@ export type GameActions = {
 }
 
 /** The round number for modes that have rounds; the first-play hints show on round 1. */
+/** Hot-seat: every seat is local, so no one is ever waited on. The online wave swaps this one predicate. */
+const mine = () => true
+
 const roundOf = (m: SimState['match']): number | undefined => {
   switch (m.mode) {
     case 'rounds':
@@ -253,9 +256,9 @@ export class Game implements Sink {
     structures.hidden = mapOpen ? [] : [sel?.movable ? sel.id : undefined, input.landing?.id].filter((id) => id !== undefined)
     structures.selected = !mapOpen && sel && !sel.movable ? sel.id : undefined
     structures.movable = builder && !mapOpen ? state.built : []
+    this.aim.charge = mapOpen ? undefined : input.chargeView(this.now)
     structures.preview = new Map(this.aim.preview().map((h) => [h.id, h.own]))
     structures.mark()
-    this.aim.charge = mapOpen ? undefined : input.chargeView(this.now)
     this.pitch.builder = builder ?? undefined
     // During the goal hold the ball rests in the net (the sim has already reset it).
     const inNet = goalBall(this.transition)
@@ -288,9 +291,9 @@ export class Game implements Sink {
     const { shooter, inHand } = state.possession
     const view: HudView = {
       size: { width: this.canvas.clientWidth, height: this.canvas.clientHeight },
-      hud: hudModel(state, this.config, { active: transition.shown, buttons: phaseButtons(state, this.config, { mine: () => true, current: () => this.state, send: (i) => this.driver.send(i), choosable: !blocked }), viewer: this.viewer(), armed: input.armed, tappable: canArm(state, shooter) }),
+      hud: hudModel(state, this.config, { active: transition.shown, buttons: phaseButtons(state, this.config, { mine, current: () => this.state, send: (i) => this.driver.send(i), choosable: !blocked }), viewer: this.viewer(), armed: input.armed, tappable: canArm(state, shooter) }),
       menu: builder && !this.mapOpen && !blocked ? buildMenu(state, builder, { open: input.menuOpen, selection: input.selection, landing: !!input.landing }, input.build) : undefined,
-      overlay: overlayView(transition, now),
+      overlay: overlayView(transition, now, choosingNotice(state.match, mine)),
       angle: angle(transition, now),
       flipped: transition.shown === 2,
       confirm: inHand && !builder && !state.match.choosing && !blocked,
