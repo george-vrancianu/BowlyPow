@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimTick, aimViewOf, cancelArmed, type AimGesture } from './gesture'
+import { aimMove, aimOf, aimPress, aimRelease, aimTick, aimViewOf, cancelArmed, type AimGesture } from './gesture'
 
 const p = (x = 0, y = 0) => ({ x, y })
 // A small ball at (100, 300) on a 400 x 800 px canvas; Touch is the tier a press starts in.
@@ -124,13 +124,6 @@ describe('aim gesture view', () => {
     const v = aimViewOf(dragTo(100, 520))
     expect(v).toMatchObject({ phase: 'aiming', tier: 0, radiusPx: 220, dir: { x: 0, y: -1 } })
     expect(v?.power).toBeCloseTo(0.45)
-  })
-})
-
-describe('aim gesture second finger', () => {
-  it('abandons the aim and pans', () => {
-    const g = aimSecondFinger(dragTo(100, 450))
-    expect([g.phase, aimOf(g), aimRelease(g).type]).toEqual(['pan', null, 'pan'])
   })
 })
 

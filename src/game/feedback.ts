@@ -1,7 +1,7 @@
 import { visual } from '../config/visual'
 import type { PlayerId, Point } from '../sim/pitch'
 import type { SimEvent } from '../sim/step'
-
+import type { GestureView } from './input/gesture'
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -11,12 +11,14 @@ export function vibration(ev: SimEvent): number | number[] | undefined {
   if (ev.type === 'goal') return [...visual.aim.vibration.goal]
 }
 
-type Hold = { phase: 'holding' | 'aiming'; tier: number }
+type Hold = Pick<GestureView, 'phase' | 'tier'>
 
-/** The short buzz when holding still on the ball reaches a higher tier (Power), between one frame's aim view and the next. Dropped under reduced motion. */
+/** Whether holding still on the ball reached a higher tier between one frame's aim view and the next. */
+export const tierClimbed = (prev: Hold | undefined, next: Hold | undefined): boolean => prev?.phase === 'holding' && next?.phase === 'holding' && next.tier > prev.tier
+
+/** The short buzz when holding still on the ball reaches a higher tier (Power). Dropped under reduced motion. */
 export function tierBuzz(prev: Hold | undefined, next: Hold | undefined, reduced: boolean): number | undefined {
-  const climbed = prev?.phase === 'holding' && next?.phase === 'holding' && next.tier > prev.tier
-  return climbed && !reduced ? visual.aim.vibration.tier : undefined
+  return tierClimbed(prev, next) && !reduced ? visual.aim.vibration.tier : undefined
 }
 
 /** What an event batch should trigger. Pure; `Game` turns it into entity calls. Flashes survive reduced motion. */

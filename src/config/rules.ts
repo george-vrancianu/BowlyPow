@@ -27,9 +27,12 @@ const base = {
   splash: { radiusBase: 2, radiusGrowth: 4, heavy: 0.8, light: 0.4 },
 } as const
 
+/** The Shot tiers, by name; each needs a colour in `visual.aim.tierColors`. */
+export type TierName = 'Touch' | 'Power'
+
 /** A Shot tier. The sim reads only `power` and `splash`; the rest drives the aim gesture and the Ghost. */
 export type Tier = {
-  name: string
+  name: TierName
   /** Hold still on the ball this long to reach the tier. */
   holdMs: number
   /** Control radius around the ball, in screen pixels. */

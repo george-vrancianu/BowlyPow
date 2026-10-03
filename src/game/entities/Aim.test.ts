@@ -9,11 +9,11 @@ const wall: WallSpec = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0,
 const placed = () => step(buildState(1), { placeWall: wall }, defaultConfig).state
 
 describe('Aim', () => {
-  it('shows a Power shot\'s Splash ring for waveMs', () => {
+  it('shows a Power shot\'s Splash ring for its duration', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
     a.splash({ x: 20, y: 70 }, 1, 0.75)
-    a.update((visual.aim.waveMs - 1) / 1000)
+    a.update((visual.aim.splash.ms - 1) / 1000)
     expect(a.splashCount).toBe(1)
     a.update(0.002)
     expect(a.splashCount).toBe(0)
@@ -21,7 +21,7 @@ describe('Aim', () => {
   it('shows no ring for a Touch shot', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
-    a.splash({ x: 20, y: 70 }, 0, 0.5)
+    a.splash({ x: 20, y: 70 }, 0, 0.4)
     expect(a.splashCount).toBe(0)
   })
 })

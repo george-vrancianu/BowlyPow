@@ -70,9 +70,6 @@ export function aimViewOf(g: AimGesture): GestureView | undefined {
   return { phase: g.phase, tier: g.tier, holdProgress: holdProgress(g.tier, g.held), radiusPx, ghost, ...dragAim(g), ...(cancelArmed(g) && { cancel: true }) }
 }
 
-/** A second finger keeps the usual pinch/pan and abandons the aim. */
-export const aimSecondFinger = (_g: AimGesture): AimGesture => ({ phase: 'pan' })
-
 /** What a release does: a pan ends, a release with no aim (within the slop or the edge zone) cancels, anything else fires. */
 export type AimResult = { type: 'pan' } | { type: 'cancelled' } | { type: 'shot'; aim: Aim }
 

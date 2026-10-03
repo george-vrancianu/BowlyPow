@@ -6,7 +6,7 @@ import type { Aiming, SimConfig, SimInput, SimState } from '../../sim/step'
 import { vertexToWorld } from '../../sim/wall'
 import { layout, type Camera } from '../entities/Camera'
 import { commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type BuildActions, type Piece, type Selection } from '../view/buildMenu'
-import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimTick, aimViewOf, type Aim, type AimGesture, type GestureView } from './gesture'
+import { aimMove, aimOf, aimPress, aimRelease, aimTick, aimViewOf, type Aim, type AimGesture, type GestureView } from './gesture'
 
 /** The aim view `Game` pushes into the Ball (hold and control rings) and Aim (Ghost): the gesture's view plus the screen px per world unit. */
 export type AimView = GestureView & { pxPerUnit: number }
@@ -250,7 +250,7 @@ export class InputController {
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (this.pointers.size > 1) {
       // A second finger pinches/pans and abandons the aim.
-      if (this.aim) (this.aim.gesture = aimSecondFinger(this.aim.gesture)), this.sendAiming(null)
+      if (this.aim) (this.aim.gesture = { phase: 'pan' }), this.sendAiming(null)
       this.drag = undefined
       return
     }

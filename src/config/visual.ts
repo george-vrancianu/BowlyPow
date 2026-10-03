@@ -1,3 +1,5 @@
+import type { TierName } from './rules'
+
 const ink = '#e8eaf0'
 const dark = '#0b0f1a'
 const outline = '#05070d'
@@ -107,12 +109,11 @@ export const visual = {
     /** The Ghost: the ball's predicted path while aiming. */
     ghost: { width: 0.3 },
     /** Each tier's colour, by name: the Ghost and the hold ring. */
-    tierColors: { Touch: '#4ade80', Power: '#f87171' } as Record<string, string>,
+    tierColors: { Touch: '#4ade80', Power: '#f87171' } satisfies Record<TierName, string>,
     /** Cancel-armed: the Ghost greys out and an ✕ (half-size `size`, world units) sits on the ball. */
     cancel: { color: '#9ca3af', size: 1.2, width: 0.35 },
-    waveMs: 250,
-    wave: cream,
-    waveWidth: 0.3,
+    /** The Splash ring of a fired Power shot: expands to the Splash radius over `ms`. */
+    splash: { ms: 250, color: cream, width: 0.3 },
     /** `tier`: the short buzz on reaching a higher tier while holding. */
     vibration: { shotBase: 10, shotPerPower: 40, goal: [60, 40, 60], tier: 30 },
   },
