@@ -39,6 +39,7 @@ function match(seed: number, lag: number, ticks: number, play: (s: SimState, me:
       const input = net.advance(states[i].possession.shooter)
       if (input) {
         const r = step(states[i], input, cfg)
+        net.stepped(r.events)
         states[i] = r.state
         if (i === 0) shots.push(...r.events.filter((e) => e.type === 'shot-fired'))
       }
@@ -135,6 +136,22 @@ describe('lockstep', () => {
     const peers = match(5, 3, 1500, hold)
     expect(peers[0]).toEqual(peers[1])
     expect(peers.shots).toContainEqual(expect.objectContaining({ type: 'shot-fired', power: 0.6 }))
+  })
+
+  it('drops an aim the shot clock fired, on both peers: it does not fire again at the next expiry', () => {
+    // Player 1 holds an aim once and never sends another input; player 2 only ends build turns.
+    let aimed = false
+    const once = (s: SimState, me: PlayerId): SimInput => {
+      if (s.match.builder === me) return { done: me }
+      const { possession: p } = s
+      if (me !== 1 || p.shooter !== 1 || s.match.builder || p.live || aimed) return {}
+      if (p.inHand) return s.tick % 20 === 0 ? { placeBall: { player: 1, at: { x: 20, y: 80 } } } : {}
+      aimed = true
+      return { aiming: { dir: { x: 1, y: 0 }, tier: 0, power: 0.3 } }
+    }
+    const peers = match(5, 3, 3000, once)
+    expect(peers[0]).toEqual(peers[1])
+    expect(peers.shots.filter((e) => (e as { power: number }).power === 0.3)).toHaveLength(1)
   })
 
   describe('Siege defence choice under the build timer', () => {

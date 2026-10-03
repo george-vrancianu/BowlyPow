@@ -1,5 +1,5 @@
 import type { PlayerId } from '../sim/pitch'
-import type { Aiming, SimInput } from '../sim/step'
+import type { Aiming, SimEvent, SimInput } from '../sim/step'
 
 /** A peer's input (if any) for sim tick `t`. Frames arrive in order, so `t` also says it has no other input before `t`. */
 export type Frame = { t: number; i?: SimInput }
@@ -20,7 +20,7 @@ export function lockstep(send: (f: Frame) => void, me: PlayerId, delay = 6) {
   let heard = delay - 1
   let pending: SimInput = {}
   let n = 0
-  // An aim stays in force until its owner replaces it, clears it (null) or fires; the sim reads it only on shot-clock expiry.
+  // An aim stays in force until its owner replaces it, clears it (null) or a shot is fired (sent, or by the shot clock: see `stepped`); the sim reads it only on shot-clock expiry.
   const aims: Partial<Record<PlayerId, Aiming>> = {}
   const take = (who: 'mine' | 'theirs', player: PlayerId) => {
     const { aiming, ...rest } = inputs[who].get(n) ?? {}
@@ -33,6 +33,10 @@ export function lockstep(send: (f: Frame) => void, me: PlayerId, delay = 6) {
     /** Queue this peer's input for the next frame it sends. */
     submit(i: SimInput) {
       pending = { ...pending, ...i }
+    },
+    /** Report the events of the tick just stepped: a fired shot spends its player's aim, however it was fired. */
+    stepped(events: readonly SimEvent[]) {
+      for (const e of events) if (e.type === 'shot-fired') aims[e.player] = undefined
     },
     receive(f: Frame) {
       if (f.i) inputs.theirs.set(f.t, f.i)
