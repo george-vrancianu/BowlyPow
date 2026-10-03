@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { PLAYER_COLORS } from '../sim/player'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, type Frame, type Transition } from './transition'
 
 const base: Frame = { active: 1, round: 1, inHand: true, phase: 'Play', events: [], now: 0, reduced: false }
@@ -75,6 +76,31 @@ describe('phase sweep', () => {
     expect(blocking(t)).toBe(false)
     t = go(t, { now: 3000, phase: 'Build' })
     expect(t.overlay).toBeUndefined()
+  })
+})
+
+describe('repaired sweep', () => {
+  it('sweeps REPAIRED once in the repairer\'s colour, however many structures were repaired, and holds the sim like the goal banner', () => {
+    const t = go(open(), { now: 2000, events: [{ type: 'repaired', id: 1, player: 1 }, { type: 'repaired', id: 2, player: 1 }] })
+    expect(overlayView(t, 2500)).toMatchObject({ kind: 'sweep', text: 'REPAIRED', progress: 0.5 })
+    expect(overlayView(t, 2500)!.color).toBe(PLAYER_COLORS[1])
+    expect(blocking(t)).toBe(true)
+    expect(blocking(go(t, { now: 3000 }))).toBe(false)
+  })
+})
+
+describe('repaired sweep in hot-seat', () => {
+  it('holds the handover until the sweep ends, even when the active player changes in the same frame', () => {
+    let t = go(open(), { now: 2000, active: 2, events: [{ type: 'repaired', id: 1, player: 1 }] })
+    expect(blocking(t)).toBe(true) // the conceder is already active, but the scorer's screen stays up and the sim holds
+    expect(overlayView(t, 2500)).toMatchObject({ kind: 'sweep', text: 'REPAIRED' })
+    expect(t.flip).toBeUndefined()
+    t = go(t, { now: 2600, active: 2 })
+    expect(overlayView(t, 2600)?.text).toBe('REPAIRED')
+    t = go(t, { now: 3000, active: 2 })
+    expect(blocking(t)).toBe(true) // the flip and turn card keep holding it
+    expect(t.flip).toBeDefined()
+    expect(overlayView(t, 3000)?.text).toBe("Player 2's turn")
   })
 })
 

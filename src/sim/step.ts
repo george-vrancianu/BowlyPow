@@ -1,6 +1,6 @@
 import { goalCrossed, HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
 import type { GameModeName, Match } from './match'
-import { modeFor, modeNamed, type ModeContext } from './mode'
+import { modeFor, modeNamed, type DefenceChoice, type ModeContext } from './mode'
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
@@ -32,6 +32,8 @@ export type SimEvent =
   /** An opponent's ball hit a Steal tower: the ball stopped and the tower (hp 0) is gone. */
   | { type: 'steal-triggered'; tower: Structure; owner: PlayerId; at: Point }
   | { type: 'repulsor-fired'; tower: number; at: Point }
+  /** A defence-turn Repair restored this structure to full HP. */
+  | { type: 'repaired'; id: number; player: PlayerId }
 
 export type SimState = {
   tick: number
@@ -62,6 +64,8 @@ export type SimInput = {
   charging?: { origin: Point; power: number; breaker?: boolean }
   /** The builder ends their build turn. */
   done?: PlayerId
+  /** The player the match is waiting on makes their defence choice. */
+  defence?: { player: PlayerId; choice: DefenceChoice }
   /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   placeBall?: { player: PlayerId; at: Point }
 }
@@ -132,6 +136,8 @@ export function step(
   const shooter = state.possession.shooter
   const events: SimEvent[] = []
   const building = match.builder !== null
+  // Play is held while a defence choice is owed: no blasts, no ball placement, no shot clock.
+  const waiting = match.choosing !== null
   const { placeWall, demolish, moveStructure: move } = input
   /** Places a piece for the builder if cost, stock and position allow. */
   const place = (spec: StructureSpec): boolean => {
@@ -167,20 +173,33 @@ export function step(
   let { possession } = state
   const { placeBall } = input
   if (placeBall) {
-    if (!building && possession.inHand && placeBall.player === possession.shooter && canPlaceBall(placeBall.player, placeBall.at, objects, config)) {
+    if (!building && !waiting && possession.inHand && placeBall.player === possession.shooter && canPlaceBall(placeBall.player, placeBall.at, objects, config)) {
       ball = { ...ball, pos: placeBall.at, vel: { x: 0, y: 0 } }
       possession = { ...possession, inHand: false }
+    } else events.push({ type: 'refused' })
+  }
+  let chose = false
+  const { defence } = input
+  if (defence) {
+    const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, possession.shooter), config) : null
+    if (r) {
+      chose = true
+      match = r.match
+      if (r.possession) possession = r.possession
+      if (r.ball) ball = { ...ball, pos: r.ball, vel: { x: 0, y: 0 } }
+      if (r.objects) objects = r.objects
+      events.push(...r.events)
     } else events.push({ type: 'refused' })
   }
   let { clock } = state
   const buildExpired = building && config.buildTime > 0 && clock.left <= 1
   if (building && config.buildTime > 0) clock = { ...clock, left: Math.max(0, clock.left - 1) }
-  const expired = !building && !possession.live && clock.left <= 1
-  if (!building && !possession.live) clock = { ...clock, left: clock.left - 1 }
+  const expired = !building && !waiting && !possession.live && clock.left <= 1
+  if (!building && !waiting && !possession.live) clock = { ...clock, left: clock.left - 1 }
   const { charging } = input
   const blast = input.blast ?? (expired && charging && canBlastFrom(possession.shooter, charging.origin, { objects, ball }, config) ? { player: possession.shooter, ...charging } : undefined)
   if (blast) {
-    if (!building && blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config) && (!blast.breaker || players[blast.player].inventory.breaker > 0)) {
+    if (!building && !waiting && blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config) && (!blast.breaker || players[blast.player].inventory.breaker > 0)) {
       if (blast.breaker) players = spend(players, blast.player, 'breaker')
       events.push({ type: 'blast-fired', ...blast })
       possession = { ...possession, live: true }
@@ -262,7 +281,7 @@ export function step(
   if (conceder || consumed) {
     const winner = mode.winner(match, ctxOf(rolled.objects, possession, shooter), config)
     if (winner && !match.winner) {
-      match = { ...match, winner, builder: null }
+      match = { ...match, winner, builder: null, choosing: null }
       events.push({ type: 'match-ended', winner })
     }
   }
@@ -274,7 +293,7 @@ export function step(
     if (config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
   }
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
-  if (possession.shooter !== state.possession.shooter || fired || ended) clock = { ...clock, expiries: 0 }
-  if (expired || fired || ended || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
+  if (possession.shooter !== state.possession.shooter || fired || ended || chose) clock = { ...clock, expiries: 0 }
+  if (expired || fired || ended || chose || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
   return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, built, ball: landed }, events }
 }

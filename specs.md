@@ -60,7 +60,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 - No score and no rounds. One opening build phase with the Rounds ordering (coin-flip loser builds first, the winner gets ball-in-hand), then play; there are no further build phases.
 - Done is refused (`refused` event, the turn continues) until the builder owns a structure, and the Done button is disabled meanwhile; otherwise an empty defence would be an instant loss.
 - If the build timer runs out while the builder owns nothing, the sim places a fallback piece (a straight wall at a fixed cell on the builder's half, or a Repulsor if the wall is unaffordable) and then finishes the turn, with no `refused` event. The build clock never goes below 0.
-- A goal emits the goal event, resets the ball to the pitch center and gives the conceder ball-in-hand with a fresh shot counter. Own goals count for the opponent.
+- A goal emits the goal event and resets the ball to the pitch center. The scorer then takes a defence turn (the opponent of the shooter after an own goal): the sim holds play (no blasts, no ball placement, shot clock frozen) until they choose. Repair restores every surviving structure they own to full HP and emits one `repaired` event per surviving structure they own, structures already at full HP included, so the label and flash always fire (the renderer flashes it and a REPAIRED label sweeps across); Rearrange comes later. The choice is a `defence` input from the scorer; from anyone else, or outside the window, it is refused. After it the conceder has ball-in-hand at the center with a fresh shot counter.
 - There is no shot cap: shots never end anything.
 - The HUD shows each player's remaining structure count, towers included, in place of the score digit, and no round label.
 - Wipe-out: the match ends when a player owns no structures, towers included (a Steal tower consumed as the last piece counts). The check runs only when the ball comes to rest or a goal is scored, never mid-flight, so fragments fly and the ball settles before the winner banner. If both players are at zero, the shooter loses. After `match-ended` the sim ignores input. The end screen shows the winner and their surviving structure count instead of a score.
@@ -219,7 +219,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 - Handover flip: animated 180-degree rotation over 400 ms, with the turn overlay fading in during the second half so nobody sees the pitch upside-down.
 - Goal: 1.5 s hold with a full-width "GOAL" banner in the scorer's colour, the scoreboard digit flipping, the ball resting in the net. Then the normal handover.
-- Build and play: a 1 s "BUILD" or "PLAY" label sweeping across the pitch.
+- Build and play: a 1 s "BUILD" or "PLAY" label sweeping across the pitch. In Siege a Repair adds a "REPAIRED" label of the same kind; in hot-seat the handover waits until it has finished.
 - All interstitials are one overlay component. In round 1 only, turn overlays carry short hints ("Hold on the pitch to charge a blast").
 
 ### HUD
