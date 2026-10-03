@@ -94,6 +94,8 @@ export const visual = {
     armed: { radius: 1.5, swing: 0.25, periodMs: 120, width: 0.3 },
     /** The faint control-radius ring while aiming. */
     control: { color: white, alpha: 0.25, width: 0.15 },
+    /** The hold ring, `radiusPx` screen px out, filling while the shooter holds still; reaching a new tier pulses it (up to `grow` larger) over `pulseMs`. */
+    hold: { radiusPx: 36, width: 0.3, trackAlpha: 0.25, pulseMs: 300, grow: 0.35 },
   },
   aim: {
     /** A press this close to the ball's centre (or within its on-screen radius, if larger) starts aiming, in screen px. */
@@ -103,13 +105,16 @@ export const visual = {
     /** Within this many screen px of any canvas edge the aim is cancel-armed: releasing cancels, moving back out re-arms. */
     edgeCancelPx: 24,
     /** The Ghost: the ball's predicted path while aiming. */
-    ghost: { color: '#4ade80', width: 0.3 },
+    ghost: { width: 0.3 },
+    /** Each tier's colour, by name: the Ghost and the hold ring. */
+    tierColors: { Touch: '#4ade80', Power: '#f87171' } as Record<string, string>,
     /** Cancel-armed: the Ghost greys out and an ✕ (half-size `size`, world units) sits on the ball. */
     cancel: { color: '#9ca3af', size: 1.2, width: 0.35 },
     waveMs: 250,
     wave: cream,
     waveWidth: 0.3,
-    vibration: { shotBase: 10, shotPerPower: 40, goal: [60, 40, 60] },
+    /** `tier`: the short buzz on reaching a higher tier while holding. */
+    vibration: { shotBase: 10, shotPerPower: 40, goal: [60, 40, 60], tier: 30 },
   },
   input: { tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
   transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000, revealMs: 1500 },

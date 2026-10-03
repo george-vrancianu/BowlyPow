@@ -46,12 +46,31 @@ describe('Aim Ghost', () => {
   })
   it('follows whatever ghost config is in effect', () => {
     // Off the left board first, then on to the end board.
-    const g = ghostOf({ until: { contacts: 2 }, scale: 1 }, { dir: { x: -0.6, y: -0.8 }, power: 1 })!
+    const g = ghostOf({ until: { contacts: 2 }, scale: 1 }, { tier: 1, dir: { x: -0.6, y: -0.8 }, power: 1 })!
     expect(g.some((p) => Math.abs(p.x - 1) < 1e-6)).toBe(true)
     expect(g.at(-1)!.y).toBeCloseTo(1)
   })
   it('shows no Ghost before the drag', () => {
     expect(ghostOf(touch, {})).toBeUndefined()
+  })
+})
+
+describe('Aim Ghost colour', () => {
+  const ball = { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }
+  const colourOf = (aim: AimLine) => {
+    const a = new Aim()
+    a.sync({ ...playState(), ball }, defaultConfig)
+    a.aim = aim
+    return a.ghostColor
+  }
+  it('is green for a Touch aim', () => {
+    expect(colourOf({ tier: 0, dir: { x: 0, y: -1 }, power: 0.3, ghost: { until: { contacts: 1 }, scale: 1 } })).toBe('#4ade80')
+  })
+  it('is red for a Power aim', () => {
+    expect(colourOf({ tier: 1, dir: { x: 0, y: -1 }, power: 0.8, ghost: { until: { contacts: 1 }, scale: 0.3 } })).toBe('#f87171')
+  })
+  it('is grey while cancel is armed, whatever the tier', () => {
+    expect(colourOf({ tier: 1, dir: { x: 0, y: -1 }, power: 0.8, ghost: { until: { contacts: 1 }, scale: 0.3 }, cancel: true })).toBe(visual.aim.cancel.color)
   })
 })
 

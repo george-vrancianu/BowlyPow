@@ -18,7 +18,7 @@ function bot(s: SimState, me: PlayerId): SimInput {
     const at = { x: 20, y: me === 1 ? 80 : 28 }
     return canPlaceBall(me, at, s.objects, config) ? { placeBall: { player: me, at } } : {}
   }
-  return { shot: { player: me, dir: { x: 0, y: me === 1 ? -1 : 1 }, tier: 0, power: 0.8 } }
+  return { shot: { player: me, dir: { x: 0, y: me === 1 ? -1 : 1 }, tier: 1, power: 0.8 } }
 }
 
 /** Two peers over a link where each frame arrives `lag` rounds late; a peer missing a frame stalls. */
@@ -90,7 +90,7 @@ describe('lockstep', () => {
   })
 
   describe('a held aim', () => {
-    const aiming = { dir: { x: 0, y: -1 }, tier: 0, power: 0.6 }
+    const aiming = { dir: { x: 0, y: -1 }, tier: 1, power: 0.6 }
     /** Player 1's peer beside a silent player 2: tick `t` submits `inputs[t]` (if any). Returns what advance gives shooter 1, with consecutive repeats collapsed. */
     const held = (inputs: Record<number, SimInput>) => {
       const a = lockstep(() => {}, 1, DELAY)
@@ -130,7 +130,7 @@ describe('lockstep', () => {
       const { possession: p } = s
       if (p.shooter !== me || s.match.builder || p.live) return {}
       if (p.inHand) return s.tick % 20 === 0 ? { placeBall: { player: me, at: { x: 20, y: me === 1 ? 80 : 28 } } } : {}
-      return s.tick % 20 === 0 ? { aiming: { dir: { x: 0, y: me === 1 ? -1 : 1 }, tier: 0, power: 0.6 } } : {}
+      return s.tick % 20 === 0 ? { aiming: { dir: { x: 0, y: me === 1 ? -1 : 1 }, tier: 1, power: 0.6 } } : {}
     }
     const peers = match(5, 3, 1500, hold)
     expect(peers[0]).toEqual(peers[1])

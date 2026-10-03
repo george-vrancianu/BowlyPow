@@ -8,8 +8,12 @@ A two-player pitch game: build structures, then shoot a ball into the opponent's
 How the shooter moves the ball, pool-style: press on the ball, drag back, release. The ball goes in the opposite direction to the drag, with power from the drag length. Releasing without having dragged, or at the canvas edge (where the Ghost greys out with an ✕), does nothing. It replaced the radial blast (ADR-0003).
 _Avoid_: Blast, kick, charge
 
+**Tier**:
+The kind of Shot, picked by how long the shooter holds still on the ball before dragging; the first drag locks it. Each tier sets its control radius, power curve and range, and Ghost. **Touch** (drag right away) is weak and precise: a large radius, a longer drag is stronger, a full green Ghost. **Power** (hold 1 s) is strong: a small radius, a shorter drag is stronger, a short red Ghost.
+_Avoid_: Mode, level, charge
+
 **Ghost**:
-The ball's predicted path, drawn from the ball while aiming a Shot, showing where it will go.
+The ball's predicted path, drawn from the ball while aiming a Shot in its Tier's colour, showing where it will go.
 _Avoid_: Preview, arrow, trajectory
 
 **Rounds**:

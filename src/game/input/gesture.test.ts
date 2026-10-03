@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimViewOf, cancelArmed } from './gesture'
+import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimTick, aimViewOf, cancelArmed, type AimGesture } from './gesture'
 
 const p = (x = 0, y = 0) => ({ x, y })
 // A small ball at (100, 300) on a 400 x 800 px canvas; Touch is the tier a press starts in.
@@ -52,6 +52,50 @@ describe('aim gesture drag', () => {
   })
 })
 
+// Power: held still for 1000 ms; radius 90 px, power [0.5, 1], eased inverted curve.
+describe('aim gesture tiers', () => {
+  const held = (ms: number) => aimTick(press(), ms)
+  const tier = (g: AimGesture) => aimViewOf(g)?.tier
+  it('stays Touch just short of holdMs', () => {
+    expect(tier(held(999))).toBe(0)
+  })
+  it('climbs to Power at holdMs while the pointer stays still', () => {
+    expect(tier(held(1000))).toBe(1)
+  })
+  it('climbs while the pointer wanders within the slop', () => {
+    expect(tier(aimMove(press(), p(105, 305), 1000))).toBe(1)
+  })
+  it('locks the tier on the first move past the slop', () => {
+    const dragged = aimMove(press(), p(100, 340), 500)
+    expect(tier(aimTick(dragged, 5000))).toBe(0)
+    expect(aimOf(aimMove(dragged, p(100, 360), 5000))!.tier).toBe(0)
+  })
+  it('never climbs during a drag, even back within the slop', () => {
+    const back = aimMove(aimMove(press(), p(100, 340), 500), p(101, 301), 600)
+    expect(tier(aimMove(back, p(102, 302), 5000))).toBe(0)
+  })
+  it('takes the tier reached by the time of the move that leaves the slop', () => {
+    expect(aimOf(aimMove(press(), p(100, 340), 1200))!.tier).toBe(1)
+  })
+  const powerTo = (y: number) => aimOf(aimMove(held(1000), p(100, y), 1100))!
+  it('is strongest just past the slop on the inverted curve', () => {
+    expect(powerTo(308.001).power).toBeCloseTo(1)
+  })
+  it('is weakest at the Power control radius, and stays there past it', () => {
+    expect(powerTo(300 + 90).power).toBeCloseTo(0.5)
+    expect(powerTo(300 + 200).power).toBeCloseTo(0.5)
+  })
+  it('mirrors the Touch easing: halfway along the drag is a quarter of the way up the range', () => {
+    expect(powerTo(300 + 8 + 41).power).toBeCloseTo(0.625)
+  })
+  it('shows how far the hold has climbed towards the next tier', () => {
+    expect(aimViewOf(held(0))?.holdProgress).toBe(0)
+    expect(aimViewOf(held(250))?.holdProgress).toBeCloseTo(0.25)
+    expect(aimViewOf(held(1000))).toMatchObject({ tier: 1, radiusPx: 90, holdProgress: 1 })
+    expect(aimViewOf(held(3000))?.holdProgress).toBe(1)
+  })
+})
+
 describe('aim gesture release', () => {
   it('fires the aim held at release', () => {
     const r = aimRelease(dragTo(100, 520))
@@ -74,7 +118,7 @@ describe('aim gesture view', () => {
     expect(aimViewOf(press(p(0, 0)))).toBeUndefined()
   })
   it('shows the Touch control radius and no direction before the drag', () => {
-    expect(aimViewOf(press())).toEqual({ phase: 'holding', tier: 0, radiusPx: 220, ghost: { until: { contacts: 1 }, scale: 1 } })
+    expect(aimViewOf(press())).toEqual({ phase: 'holding', tier: 0, holdProgress: 0, radiusPx: 220, ghost: { until: { contacts: 1 }, scale: 1 } })
   })
   it('shows the aim once dragging', () => {
     const v = aimViewOf(dragTo(100, 520))

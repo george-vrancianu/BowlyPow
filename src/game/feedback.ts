@@ -11,6 +11,14 @@ export function vibration(ev: SimEvent): number | number[] | undefined {
   if (ev.type === 'goal') return [...visual.aim.vibration.goal]
 }
 
+type Hold = { phase: 'holding' | 'aiming'; tier: number }
+
+/** The short buzz when holding still on the ball reaches a higher tier (Power), between one frame's aim view and the next. Dropped under reduced motion. */
+export function tierBuzz(prev: Hold | undefined, next: Hold | undefined, reduced: boolean): number | undefined {
+  const climbed = prev?.phase === 'holding' && next?.phase === 'holding' && next.tier > prev.tier
+  return climbed && !reduced ? visual.aim.vibration.tier : undefined
+}
+
 /** What an event batch should trigger. Pure; `Game` turns it into entity calls. Flashes survive reduced motion. */
 export function feedbackFor(events: SimEvent[], walls: { id: number; owner: PlayerId }[], reduced: boolean) {
   const out = { flashes: [] as { wall: number; dim: boolean }[], bursts: [] as { at: Point; color: string; count: number }[], shakes: [] as number[], vibrations: [] as (number | number[])[] }

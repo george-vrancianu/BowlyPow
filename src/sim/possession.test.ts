@@ -25,7 +25,7 @@ describe('possession', () => {
     expect(c.shots).toBe(3)
   })
   it('does nothing until the ball rests', () => {
-    const r = step(base(at(80)), { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 0, power: 1 } }, c)
+    const r = step(base(at(80)), { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 } }, c)
     expect(r.state.ball.vel.y).not.toBe(0)
     expect(r.state.possession).toEqual({ shooter: 1, shots: 3, inHand: false, live: true })
     expect(r.events.some((e) => e.type === 'possession-changed')).toBe(false)

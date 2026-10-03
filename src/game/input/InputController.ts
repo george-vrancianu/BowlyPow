@@ -6,9 +6,9 @@ import type { Aiming, SimConfig, SimInput, SimState } from '../../sim/step'
 import { vertexToWorld } from '../../sim/wall'
 import { layout, type Camera } from '../entities/Camera'
 import { commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type BuildActions, type Piece, type Selection } from '../view/buildMenu'
-import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimViewOf, type Aim, type AimGesture, type GestureView } from './gesture'
+import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimTick, aimViewOf, type Aim, type AimGesture, type GestureView } from './gesture'
 
-/** The aim view `Game` pushes into the Ball (control ring) and Aim (direction line): the gesture's view plus the screen px per world unit. */
+/** The aim view `Game` pushes into the Ball (hold and control rings) and Aim (Ghost): the gesture's view plus the screen px per world unit. */
 export type AimView = GestureView & { pxPerUnit: number }
 
 /** What the controller needs from the game that owns it. */
@@ -114,6 +114,11 @@ export class InputController {
   aimView(): AimView | undefined {
     const v = this.aim && aimViewOf(this.aim.gesture)
     return v && { ...v, pxPerUnit: this.pxPerUnit }
+  }
+
+  /** Each frame: holding still on the ball climbs the tier without any pointer move. */
+  tickAim(): void {
+    if (this.aim) this.aim.gesture = aimTick(this.aim.gesture, performance.now())
   }
 
   /** Screen (CSS) px per world unit in the main view. */

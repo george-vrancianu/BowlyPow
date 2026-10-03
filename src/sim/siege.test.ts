@@ -28,7 +28,7 @@ const settle = (s: SimState) => {
 const ended = (events: SimEvent[][]) => events.flat().filter((e) => e.type === 'match-ended')
 /** Fires a full-power shot straight up (`dy` -1) or down (1) and steps until the ball rests: the firing tick's events come first. */
 const fire = (s: SimState, dy: 1 | -1, breaker?: true) => {
-  const r = step(s, { shot: { player: s.possession.shooter, dir: { x: 0, y: dy }, tier: 0, power: 1, breaker } }, siege)
+  const r = step(s, { shot: { player: s.possession.shooter, dir: { x: 0, y: dy }, tier: 1, power: 1, breaker } }, siege)
   const rest = settle(r.state)
   return { s: rest.s, events: [r.events, ...rest.events] }
 }
@@ -106,7 +106,7 @@ describe('Siege', () => {
     for (let i = 0; i < siege.shotCap + 5; i++) {
       // A full-power shot from near player 1's goal travels a long way across the pitch before resting.
       s = { ...s, possession: { ...s.possession, shooter: 1, shots: siege.shots, inHand: false, live: false }, ball: { ...s.ball, pos: { x: 20, y: 90 }, vel: { x: 0, y: 0 } } }
-      s = step(s, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 0, power: 1 } }, siege).state
+      s = step(s, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 } }, siege).state
       expect(Math.hypot(s.ball.vel.x, s.ball.vel.y)).toBeGreaterThan(0)
       let travelled = 0
       for (let t = 0; t < 2000 && s.possession.live; t++) {
@@ -232,7 +232,7 @@ describe('Siege wipe-out', () => {
 
   it('destroying the last structure mid-flight ends the match only when the ball rests', () => {
     let s = ready(playing(1, [wall(1, 1), wall(2, 2, 1)]), 1, { x: 14, y: 60 })
-    s = step(s, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 0, power: 1 } }, siege).state
+    s = step(s, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 } }, siege).state
     for (let t = 0; t < 60 && s.objects.some((o) => o.owner === 2); t++) s = step(s, {}, siege).state
     expect(s.objects.some((o) => o.owner === 2)).toBe(false)
     expect(s.possession.live).toBe(true)
@@ -254,7 +254,7 @@ describe('Siege wipe-out', () => {
 
   it('ignores further input once the match has ended', () => {
     const over = step(shot(playing(1, [wall(2, 2)]), 1, 0.5, -60), {}, siege).state
-    const r = step(over, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 0, power: 1 }, done: 1 }, siege)
+    const r = step(over, { shot: { player: 1, dir: { x: 0, y: -1 }, tier: 1, power: 1 }, done: 1 }, siege)
     expect(r.state).toBe(over)
     expect(r.events).toEqual([])
   })

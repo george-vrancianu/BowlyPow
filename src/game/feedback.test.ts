@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { feedbackFor, vibration } from './feedback'
+import { visual } from '../config/visual'
+import { feedbackFor, tierBuzz, vibration } from './feedback'
 
 describe('vibration', () => {
   it('pulses longer for a stronger shot', () => {
-    expect(vibration({ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 0, power: 1 }) as number).toBeGreaterThan(vibration({ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 0, power: 0.2 }) as number)
+    expect(vibration({ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 1, power: 1 }) as number).toBeGreaterThan(vibration({ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 0, power: 0.2 }) as number)
   })
   it('double pulse on goal, silent otherwise', () => {
     expect(vibration({ type: 'goal', scorer: 1, at: { x: 0, y: 0 } })).toHaveLength(3)
@@ -34,12 +35,28 @@ describe('feedbackFor', () => {
     expect(r.bursts).toEqual([])
   })
   it('reduced motion drops shake, particles and haptics but keeps flashes', () => {
-    const r = feedbackFor([{ type: 'wall-cracked', id: 1, hp: 2, at }, { type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 0, power: 1 }, { type: 'goal', scorer: 1, at: { x: 0, y: 0 } }], walls, true)
+    const r = feedbackFor([{ type: 'wall-cracked', id: 1, hp: 2, at }, { type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 1, power: 1 }, { type: 'goal', scorer: 1, at: { x: 0, y: 0 } }], walls, true)
     expect(r.flashes).toHaveLength(1)
     expect([r.bursts, r.shakes, r.vibrations]).toEqual([[], [], []])
   })
   it('a shot shakes in proportion to power, none below 30%', () => {
     expect(feedbackFor([{ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 0, power: 0.2 }], [], false).shakes).toEqual([])
-    expect(feedbackFor([{ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 0, power: 1 }], [], false).shakes).toEqual([4])
+    expect(feedbackFor([{ type: 'shot-fired', player: 1, from: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, tier: 1, power: 1 }], [], false).shakes).toEqual([4])
+  })
+})
+
+describe('tierBuzz', () => {
+  const holding = (tier: number) => ({ phase: 'holding' as const, tier })
+  it('buzzes once when the hold reaches a higher tier', () => {
+    expect(tierBuzz(holding(0), holding(1), false)).toBe(visual.aim.vibration.tier)
+    expect(tierBuzz(holding(1), holding(1), false)).toBeUndefined()
+  })
+  it('does not buzz on starting a hold, on dragging, or on letting go', () => {
+    expect(tierBuzz(undefined, holding(0), false)).toBeUndefined()
+    expect(tierBuzz(holding(1), { phase: 'aiming', tier: 1 }, false)).toBeUndefined()
+    expect(tierBuzz(holding(1), undefined, false)).toBeUndefined()
+  })
+  it('stays still under reduced motion', () => {
+    expect(tierBuzz(holding(0), holding(1), true)).toBeUndefined()
   })
 })

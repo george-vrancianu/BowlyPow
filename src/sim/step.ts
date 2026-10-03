@@ -216,7 +216,9 @@ export function step(
   const { aiming } = input
   const shot = input.shot ?? (expired && aiming && config.expiry === 'fire' ? { player: possession.shooter, ...aiming } : undefined)
   if (shot) {
-    if (!building && !waiting && shot.player === possession.shooter && !possession.inHand && !possession.live && rules.shot.tiers[shot.tier] && (!shot.breaker || players[shot.player].inventory.breaker > 0)) {
+    const tier = rules.shot.tiers[shot.tier]
+    const inRange = !!tier && shot.power >= tier.power[0] && shot.power <= tier.power[1]
+    if (!building && !waiting && shot.player === possession.shooter && !possession.inHand && !possession.live && inRange && (!shot.breaker || players[shot.player].inventory.breaker > 0)) {
       if (shot.breaker) players = spend(players, shot.player, 'breaker')
       events.push({ type: 'shot-fired', ...shot, from: ball.pos })
       possession = { ...possession, live: true }

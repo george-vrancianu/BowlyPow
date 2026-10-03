@@ -39,7 +39,7 @@ describe('predictPath', () => {
 
   it('counts N contacts, bouncing off boards', () => {
     const s = at({ x: 10, y: 20 })
-    const p = predictPath(s, { ...up, dir: { x: -0.6, y: -0.8 }, power: 1 }, c, { contacts: 2 })
+    const p = predictPath(s, { ...up, dir: { x: -0.6, y: -0.8 }, tier: 1, power: 1 }, c, { contacts: 2 })
     // Off the left board (x = 0), then the end board (y = 0), less the ball's radius.
     expect(p.contacts).toHaveLength(2)
     expect(p.contacts[0].x).toBeCloseTo(1)
