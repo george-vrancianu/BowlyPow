@@ -51,6 +51,8 @@ export type GameActions = {
   mapStretch(): void
   recenter(): void
   powerUp(p: PowerUp): void
+  /** The shooter refunds `count` Move points for Credits; the sim refuses it when not allowed. */
+  refund(count: number): void
   confirmBall(): void
   /** Tap on the turn card. */
   dismiss(): void
@@ -145,6 +147,7 @@ export class Game implements Sink {
       },
       recenter: () => this.camera.recenter(),
       powerUp: (p) => p === 'breaker' && this.input.toggleArm(),
+      refund: (count) => this.driver.send({ refund: { player: this.state.possession.shooter, count } }),
       confirmBall: this.input.confirmBall,
       dismiss: () => (this.transition = dismiss(this.transition, performance.now())),
       build: this.input.build,

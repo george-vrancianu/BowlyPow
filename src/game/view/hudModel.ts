@@ -3,7 +3,7 @@ import { blindSeat, buildPhase } from '../../sim/mode'
 import type { PlayerId } from '../../sim/pitch'
 import { STARTING_INVENTORY, type PowerUp } from '../../sim/player'
 import { opponent } from '../../sim/possession'
-import type { SimConfig, SimState } from '../../sim/step'
+import { canRefund, type SimConfig, type SimState } from '../../sim/step'
 import { structuresOf, type Structure } from '../../sim/wall'
 
 /**
@@ -21,8 +21,11 @@ export type HudModel = {
   rounds: number
   /** Seconds left and fraction of the clock remaining, or null when no clock runs. */
   clock: { seconds: number; fraction: number } | null
+  /** Move points: left, and per possession. */
   shotsLeft: number
   shotsMax: number
+  /** The active player may tap a Move point dot to refund it now. */
+  refundable: boolean
   phase: string
   /** Phase buttons (Done in a build turn; Repair and Rearrange on a defence choice) shown above the HUD row. The row is rebuilt only when a label or `disabled` flag changes, so handlers must read live state at click time (see `ButtonSpec`). */
   buttons?: ButtonSpec[]
@@ -86,6 +89,7 @@ export function hudModel(s: SimState, c: SimConfig, v: HudInputs): HudModel {
     clock: timed ? { seconds: s.clock.left / c.tickHz, fraction: s.clock.left / (timed * c.tickHz) } : null,
     shotsLeft: s.possession.shots,
     shotsMax: c.shots,
+    refundable: canRefund(s, v.active),
     // Waiting on a blind opponent's build, the spent points would show what they placed.
     phase: buildPhase(s.match) === 'Rearrange' ? 'Rearrange' : b ? (b === hidden ? 'Build' : `Build · ${s.credits[b]} ${unitOf(s.match)}`) : 'Play',
     buttons: v.buttons,

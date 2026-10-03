@@ -29,6 +29,36 @@ function Clock({ clock }: { clock: HudModel['clock'] }) {
   )
 }
 
+/** Move points: filled for each one left. When `refundable`, the filled ones are buttons: a tap refunds one, a long-press all but one. */
+function MoveDots({ left, max, refundable, onRefund }: { left: number; max: number; refundable: boolean; onRefund(count: number): void }) {
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const held = useRef(false)
+  const down = () => {
+    held.current = false
+    timer.current = setTimeout(() => {
+      held.current = true
+      if (left > 1) onRefund(left - 1)
+    }, visual.hud.longPressMs)
+  }
+  const up = () => {
+    clearTimeout(timer.current)
+    if (!held.current) onRefund(1)
+    held.current = true
+  }
+  const dot = (filled: boolean): CSSProperties => ({ width: 12, height: 12, padding: 0, borderRadius: '50%', border: `2px solid ${visual.hud.ink}`, background: filled ? visual.hud.ink : 'none' })
+  return (
+    <div style={{ display: 'flex', gap: 4, pointerEvents: 'auto' }}>
+      {Array.from({ length: max }, (_, i) =>
+        refundable && i < left ? (
+          <button key={i} aria-label="Refund a Move point" onPointerDown={down} onPointerUp={up} onPointerLeave={() => clearTimeout(timer.current)} style={{ ...dot(true), cursor: 'pointer', touchAction: 'none' }} />
+        ) : (
+          <span key={i} style={dot(i < left)} />
+        ),
+      )}
+    </div>
+  )
+}
+
 export type ShellProps = {
   hud: HudModel
   menu?: BuildMenuView
@@ -43,13 +73,15 @@ export type ShellProps = {
   onMapStretch(): void
   onMapClose(): void
   onBuildToggle(): void
+  /** Refund `count` Move points. */
+  onRefund(count: number): void
   className?: string
   style?: CSSProperties
   children?: ReactNode
 }
 
 /** The in-match controls, in one shell at the bottom of the screen and only for the active viewer. Mount inside the rotating stage. */
-export function Shell({ hud: m, menu, confirm, mapOpen, flipped, onMap, onRecenter, onPowerUp, onConfirm, onMapStretch, onMapClose, onBuildToggle, className, style, children }: ShellProps) {
+export function Shell({ hud: m, menu, confirm, mapOpen, flipped, onMap, onRecenter, onPowerUp, onConfirm, onMapStretch, onMapClose, onBuildToggle, onRefund, className, style, children }: ShellProps) {
   const color = visual.player.colors[m.active]
   const live = m.breaker.tappable
   const row: CSSProperties = { ...FONT, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12, pointerEvents: 'auto' }
@@ -63,9 +95,7 @@ export function Shell({ hud: m, menu, confirm, mapOpen, flipped, onMap, onRecent
       <div style={row}>
         {m.round !== null && <div>{`Round ${m.round} / ${m.rounds}`}</div>}
         <Clock clock={m.clock} />
-        <div style={{ display: 'flex', gap: 4 }}>
-          {Array.from({ length: m.shotsMax }, (_, i) => <span key={i} style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${visual.hud.ink}`, background: i < m.shotsLeft ? visual.hud.ink : 'none' }} />)}
-        </div>
+        <MoveDots left={m.shotsLeft} max={m.shotsMax} refundable={m.refundable} onRefund={onRefund} />
         <div>{m.phase}</div>
         <ButtonRow specs={[{ label: 'Map', onClick: onMap }, { label: 'Recenter', onClick: onRecenter }]} />
       </div>

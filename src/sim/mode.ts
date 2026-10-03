@@ -46,6 +46,8 @@ export type GameMode<M extends Match = Match> = {
   onBuildTimeout(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): StructureSpec | null
   /** Whether the current build turn may place and demolish pieces (moving is always allowed); false in a Rearrange turn. */
   mayEdit(m: M): boolean
+  /** Whether the shooter may refund Move points for Credits; Siege has no Credits economy (ADR-0004). */
+  mayRefund(m: M): boolean
   /** Whether the match is in its blind opening build phase (a build turn that is not a Rearrange); fog and the reveal key on it. */
   opening(m: M): boolean
   /** A build turn just opened for `m.builder`, who holds `held` Credits. */
@@ -82,6 +84,7 @@ export const rounds: GameMode<RoundsMatch> = {
   choiceTimeout: () => 'repair',
   onBuildTimeout: () => null,
   mayEdit: () => true,
+  mayRefund: () => true,
   opening: () => false,
   // Credits bank: each build turn adds the round's grant to what is left.
   onBuildStart: (_m, _ctx, c, held) => ({ credits: held + c.credits, built: [] }),
@@ -127,6 +130,7 @@ export const siege: GameMode<SiegeMatch> = {
     return structureCost(wall) <= c.credits ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
   },
   mayEdit: (m) => m.opening,
+  mayRefund: () => false,
   opening: (m) => m.opening && m.builder !== null,
   // A Rearrange turn has no wall points and every own structure counts as placed this turn, so all of them can be moved.
   onBuildStart: (m, ctx, c) => (m.opening ? { credits: c.credits, built: [] } : { credits: 0, built: m.builder ? structuresOf(ctx.objects, m.builder).map((o) => o.id) : [] }),

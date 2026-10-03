@@ -4,7 +4,7 @@ import { defaultConfig, initialState } from './step'
 
 describe('settings', () => {
   it('defaults to Siege with the slider defaults', () => {
-    expect(defaultSettings).toEqual({ mode: 'siege', shots: 3, rounds: 5, credits: 10, expiry: 'shoot' })
+    expect(defaultSettings).toEqual({ mode: 'siege', shots: 3, rounds: 5, credits: 10, refundRate: 2, expiry: 'shoot' })
     expect(configFrom(defaultSettings)).toEqual({ ...defaultConfig, mode: 'siege' })
   })
 
@@ -18,16 +18,17 @@ describe('settings', () => {
   })
 
   it('shows the rounds slider only in Rounds', () => {
-    expect(slidersFor('rounds')).toEqual(['shots', 'rounds', 'credits'])
+    expect(slidersFor('rounds')).toEqual(['shots', 'rounds', 'credits', 'refundRate'])
     expect(slidersFor('siege')).toEqual(['shots', 'credits'])
   })
 
   it('chosen values reach the sim', () => {
-    const config = configFrom({ ...defaultSettings, mode: 'rounds', shots: 5, rounds: 3, credits: 7 })
+    const config = configFrom({ ...defaultSettings, mode: 'rounds', shots: 5, rounds: 3, credits: 7, refundRate: 4 })
     const s = initialState(1, config)
     expect(s.possession.shots).toBe(5)
     expect(s.credits[s.match.builder!]).toBe(7)
     expect(config.rounds).toBe(3)
+    expect(config.refundRate).toBe(4)
   })
 
   it('a chosen mode reaches the sim', () => {

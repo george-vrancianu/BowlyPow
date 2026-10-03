@@ -48,6 +48,7 @@ export function App() {
               onMap={() => actions().map()}
               onRecenter={() => actions().recenter()}
               onPowerUp={(p) => actions().powerUp(p)}
+              onRefund={(n) => actions().refund(n)}
               onConfirm={() => actions().confirmBall()}
               onMapStretch={() => actions().mapStretch()}
               onMapClose={() => actions().map(false)}

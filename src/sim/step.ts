@@ -16,6 +16,10 @@ export function canFinishBuild(s: SimState, config: SimConfig): boolean {
   return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession, s.possession.shooter), config) !== null
 }
 
+/** Whether `p` may refund Move points now: the shooter in play, ball placed, before a shot, in a mode with Credits (ADR-0004). */
+export const canRefund = (s: Pick<SimState, 'match' | 'possession'>, p: PlayerId): boolean =>
+  modeFor(s.match).mayRefund(s.match) && !s.match.builder && !s.match.choosing && s.possession.shooter === p && !s.possession.inHand && !s.possession.live && s.possession.shots > 0
+
 /** Whether the current build turn may place and demolish (false in a Rearrange turn, which only moves pieces). */
 export const canEdit = (s: SimState): boolean => modeFor(s.match).mayEdit(s.match)
 
@@ -78,6 +82,8 @@ export type SimInput = {
   defence?: { player: PlayerId; choice: DefenceChoice }
   /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   placeBall?: { player: PlayerId; at: Point }
+  /** The shooter trades `count` unspent Move points for Credits. */
+  refund?: { player: PlayerId; count: number }
 }
 
 export type SimConfig = {
@@ -92,8 +98,10 @@ export type SimConfig = {
   damageFraction: number
   /** Speed kept by a ball that destroys a wall mid-shot. */
   destroyedSpeedFactor: number
-  /** Shots per possession. */
+  /** Shots per possession (Move points). */
   shots: number
+  /** Credits a refunded Move point is worth. */
+  refundRate: number
   /** Which game mode decides the match. */
   mode: GameModeName
   rounds: number
@@ -119,6 +127,7 @@ export const defaultConfig: SimConfig = {
   damageFraction: 0.5,
   destroyedSpeedFactor: 0.5,
   shots: 3,
+  refundRate: 2,
   // Rounds here on purpose: the sim default stays the original mode so tests and tools that never name a mode keep Rounds behaviour. The settings screen defaults to Siege (`defaultSettings`), and `configFrom` always sets the mode.
   mode: 'rounds',
   rounds: 5,
@@ -197,6 +206,17 @@ export function step(
       ball = { ...ball, pos: placeBall.at, vel: { x: 0, y: 0 } }
       possession = { ...possession, inHand: false }
     } else events.push({ type: 'refused' })
+  }
+  const { refund } = input
+  // Before a shot only: a refund is a bet that the Move points left are enough (ADR-0004).
+  const refundable = refund && canRefund({ match, possession }, refund.player) && refund.count >= 1 && refund.count <= possession.shots
+  if (refund && !refundable) events.push({ type: 'refused' })
+  if (refund && refundable) {
+    const left = possession.shots - refund.count
+    // Refunding the last one ends the possession as running out of shots does.
+    possession = left > 0 ? { ...possession, shots: left } : { shooter: opponent(refund.player), shots: config.shots, inHand: true, live: false }
+    if (!left) events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
+    credits = { ...credits, [refund.player]: credits[refund.player] + refund.count * config.refundRate }
   }
   let chose = false
   // The build window covers a pending defence choice too; when it runs out the mode picks for the chooser.
