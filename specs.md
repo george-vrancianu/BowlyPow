@@ -252,6 +252,24 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - Each player sees the pitch with themselves at the bottom.
 - Add a build-phase timer for P2P. Siege's blind build hides the layout in the renderer and HUD only: a modified client could read the peer's layout from its own sim state. True hidden information (commit-and-reveal of the layout) is a later idea.
 
+### Next wave: online (not done yet)
+
+Online play is deferred to the next wave. The Siege rules work online in automated tests: the lockstep sim stays in step, and the choice timer works. But online is not properly implemented or verified as a product. Treat everything online as untested until this wave lands, then test it end to end.
+
+To implement:
+- Online P2 sees the whole screen upside down, HUD text included. P2 reuses the hot-seat 180° rotation of the whole stage (`main.ts`, `rot()` in `hud/transition.ts`). Flip the world in the camera or renderer instead, and keep the DOM upright; pointer mapping must follow the flip.
+- After a disconnect, a build timeout can show REVEAL under the disconnect notice.
+- A Done from the player who isn't building can suppress the build timer.
+- A defence input from the wrong player on the choice-expiry tick delays the automatic Repair by one tick. It stays deterministic, and the UI cannot send one.
+- Signaling and connection UX are still to be settled (see above).
+
+To test once implemented:
+- Two real devices on a real network, with real latency, through the Host/Join flow. Cover a full Siege match: the opening blind build and REVEAL, goals, the choice timeout to Repair, Rearrange under the clock, wipe-out, then Rematch and Menu.
+- A full Rounds match online.
+- Disconnect and reconnect at each phase.
+- Both seats, phone and desktop, checking orientation and that labels clear the HUD.
+- Touch drag during Rearrange on a phone.
+
 ## Deferred ideas
 
 - Points economy: buying power-ups with points earned from goals or from defensive play.
