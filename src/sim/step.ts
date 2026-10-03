@@ -110,6 +110,7 @@ export const defaultConfig: SimConfig = {
   damageFraction: 0.5,
   destroyedSpeedFactor: 0.5,
   shots: 3,
+  // Rounds here on purpose: the sim default stays the original mode so tests and tools that never name a mode keep Rounds behaviour. The settings screen defaults to Siege (`defaultSettings`), and `configFrom` always sets the mode.
   mode: 'rounds',
   rounds: 5,
   wallPoints: 10,
@@ -188,7 +189,7 @@ export function step(
   const choiceExpired = waiting && config.buildTime > 0 && state.clock.left <= 1
   const defence = input.defence ?? (choiceExpired && match.choosing ? { player: match.choosing, choice: mode.choiceTimeout(match) } : undefined)
   if (defence) {
-    const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, possession.shooter), config) : null
+    const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, shooter), config) : null
     if (r) {
       chose = true
       match = r.match

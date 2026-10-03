@@ -26,7 +26,7 @@ export type HudModel = {
   shotsLeft: number
   shotsMax: number
   phase: string
-  /** Phase buttons (Done in a build turn) shown under the shared strip; rebuilt only when labels or state change. */
+  /** Phase buttons (Done in a build turn; Repair and Rearrange on a defence choice) shown under the shared strip. The row is rebuilt only when a label or `disabled` flag changes, so handlers must read live state at click time (see `ButtonSpec`). */
   buttons?: ButtonSpec[]
   /** Breaker is armed (highlighted) and whether the active player may tap it now. */
   breaker: { armed: boolean; tappable: boolean }
@@ -34,7 +34,11 @@ export type HudModel = {
 
 export type HudActions = { onMap(): void; onRecenter(): void; onPowerUp?(p: PowerUp): void }
 
-export type ButtonSpec = { label: string; onClick(): void; disabled?: boolean }
+/**
+ * One button. `onClick` runs whenever the button is clicked, and the HUD keeps a row alive while its `[label, disabled, pressed]` are unchanged,
+ * so a handler must read live state at click time and never close over what was true when it was built. `pressed` marks a toggle that is on (aria-pressed and a filled look).
+ */
+export type ButtonSpec = { label: string; onClick(): void; disabled?: boolean; pressed?: boolean }
 
 const ICONS: Record<PowerUp, string> = { breaker: 'B', repulsor: 'R', steal: 'S' }
 export const el = (tag: string, css = '', text = '') => {
@@ -49,8 +53,9 @@ export const FONT = 'font:700 14px system-ui,-apple-system,"Segoe UI",Roboto,san
 export function buttonRow(specs: ButtonSpec[]): HTMLElement {
   const row = el('div', 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;')
   for (const s of specs) {
-    const b = el('button', `${FONT}min-width:44px;min-height:44px;padding:0 14px;border-radius:8px;border:2px solid #e8eaf0;color:#e8eaf0;background:#141a2a;opacity:${s.disabled ? 0.4 : 1};`, s.label) as HTMLButtonElement
+    const b = el('button', `${FONT}min-width:44px;min-height:44px;padding:0 14px;border-radius:8px;border:2px solid #e8eaf0;color:#e8eaf0;background:${s.pressed ? '#2a3350' : '#141a2a'};opacity:${s.disabled ? 0.4 : 1};${s.pressed ? 'border-color:#fff;' : ''}`, s.label) as HTMLButtonElement
     b.disabled = !!s.disabled
+    if (s.pressed !== undefined) b.setAttribute('aria-pressed', String(s.pressed))
     b.onclick = s.onClick
     row.append(b)
   }
@@ -129,7 +134,7 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     clockNum.style.transform = urgent ? `scale(${1 + 0.15 * Math.abs(Math.sin(Math.PI * m.clock!.seconds))})` : ''
     dots.replaceChildren(...Array.from({ length: m.shotsMax }, (_, i) => el('span', `width:12px;height:12px;border-radius:50%;border:2px solid #e8eaf0;background:${i < m.shotsLeft ? '#e8eaf0' : 'none'};`)))
     phase.textContent = m.phase
-    const key = JSON.stringify((m.buttons ?? []).map(({ label, disabled }) => [label, disabled]))
+    const key = JSON.stringify((m.buttons ?? []).map(({ label, disabled, pressed }) => [label, disabled, pressed]))
     if (key !== phaseKey) {
       phaseKey = key
       phaseRow.replaceChildren(...(m.buttons?.length ? [buttonRow(m.buttons)] : []))

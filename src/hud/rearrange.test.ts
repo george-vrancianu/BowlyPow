@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, initialState, step, type SimEvent, type SimInput, type SimState } from '../sim/step'
-import { blindSeat, openingBuild } from '../sim/match'
-import { buildPhase } from '../sim/mode'
+import { blindSeat, buildPhase, openingBuild } from '../sim/mode'
 import { whoActs } from '../sim/possession'
 import { hudModel } from './model'
 import { advance, blocking, newTransition, overlayView, revealing, type Transition } from './transition'

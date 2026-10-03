@@ -14,14 +14,14 @@ import { advance, angle, blocking, choosingNotice, dismiss, goalBall, newTransit
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
-import { blindSeat, openingBuild } from './sim/match'
-import { buildPhase } from './sim/mode'
+import { blindSeat, buildPhase, openingBuild } from './sim/mode'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
+import { structuresOf } from './sim/wall'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
 import { canArm, canPlaceBall, whoActs } from './sim/possession'
 import type { PlayerId } from './sim/pitch'
-import { canFinishBuild, defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
+import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
@@ -86,7 +86,8 @@ let tap: Point | undefined
 const confirm = document.getElementById('confirm') as HTMLButtonElement
 const confirmBall = () => {
   const { shooter } = state.possession
-  if (!state.match.choosing && mine(shooter) && ballGhost && canPlaceBall(shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: shooter, at: ballGhost } }
+  // Not while a flip, goal hold, turn card, reveal or REPAIRED sweep is up: the board is not the player's to act on yet.
+  if (!blocking(transition) && !state.match.choosing && mine(shooter) && ballGhost && canPlaceBall(shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: shooter, at: ballGhost } }
 }
 confirm.onclick = confirmBall
 const pxToWorld = (px: number, py: number) => screenToWorld(canvas, camera, px * canvasPx(), py * canvasPx())
@@ -125,7 +126,9 @@ addEventListener('keydown', (e) => {
 // Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
 const pointers = new Map<number, Point>()
 let panOnly = false
-const panBy = (dyPx: number) => pan(camera, (transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale, layout(canvas).visibleHeight, blind())
+// Every camera move is clamped to the visible height and, in a blind build, to the viewer's half.
+const panWorld = (dy: number) => pan(camera, dy, layout(canvas).visibleHeight, blind())
+const panBy = (dyPx: number) => panWorld((transition.shown === 2 ? 1 : -1) * (dyPx * canvasPx()) / layout(canvas).scale)
 canvas.onwheel = (e) => (e.preventDefault(), panBy(-e.deltaY))
 addEventListener('keydown', (e) => e.code === 'Space' && (e.preventDefault(), recenter(camera)))
 canvas.onpointermove = (e) => {
@@ -155,8 +158,10 @@ canvas.onpointerup = (e) => {
   charge = undefined
 }
 canvas.onpointerdown = (e) => {
+  // The Map and Close buttons still work; everything else is ignored behind a blocking hold, so a tap there cannot carry into the next player's turn.
+  if (blocking(transition) && !mapOpen) return
   if (mapOpen) {
-    pan(camera, screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y, layout(canvas).visibleHeight, blind())
+    panWorld(screenToWorld(canvas, mapCam, e.offsetX * canvasPx(), e.offsetY * canvasPx()).y - camera.y)
     toggleMap(false)
     return
   }
@@ -251,7 +256,7 @@ function edgeScroll(builder: PlayerId, dt: number) {
   const { visibleHeight } = layout(canvas)
   const dy = edgeScrollDy(camera.y, visibleHeight, builder, pxToWorld(drag!.px, drag!.py).y, dt)
   if (!dy) return
-  pan(camera, dy, visibleHeight, blind())
+  panWorld(dy)
   dragTo(drag!.px, drag!.py)
 }
 const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && mine(state.possession.shooter) && canArm(state, state.possession.shooter) && (armed = !armed) })
@@ -278,8 +283,10 @@ const showMatchEnd = (m: SimState['match'], winner: PlayerId, objects: SimState[
   switch (m.mode) {
     case 'rounds':
       return screens.matchEnd(winner, `${m.score[1]} - ${m.score[2]}`, !!net)
-    case 'siege':
-      return screens.matchEnd(winner, `${objects.filter((o) => o.owner === winner).length} structure${objects.filter((o) => o.owner === winner).length === 1 ? '' : 's'} left`, !!net)
+    case 'siege': {
+      const left = structuresOf(objects, winner).length
+      return screens.matchEnd(winner, `${left} structure${left === 1 ? '' : 's'} left`, !!net)
+    }
     default:
       return m satisfies never
   }
@@ -321,7 +328,7 @@ function frame(now: number) {
       lastBuilder = state.match.builder
       selection = landing = drag = undefined
       menuOpen = false
-      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight, blind())
+      if (lastBuilder) panWorld((lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y)
       else recenter(camera)
     }
     if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
@@ -336,6 +343,8 @@ function frame(now: number) {
   }
 
   announce([])
+  // A ghost ball or half-made gesture does not survive a blocking hold into the next player's turn.
+  if (blocking(transition)) (ballGhost = tap = charge = undefined), (draggingBall = false)
   const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
   if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), recenter(camera)
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
@@ -344,7 +353,7 @@ function frame(now: number) {
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight, blind())
   lastFrame = now
   if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner, state.objects))
-  confirm.hidden = !state.possession.inHand || !!state.match.choosing || !!state.match.builder || !mine(state.possession.shooter)
+  confirm.hidden = blocking(transition) || !state.possession.inHand || !!state.match.choosing || !!state.match.builder || !mine(state.possession.shooter)
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
@@ -354,9 +363,9 @@ function frame(now: number) {
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
   // The defence turn: the scorer is offered Repair or Rearrange once the GOAL banner is gone.
-  const buttons = phaseButtons(state, config, { mine, current: () => state, send: (i) => (pending = i), repairable: !blocking(transition) })
+  const buttons = phaseButtons(state, config, { mine, current: () => state, send: (i) => (pending = i), choosable: !blocking(transition) })
   hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons, armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
-  fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
+  fab.update(building && !mapOpen && !blocking(transition) ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
   render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen || revealing(transition) ? mapCam : camera, {

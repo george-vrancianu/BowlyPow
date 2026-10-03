@@ -17,17 +17,19 @@ export function createOverlay(root: HTMLElement, onTap: () => void) {
       e.style.display = v ? 'flex' : 'none'
       if (!v) return
       const banner = v.band
+      const top = v.placement === 'top'
       text.textContent = v.text
       hint.textContent = v.hint ?? ''
       Object.assign(e.style, {
-        justifyContent: v.placement === 'top' ? 'flex-start' : 'center',
+        justifyContent: top ? 'flex-start' : 'center',
         opacity: String(v.opacity),
         pointerEvents: v.kind === 'sweep' || v.kind === 'notice' ? 'none' : 'auto',
         color: v.color,
-        background: v.kind === 'reveal' || v.kind === 'notice' ? 'transparent' : banner ? 'transparent' : 'rgba(11,15,26,0.85)',
+        background: top || banner ? 'transparent' : 'rgba(11,15,26,0.85)',
         transform: v.kind === 'sweep' ? `translateX(${(0.5 - v.progress) * 200}%)` : '',
       })
-      text.style.cssText = v.kind === 'reveal' || v.kind === 'notice' ? 'padding:1vmin 3vmin;margin-top:10vmin;background:rgba(11,15,26,0.7);border-radius:1vmin;font-size:6vmin;' : banner ? `width:100%;padding:2vmin 0;background:rgba(11,15,26,0.85);${v.kind === 'goal' ? `border-block:1vmin solid ${v.color};` : ''}` : ''
+      // Pinned labels sit below the HUD strip so they never cover its digit and badges.
+      text.style.cssText = top ? 'padding:1vmin 3vmin;margin-top:max(19vmin,112px);background:rgba(11,15,26,0.7);border-radius:1vmin;font-size:6vmin;' : banner ? `width:100%;padding:2vmin 0;background:rgba(11,15,26,0.85);${v.kind === 'goal' ? `border-block:1vmin solid ${v.color};` : ''}` : ''
     },
   }
 }

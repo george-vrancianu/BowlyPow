@@ -98,16 +98,21 @@ describe('Siege', () => {
   it('shots never end anything: no shot cap, no round-ended, no build', () => {
     let s = playing()
     for (let i = 0; i < siege.shotCap + 5; i++) {
-      s = { ...s, possession: { ...s.possession, shooter: 1, shots: siege.shots, inHand: false, live: false }, ball: { ...s.ball, pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 } } }
-      s = step(s, { blast: { player: 1, origin: { x: 20, y: 85 }, power: 0.2 } }, siege).state
+      // A full-power shot from near player 1's goal travels a long way across the pitch before resting.
+      s = { ...s, possession: { ...s.possession, shooter: 1, shots: siege.shots, inHand: false, live: false }, ball: { ...s.ball, pos: { x: 20, y: 90 }, vel: { x: 0, y: 0 } } }
+      s = step(s, { blast: { player: 1, origin: { x: 20, y: 94 }, power: 1 } }, siege).state
+      expect(Math.hypot(s.ball.vel.x, s.ball.vel.y)).toBeGreaterThan(0)
+      let travelled = 0
       for (let t = 0; t < 2000 && s.possession.live; t++) {
         const r = step(s, {}, siege)
         expect(r.events.some((e) => e.type === 'round-ended')).toBe(false)
         s = r.state
+        travelled = Math.max(travelled, 90 - s.ball.pos.y)
       }
+      expect(travelled).toBeGreaterThan(20)
       expect(s.match.builder).toBeNull()
+      expect(s.match.winner).toBeNull()
     }
-    expect(s.match.winner).toBeNull()
   })
 })
 
@@ -287,6 +292,20 @@ describe('Siege build timeout', () => {
     const { s } = idle(initialState(1, cfg), TICKS, cfg)
     expect(owned(s, first)).toMatchObject([{ kind: 'tower' }])
     expect(s.match.builder).toBe(opponent(first))
+  })
+
+  it('the fallback piece mirrors across the halfway line and always places, for either seat, wall or tower', () => {
+    for (const wallPoints of [timed.wallPoints, 1]) {
+      const cfg = { ...timed, wallPoints }
+      const second = opponent(first)
+      const { s } = idle(initialState(1, cfg), 2 * TICKS, cfg)
+      const [a, b] = [owned(s, first), owned(s, second)]
+      expect([a.length, b.length]).toEqual([1, 1])
+      expect(a[0].kind).toBe(wallPoints === 1 ? 'tower' : 'wall')
+      const [p1, p2] = first === 1 ? [a[0], b[0]] : [b[0], a[0]]
+      expect(p1.at.gy + p2.at.gy).toBe(54)
+      expect(p1.at.gx).toBe(p2.at.gx)
+    }
   })
 
   it('a builder who already placed a piece just ends the turn, as in Rounds', () => {
