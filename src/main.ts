@@ -84,7 +84,7 @@ let tap: Point | undefined
 const confirm = document.getElementById('confirm') as HTMLButtonElement
 const confirmBall = () => {
   const { shooter } = state.possession
-  if (mine(shooter) && ballGhost && canPlaceBall(shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: shooter, at: ballGhost } }
+  if (!state.match.choosing && mine(shooter) && ballGhost && canPlaceBall(shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: shooter, at: ballGhost } }
 }
 confirm.onclick = confirmBall
 const pxToWorld = (px: number, py: number) => screenToWorld(canvas, camera, px * canvasPx(), py * canvasPx())
@@ -179,6 +179,11 @@ canvas.onpointerdown = (e) => {
       drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY, id: e.pointerId, from: { x: e.offsetX, y: e.offsetY }, moved: false }
       canvas.setPointerCapture(e.pointerId)
     } else panOnly = true
+    return
+  }
+  // A defence choice is pending: the board is for looking at, not for placing the ball.
+  if (state.match.choosing) {
+    panOnly = true
     return
   }
   if (state.possession.inHand) {
@@ -308,7 +313,7 @@ function frame(now: number) {
     const tick = step(state, input, config)
     state = tick.state
     if (!canArm(state, state.possession.shooter)) armed = false
-    if (!state.possession.inHand) ballGhost = undefined
+    if (!state.possession.inHand || state.match.choosing) ballGhost = undefined
     if (!state.match.builder && tick.events.length) recenter(camera)
     if (state.match.builder !== lastBuilder) {
       // Done or the build timer drops the selection: a new piece is gone, a moved one never left its spot in the sim.
@@ -338,7 +343,7 @@ function frame(now: number) {
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight, blind())
   lastFrame = now
   if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner, state.objects))
-  confirm.hidden = !state.possession.inHand || !!state.match.builder || !mine(state.possession.shooter)
+  confirm.hidden = !state.possession.inHand || !!state.match.choosing || !!state.match.builder || !mine(state.possession.shooter)
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr
   canvas.height = canvas.clientHeight * dpr
@@ -347,7 +352,9 @@ function frame(now: number) {
   const shooter = state.possession.shooter
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
-  hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons: building && [{ label: 'Done', disabled: !canFinishBuild(state, config), onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  // The defence turn: the scorer is offered Repair once the GOAL banner is gone (#39 adds Rearrange here).
+  const choosing = state.match.choosing && mine(state.match.choosing) && !blocking(transition) ? state.match.choosing : undefined
+  hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons: (building && [{ label: 'Done', disabled: !canFinishBuild(state, config), onClick: () => (pending = { done: building }) }]) || (choosing && [{ label: 'Repair', onClick: () => (pending = { defence: { player: choosing, choice: 'repair' } }) }]), armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)

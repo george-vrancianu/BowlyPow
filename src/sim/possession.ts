@@ -10,8 +10,8 @@ export type Possession = { shooter: PlayerId; shots: number; inHand: boolean; li
 export const canArm = (s: SimState, p: PlayerId): boolean =>
   !s.match.builder && s.possession.shooter === p && !s.possession.inHand && !s.possession.live && s.players[p].inventory.breaker > 0
 
-/** Who is expected to act: the builder during a build turn, else the shooter. */
-export const whoActs = (s: SimState): PlayerId => s.match.builder ?? s.possession.shooter
+/** Who is expected to act: the builder during a build turn, else whoever owes a defence choice, else the shooter. */
+export const whoActs = (s: SimState): PlayerId => s.match.builder ?? s.match.choosing ?? s.possession.shooter
 
 export const opponent = (p: PlayerId): PlayerId => (p === 1 ? 2 : 1)
 
