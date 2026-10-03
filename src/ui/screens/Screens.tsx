@@ -1,7 +1,7 @@
 import { type CSSProperties, type ReactNode } from 'react'
 import { visual } from '../../config/visual'
 import type { PlayerId } from '../../game/Game'
-import { modePicker, sliderRows, type Settings } from '../../game/view/settings'
+import { expiryPicker, modePicker, sliderRows, type Settings } from '../../game/view/settings'
 import { ButtonRow, FONT } from '../ButtonRow'
 
 type Look = { className?: string; style?: CSSProperties; children?: ReactNode }
@@ -25,7 +25,7 @@ export function TitleScreen({ onPlay, ...look }: { onPlay(): void } & Look) {
   )
 }
 
-/** The mode picker, then the sliders that mode uses, then Start. */
+/** The mode picker, then the sliders that mode uses, then the On time out toggle, then Start. */
 export function SettingsScreen({ settings, onChange, onStart, ...look }: { settings: Settings; onChange(s: Settings): void; onStart(): void } & Look) {
   return (
     <Screen {...look}>
@@ -40,6 +40,10 @@ export function SettingsScreen({ settings, onChange, onStart, ...look }: { setti
           <input type="range" min={min} max={max} step={1} value={value} aria-label={label} style={{ width: '100%', minHeight: 44 }} onChange={(e) => onChange({ ...settings, [key]: e.currentTarget.valueAsNumber })} />
         </label>
       ))}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <span>On time out</span>
+        <ButtonRow specs={expiryPicker(settings.expiry, (expiry) => onChange({ ...settings, expiry }))} />
+      </div>
       <ButtonRow specs={[{ label: 'Start', onClick: onStart }]} />
       {look.children}
     </Screen>
