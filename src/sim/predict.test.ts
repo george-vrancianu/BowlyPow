@@ -6,7 +6,7 @@ import type { Point } from './pitch'
 
 const c = defaultConfig
 const at = (pos: Point, s = playState()): SimState => ({ ...s, possession: { shooter: 1, shots: 3, inHand: false, live: false }, ball: { pos, vel: { x: 0, y: 0 }, rolled: 0 } })
-const up: NonNullable<SimInput['shot']> = { player: 1, dir: { x: 0, y: -1 }, tier: 0, power: 0.5 }
+const up: NonNullable<SimInput['shot']> = { player: 1, dir: { x: 0, y: -1 }, tier: 0, power: 0.4 }
 
 /** Steps the shot for real until `stop` says so; returns the state and the events of that tick. */
 function stepUntil(s: SimState, shot: SimInput['shot'], stop: (s: SimState, events: SimEvent[]) => boolean) {

@@ -71,7 +71,7 @@ describe('routeEvents', () => {
 
   it('a Touch shot sets off no Splash ring', () => {
     const w = setup([])
-    w.route([{ type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 0, power: 0.5 }], [])
+    w.route([{ type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 0, power: 0.4 }], [])
     expect(w.aim.splashCount).toBe(0)
   })
 })

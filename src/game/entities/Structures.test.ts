@@ -94,7 +94,7 @@ describe('Splash preview', () => {
     expect(previewOf({ tier: 1, power: 0.5 })).toEqual([[1, true]])
   })
   it('is empty for a Touch aim, before the drag, and without an aim', () => {
-    expect(previewOf({ tier: 0, power: 0.5 })).toEqual([])
+    expect(previewOf({ tier: 0, power: 0.45 })).toEqual([])
     expect(previewOf({ tier: 1 })).toEqual([])
     expect(previewOf()).toEqual([])
   })

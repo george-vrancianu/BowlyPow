@@ -12,7 +12,7 @@ const up = { x: 0.6, y: -0.8 }
 
 describe('shot', () => {
   it('launches the ball at dir * power * maxSpeed', () => {
-    const r = shoot(ready(), { player: 1, dir: up, tier: 0, power: 0.5 })
+    const r = shoot(ready(), { player: 1, dir: up, tier: 1, power: 0.5 })
     // 0.5 of 60 is 30: (0.6, -0.8) * 30.
     expect(r.state.ball.vel.x).toBeCloseTo(18)
     expect(r.state.ball.vel.y).toBeCloseTo(-24)
@@ -25,8 +25,8 @@ describe('shot', () => {
   })
 
   it('announces the shot with where it left from', () => {
-    const r = shoot(ready(), { player: 1, dir: up, tier: 0, power: 0.5, breaker: true })
-    expect(r.events).toContainEqual({ type: 'shot-fired', player: 1, from: { x: 20, y: 80 }, dir: up, tier: 0, power: 0.5, breaker: true })
+    const r = shoot(ready(), { player: 1, dir: up, tier: 0, power: 0.4, breaker: true })
+    expect(r.events).toContainEqual({ type: 'shot-fired', player: 1, from: { x: 20, y: 80 }, dir: up, tier: 0, power: 0.4, breaker: true })
   })
 
   describe('is refused, leaving the ball still', () => {
@@ -36,18 +36,19 @@ describe('shot', () => {
       expect(r.state.ball.vel).toEqual({ x: 0, y: 0 })
       expect(r.state.possession.live).toBe(false)
     }
-    it('when it is not the shooter\'s turn', () => refused(ready(), { player: 2, dir: up, tier: 0, power: 0.5 }))
-    it('while the ball is in hand', () => refused(ready({ inHand: true }), { player: 1, dir: up, tier: 0, power: 0.5 }))
+    it('when it is not the shooter\'s turn', () => refused(ready(), { player: 2, dir: up, tier: 0, power: 0.4 }))
+    it('while the ball is in hand', () => refused(ready({ inHand: true }), { player: 1, dir: up, tier: 0, power: 0.4 }))
     it('with a shot in flight', () => {
-      const r = shoot(ready({ live: true }), { player: 1, dir: up, tier: 0, power: 0.5 })
+      const r = shoot(ready({ live: true }), { player: 1, dir: up, tier: 0, power: 0.4 })
       expect(r.events).toEqual([{ type: 'refused' }])
     })
     it('for an unknown tier', () => refused(ready(), { player: 1, dir: up, tier: 7, power: 0.5 }))
-    // Touch is [0.15, 0.5], Power [0.5, 1].
+    // Touch is [0.15, 0.45], Power [0.5, 1].
     it('with a power below its tier\'s range', () => refused(ready(), { player: 1, dir: up, tier: 0, power: 0.1 }))
     it('with a power above its tier\'s range', () => refused(ready(), { player: 1, dir: up, tier: 0, power: 0.9 }))
     it('with a Touch power on the Power tier', () => refused(ready(), { player: 1, dir: up, tier: 1, power: 0.3 }))
-    it('with Breaker armed and none left', () => refused(emptied(ready(), 1, 'breaker'), { player: 1, dir: up, tier: 0, power: 0.5, breaker: true }))
+    it('with a Touch power as strong as the weakest Power shot', () => refused(ready(), { player: 1, dir: up, tier: 0, power: 0.5 }))
+    it('with Breaker armed and none left', () => refused(emptied(ready(), 1, 'breaker'), { player: 1, dir: up, tier: 0, power: 0.4, breaker: true }))
   })
 })
 
@@ -77,7 +78,7 @@ describe('Splash', () => {
     expect(hpAfter(near([wall(1, 2, 39)]), { player: 1, dir: right, tier: 1, power: 0.75 })).toEqual([[1, 3]])
   })
   it('does not happen on a Touch shot', () => {
-    expect(hpAfter(near([wall(1, 2, 39)]), { player: 1, dir: right, tier: 0, power: 0.5 })).toEqual([[1, 3]])
+    expect(hpAfter(near([wall(1, 2, 39)]), { player: 1, dir: right, tier: 0, power: 0.4 })).toEqual([[1, 3]])
   })
   it('reports its damage with the wall events', () => {
     const r = shoot(near([wall(1, 2, 39, 8)].map((w) => ({ ...w, hp: 2 }))), { player: 1, dir: right, tier: 1, power: 1 })

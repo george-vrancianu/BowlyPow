@@ -21,7 +21,7 @@ describe('aim gesture press', () => {
   })
 })
 
-// Touch: radius 220 px, power [0.15, 0.5], slop 8 px, eased (quadratic) direct curve.
+// Touch: radius 220 px, power [0.15, 0.45], slop 8 px, eased (quadratic) direct curve.
 const dragTo = (x: number, y: number) => aimMove(press(), p(x, y), 100)
 
 describe('aim gesture drag', () => {
@@ -34,14 +34,14 @@ describe('aim gesture drag', () => {
     expect(aimOf(dragTo(100, 308.001))!.power).toBeCloseTo(0.15)
   })
   it('reaches the top of the range at the control radius', () => {
-    expect(aimOf(dragTo(100, 300 + 220))!.power).toBeCloseTo(0.5)
+    expect(aimOf(dragTo(100, 300 + 220))!.power).toBeCloseTo(0.45)
   })
   it('eases in between: halfway along the drag is a quarter of the way up the range', () => {
-    expect(aimOf(dragTo(100, 300 + 8 + 106))!.power).toBeCloseTo(0.2375)
+    expect(aimOf(dragTo(100, 300 + 8 + 106))!.power).toBeCloseTo(0.225)
   })
   it('keeps steering at the edge power past the control radius', () => {
     const aim = aimOf(dragTo(100, 300 + 450))!
-    expect(aim.power).toBeCloseTo(0.5)
+    expect(aim.power).toBeCloseTo(0.45)
     expect(aim.dir).toEqual({ x: 0, y: -1 })
   })
   it('is a Touch aim', () => {
@@ -123,7 +123,7 @@ describe('aim gesture view', () => {
   it('shows the aim once dragging', () => {
     const v = aimViewOf(dragTo(100, 520))
     expect(v).toMatchObject({ phase: 'aiming', tier: 0, radiusPx: 220, dir: { x: 0, y: -1 } })
-    expect(v?.power).toBeCloseTo(0.5)
+    expect(v?.power).toBeCloseTo(0.45)
   })
 })
 

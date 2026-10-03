@@ -30,7 +30,7 @@ describe('Aim Ghost', () => {
   // Straight up the left of the pitch, from 19 units below the end board: the ball (radius 1) first touches it at y = 1.
   const shooting = (): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, ball: { pos: { x: 10, y: 20 }, vel: { x: 0, y: 0 }, rolled: 0 } })
   const touch = { until: { contacts: 1 }, scale: 1 } as const
-  const ghostOf = (ghost: AimLine['ghost'], aim: Partial<AimLine> = { dir: { x: 0, y: -1 }, power: 0.5 }) => {
+  const ghostOf = (ghost: AimLine['ghost'], aim: Partial<AimLine> = { dir: { x: 0, y: -1 }, power: 0.45 }) => {
     const a = new Aim()
     a.sync(shooting(), defaultConfig)
     a.aim = { tier: 0, ghost, ...aim }
@@ -104,7 +104,7 @@ describe('Aim reset', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
     a.splash({ x: 20, y: 70 }, 1, 0.75)
-    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.5, ghost: { until: { contacts: 1 }, scale: 1 } }
+    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.45, ghost: { until: { contacts: 1 }, scale: 1 } }
     a.reset()
     expect([a.splashCount, a.ghost]).toEqual([0, undefined])
   })
