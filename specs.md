@@ -58,7 +58,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 ### Siege
 
 - No score and no rounds. One opening build phase with the Rounds ordering (coin-flip loser builds first, the winner gets ball-in-hand), then play; there are no further build phases.
-- A goal emits the goal event, resets the ball to the pitch center and gives the conceder ball-in-hand with a fresh shot counter. Own goals count for the opponent.
+- A goal emits the goal event and resets the ball to the pitch center. The scorer then takes a defence turn (the opponent of the shooter after an own goal): the sim holds play (no blasts, no ball placement, shot clock frozen) until they choose. Repair restores every surviving structure they own to full HP and emits one `repaired` event per structure (the renderer flashes it and a REPAIRED label sweeps across); Rearrange comes later. The choice is a `defence` input from the scorer; from anyone else, or outside the window, it is refused. After it the conceder has ball-in-hand at the center with a fresh shot counter.
 - There is no shot cap: shots never end anything.
 - The HUD shows no score digit and no round label.
 - The match has no end condition yet.

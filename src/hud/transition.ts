@@ -26,6 +26,7 @@ export function advance(t: Transition, f: Frame): Transition {
   for (const ev of f.events) {
     if (ev.type === 'goal') overlay = { kind: 'goal', at: f.now, player: ev.scorer, text: 'GOAL', ms: GOAL_MS, net: ev.at }
     if (ev.type === 'round-ended') due = true
+    if (ev.type === 'repaired') overlay = { kind: 'sweep', at: f.now, player: f.active, text: 'REPAIRED', ms: SWEEP_MS }
   }
   if (t.phase !== undefined && t.phase !== f.phase && overlay?.kind !== 'goal') overlay = { kind: 'sweep', at: f.now, player: f.active, text: f.phase.toUpperCase(), ms: SWEEP_MS }
   if (f.handover === false) due = false

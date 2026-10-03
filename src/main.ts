@@ -343,7 +343,9 @@ function frame(now: number) {
   const shooter = state.possession.shooter
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
-  hud.update(hudModel(state, config, { active: transition.shown, buttons: building && [{ label: 'Done', onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  // The defence turn: the scorer is offered Repair once the GOAL banner is gone (#39 adds Rearrange here).
+  const choosing = state.match.choosing && mine(state.match.choosing) && !blocking(transition) ? state.match.choosing : undefined
+  hud.update(hudModel(state, config, { active: transition.shown, buttons: (building && [{ label: 'Done', onClick: () => (pending = { done: building }) }]) || (choosing && [{ label: 'Repair', onClick: () => (pending = { defence: { player: choosing, choice: 'repair' } }) }]), armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)

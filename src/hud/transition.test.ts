@@ -78,6 +78,15 @@ describe('phase sweep', () => {
   })
 })
 
+describe('repaired sweep', () => {
+  it('sweeps REPAIRED once without blocking, however many structures were repaired', () => {
+    const t = go(open(), { now: 2000, events: [{ type: 'repaired', id: 1 }, { type: 'repaired', id: 2 }] })
+    expect(overlayView(t, 2500)).toMatchObject({ kind: 'sweep', text: 'REPAIRED', progress: 0.5 })
+    expect(blocking(t)).toBe(false)
+    expect(go(t, { now: 3000 }).overlay).toBeUndefined()
+  })
+})
+
 describe('online (no handover)', () => {
   const online = (t: Transition, o: Partial<Frame>) => go(t, { active: 2, handover: false, ...o })
   it('never flips or opens a turn card, and the screen stays with the local player', () => {

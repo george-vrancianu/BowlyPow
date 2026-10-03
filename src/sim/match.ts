@@ -2,8 +2,8 @@ import { type PlayerId } from './pitch'
 import { opponent, type Possession } from './possession'
 import type { SimConfig } from './step'
 
-/** Fields every mode shares. `builder` is whose build turn it is (null = play phase); `winner` set means the match is over. */
-type MatchBase = { seed: number; winner: PlayerId | null; builder: PlayerId | null }
+/** Fields every mode shares. `builder` is whose build turn it is (null = play phase); `winner` set means the match is over; `choosing` is who owes a defence choice (play is held until they make it). */
+type MatchBase = { seed: number; winner: PlayerId | null; builder: PlayerId | null; choosing: PlayerId | null }
 
 /** `round` counts from 1 and may exceed `config.rounds` (sudden death). */
 export type RoundsMatch = MatchBase & { mode: 'rounds'; round: number; score: Record<PlayerId, number>; roundShots: number }
