@@ -1,13 +1,13 @@
 # BreachBall
 
-A two-player, turn-based pitch game. Blast a ball into the opponent's goal through walls both players build. Playable in the browser on phones, tablets and desktops.
+A two-player, turn-based pitch game. Shoot a ball into the opponent's goal through walls both players build. Playable in the browser on phones, tablets and desktops.
 
 ## Platform and scope
 
 - Web first: Vite, TypeScript, Vitest, canvas 2D. Shipped as a PWA, portrait-locked on phones through the manifest. Wrap with Capacitor only if app stores become a requirement.
 - Hobby project. Prove the core loop is fun before anything else.
 - Milestones, in order:
-  1. Core blast-and-build loop with wall durability, hot-seat on one device.
+  1. Core shoot-and-build loop with wall durability, hot-seat on one device.
   2. Power-ups.
   3. P2P online play.
 - Nothing persists between sessions in v1.
@@ -15,7 +15,7 @@ A two-player, turn-based pitch game. Blast a ball into the opponent's goal throu
 ## Architecture
 
 - A pure, deterministic simulation: `step(state, input, config)` returns the new state plus a list of events for that tick. No DOM access and no randomness other than a seeded coin flip. Fixed tick at 60 Hz driven by an accumulator.
-- Events carry a moment in time that state alone cannot: ball hit wall (with speed), wall cracked, wall destroyed, blast fired (origin, power), Repulsor fired, Steal triggered, goal, possession changed. The renderer, haptics and a future audio layer consume them. The sim never waits for an animation.
+- Events carry a moment in time that state alone cannot: ball hit wall (with speed), wall cracked, wall destroyed, shot fired (launch position, direction, tier, power), Repulsor fired, Steal triggered, goal, possession changed. The renderer, haptics and a future audio layer consume them. The sim never waits for an animation.
 - A game renderer in `src/game/`: a `Game` instance owns an entity tree (`Camera`, `Pitch`, `Ball`, `Structures` with `Wall` and `Tower` children, `Fog`, `EdgeFade`, `Aim`) that animates itself (`Fog` hides the opponent's half in a Siege blind build, `EdgeFade` softens the pane edge where more pitch lies beyond, and `Camera` clamps to the viewer's half; the reveal is the map camera with the fog lifted) and draws on requestAnimationFrame (see ADR-0002). Sim state enters only through `game.apply(state, events)`, which routes events to entity methods (`src/game/events.ts`); entities never see `SimEvent`. Latest sim state only, no interpolation in v1.
 - An `InputController` (`src/game/input/`) turns touches, clicks and keys into sim inputs and camera moves.
 - A driver feeds the sim to `Game`. `LocalDriver` (`src/game/driver.ts`) is the hot-seat one: it alone calls `step` and feeds both players' inputs into one sim. A P2P peer would be another driver, so P2P is additive.
@@ -47,21 +47,21 @@ Expect to tune friction and max speed by feel in the first hour of play. A full-
 - The view is always the full 40-unit pitch width. Visible height is whatever the screen gives, capped at 64 units, so a player sees their own half plus a 10-unit strip of the enemy's. Nobody ever sees more than that at once.
 - Screens taller than 10:16 get letterbox bands top and bottom. Screens wider than 10:16 get a 10:16 pane letterboxed left and right.
 - The camera targets the ball, clamped so it never shows beyond the boards. While the ball moves it follows with about 150 ms of smoothing lag. At rest it settles on the ball.
-- Free panning at all times, in every phase: drag during the blast dwell (see Blasting), or drag with two fingers. Mouse drag and mouse wheel on desktop. A manual pan holds until the next sim event (blast fired, wall placed, possession change), then the camera returns to the ball. A recenter button in the HUD does the same on demand. Panning never pauses the shot clock.
+- Free panning at all times, in every phase: drag anywhere but on the ball (see Shooting), or drag with two fingers. Mouse drag and mouse wheel on desktop. A manual pan holds until the next sim event (shot fired, wall placed, possession change), then the camera returns to the ball. A recenter button in the HUD does the same on demand. Panning never pauses the shot clock.
 - Map: a HUD button opens a full-screen live view of the whole pitch, drawn by the same renderer through a second camera, with the current view outlined. Tap any point to close the map and center the camera there. Close button or map button closes without moving. A fit/stretch toggle in the corner is remembered for the session. The clock keeps running. Available in every phase, including the opponent's turn and while the ball moves. It always draws the whole pitch; during Siege's blind opening build the opponent's half is fogged in it (see Siege), so the map never shows more than the main view may.
 - A soft gradient at the view edge shows when more pitch lies beyond it.
 - Camera is renderer state. The sim never knows about it.
 
 ## Game modes
 
-Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstraction.md`); the sim config names it. The settings screen has a mode picker above the sliders, Siege is the default, and only the sliders a mode uses are shown (no rounds slider in Siege). Online matches run Siege on default settings.
+Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstraction.md`); the sim config names it. The settings screen has a mode picker above the sliders, Siege is the default, and only the sliders a mode uses are shown (no rounds slider in Siege). Below them, in every mode, an "On time out: Shoot / Burn" toggle (default Shoot) says what an expiring shot clock does (see Shot clock). Online matches run Siege on default settings.
 
 ### Siege
 
 - No score and no rounds. One opening build phase with the Rounds ordering (coin-flip loser builds first, the winner gets ball-in-hand), then play; there are no further build phases.
 - Done is refused (`refused` event, the turn continues) until the builder owns a structure, and the Done button is disabled meanwhile; otherwise an empty defence would be an instant loss.
 - If the build timer runs out while the builder owns nothing, the sim places a fallback piece (a straight wall at a fixed cell on the builder's half, or a Repulsor if the wall is unaffordable) and then finishes the turn, with no `refused` event. The build clock never goes below 0.
-- A goal emits the goal event and resets the ball to the pitch center. The scorer then takes a defence turn (the opponent of the shooter after an own goal): the sim holds play (no blasts, no ball placement, no shot clock) until they choose. The scorer picks with two buttons, Repair and Rearrange, in the phase row of the HUD shell (not an overlay): they appear once the GOAL banner has gone, only on the scorer's own device online, and read the live match at click time. With a build timer (online) the choice runs on the build window: it opens full at the goal and drains while the choice is pending (the HUD clock shows it; in hot-seat, with no build timer, the clock reads "-"); if it runs out, the mode picks for the scorer, which in Siege is Repair, resolved with the usual `repaired` events. A choice made on the expiry tick wins. With no build timer (hot-seat) the choice waits indefinitely. The peer waiting on the scorer sees an "Opponent is choosing" label over the pitch (non-blocking, no band) until the choice is made, then the pitch (Repair) or the Rearrange turn as they watch a build turn. Repair restores every surviving structure they own to full HP and emits one `repaired` event per surviving structure they own, structures already at full HP included, so the label and flash always fire (the renderer flashes it and a REPAIRED label sweeps across); Rearrange instead opens a build-style turn for the scorer (see below). The choice is a `defence` input from the scorer; from anyone else, or outside the window, it is refused. After it the conceder has ball-in-hand at the center with a fresh shot counter.
+- A goal emits the goal event and resets the ball to the pitch center. The scorer then takes a defence turn (the opponent of the shooter after an own goal): the sim holds play (no shots, no ball placement, no shot clock) until they choose. The scorer picks with two buttons, Repair and Rearrange, in the phase row of the HUD shell (not an overlay): they appear once the GOAL banner has gone, only on the scorer's own device online, and read the live match at click time. With a build timer (online) the choice runs on the build window: it opens full at the goal and drains while the choice is pending (the HUD clock shows it; in hot-seat, with no build timer, the clock reads "-"); if it runs out, the mode picks for the scorer, which in Siege is Repair, resolved with the usual `repaired` events. A choice made on the expiry tick wins. With no build timer (hot-seat) the choice waits indefinitely. The peer waiting on the scorer sees an "Opponent is choosing" label over the pitch (non-blocking, no band) until the choice is made, then the pitch (Repair) or the Rearrange turn as they watch a build turn. Repair restores every surviving structure they own to full HP and emits one `repaired` event per surviving structure they own, structures already at full HP included, so the label and flash always fire (the renderer flashes it and a REPAIRED label sweeps across); Rearrange instead opens a build-style turn for the scorer (see below). The choice is a `defence` input from the scorer; from anyone else, or outside the window, it is refused. After it the conceder has ball-in-hand at the center with a fresh shot counter.
 - Rearrange: the scorer's turn opens with no wall points and every structure they own movable and rotatable under the placement, no-build and reachability rules, HP and cracks unchanged. Placement and demolish are refused (`refused`), the build menu shows no palette, and a REARRANGE label sweeps when it opens. Done ends it (also with nothing moved) and the conceder has ball-in-hand at the center. A Rearrange chosen on the expiry tick opens with 0 s left, so the turn ends on the next tick as a timed-out build. The choice is final: once made, a `defence` input is refused. The Siege match carries `opening`, true until the opening build is over; a build turn with it false is a Rearrange turn, never the blind opening build (fog keys on `opening`). One build window covers the choice and the Rearrange: choosing Rearrange continues the same window (the build-start refill is skipped when the turn opens from a choice), and its expiry ends the turn as a timed-out build, with no fallback piece.
 - There is no shot cap: shots never end anything.
 - The HUD shows each player's remaining structure count, towers included, in place of the score digit, and no round label.
@@ -86,7 +86,7 @@ The match structure below is Rounds.
 - Each player gets the configured wall points (default 10). Unspent points are lost, no carry-over.
 - A "Done" button ends your build. No timer in hot-seat (add one for P2P). In Rounds, tapping Done with nothing placed skips the phase; Siege refuses it (see Game modes).
 - Walls persist for the whole match.
-- Placement: tap a shape in the palette, a ghost appears on your half, drag the ghost to position it (dragging elsewhere pans), tap Rotate, tap Confirm. The ghost turns red where placement is illegal.
+- Placement: tap a shape in the palette, a half-transparent build piece appears on your half, drag it to position it (dragging elsewhere pans), tap Rotate, tap Confirm. The piece turns red where placement is illegal.
 - Walls snap to the grid and rotate in 90-degree steps. No diagonals in v1.
 - Walls may touch or overlap each other, so L shapes can form boxes.
 - Placement is illegal on the opponent's half, inside your own no-build zone, or if it would make your goal unreachable (see below).
@@ -110,7 +110,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 - Every wall has 3 hit points. An L wall is one object with one pool.
 - A ball hitting a wall at more than 50% of max speed removes 1 hit point.
-- Blasts also damage structures, see Blasting.
+- A Power shot's Splash also damages structures, see Shooting.
 - At 0 the wall disappears mid-shot and the ball continues at reduced speed.
 - Cracks show the damage. No refund on destruction.
 
@@ -128,23 +128,29 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 ### Ball-in-hand
 
 - Place the ball anywhere on your own half where it does not overlap a wall or tower. The ball's center must be strictly on your side of the halfway line. The no-build zone does not apply.
-- Tap a legal point to place the ghost ball, drag the ghost to move it (dragging elsewhere pans), tap Confirm to fix it. The ghost goes red where placement is illegal.
+- Tap a legal point to set the placement (a half-transparent ball), drag it to move it (dragging elsewhere pans), tap Confirm to fix it. The placement goes red where it is illegal.
 
 ### Shot clock
 
 - One 15-second clock per shot, starting when the shot (or ball-in-hand) is granted. It covers placement and the shot. The clock turns red and pulses for the last 5 seconds.
-- On expiry: if a blast is charging, it fires at its current power. Otherwise one shot is burned and the ball stays put. If the ball was not yet placed, it is placed at the center of the shooter's half first.
+- On expiry, the "On time out" setting decides. Shoot (the default): if the shooter is holding an aim (dragged past the slop and not cancel-armed), it fires as that Shot. Otherwise, or with Burn set, one shot is burned and the ball stays put. If the ball was not yet placed, it is placed at the center of the shooter's half first.
 - A second consecutive expiry by the same player in the same possession hands possession to the opponent as ball-in-hand.
 
-### Blasting
+### Shooting
 
-- A blast is an explosion centered on the touch point. It may start anywhere on the shooter's own half that is not on a wall, tower or the ball. Never on the opponent's half.
-- Touch and hold still for 1 second (the dwell). Moving more than 12 pixels during the dwell turns the gesture into a camera pan. Releasing during the dwell is a free cancel: nothing fires, no shot is burned.
-- After the dwell, power ramps from 0 to 100% over 1.5 seconds with a quadratic ease-in (slow at first, fast at the end), then holds at 100%. Moving more than 12 pixels after the ramp starts cancels the blast for free and kills the gesture until the finger lifts; it never becomes a pan.
-- Blast radius grows with power from 1 ball diameter at the start of the ramp to 5 ball diameters (10 units) at full power.
-- Release fires. Everything inside the radius is pushed away from the center. Strength falls off linearly from full at the center to zero at the edge. The ball is pushed only if it is inside the radius.
-- A blast that does not reach the ball still counts as one of the possession's shots.
-- Blast damage: pressure at a structure's nearest point is power × (1 − distance / radius). Enemy structures lose 1 HP above 0.4 and 2 HP above 0.8. The shooter's own structures lose 1 HP above 0.8 only. The halfway line shields nothing: a blast near the line damages what it reaches on the far side. Towers use the same rule with their own HP.
+- A Shot is pool-style (see `docs/adr/0003-pool-style-shot-replaces-blast.md`): press on the ball, drag back, release. The ball goes opposite the drag at power × max speed. A press counts when it lands within the ball's on-screen radius or 28 pixels of its center, whichever is larger, and only for the shooter, with the ball placed and no shot in flight. A press anywhere else pans.
+- Tiers are picked by how long you hold still on the ball before dragging. The tier climbs while the pointer stays within 8 pixels of the press; the first move past that locks it, so a slow Touch shot never turns into Power. Tiers are data in the rules config: a new tier is a new entry.
+
+| Tier | Hold | Control radius | Curve | Power | Ghost | Splash |
+|---|---|---|---|---|---|---|
+| Touch | none | 220 px | longer drag is stronger | 15-45% | full path to the first contact, green | no |
+| Power | 1 s | 90 px | shorter drag is stronger | 50-100% | first 30% of that path, red | yes |
+
+- Drag length is in screen pixels from the press, eased (quadratic) through the tier's curve, with the full range starting at the slop edge. Dragging past the control radius keeps steering at the edge power. The weakest Power shot is always stronger than the strongest Touch shot.
+- The Ghost is the ball's predicted path, from the same step function the game runs, so it never lies. It is recomputed only when the aim changes.
+- Cancel: release without having dragged past the slop, or release within 24 pixels of any canvas edge, where the Ghost greys out and an ✕ sits on the ball. Moving back out of the edge zone re-arms the same shot, tier unchanged. A second finger pans and abandons the aim. A cancel burns nothing.
+- Splash: every Power shot sets off a burst centered on the ball's launch position. Its power is the shot's power rescaled within the tier (50% is a 0 Splash, 100% a full one). Its radius grows with that power from 1 ball diameter to 5 ball diameters (10 units). Pressure at a structure's nearest point is power × (1 − distance / radius). Enemy structures lose 1 HP above 0.4 and 2 HP above 0.8; the shooter's own structures lose 1 HP above 0.8 only. The halfway line shields nothing. Towers use the same rule with their own HP. The Splash does not move the ball.
+- The sim input is a direction, tier and power; the sim refuses a shot from anyone but the shooter, with the ball in hand or in flight, for an unknown tier, or with a power outside the tier's range.
 - Starting values, tune by feel.
 
 ### Hot-seat handover
@@ -155,15 +161,15 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 ## Power-ups (milestone 2)
 
 - Each player starts the match with 3 of each power-up. No economy. Counts are visible to both players.
-- Towers follow all wall rules: own half only, outside the no-build zone, counted in the reachability check, persistent across rounds, placed in the build phase through the same ghost-drag-rotate-confirm flow. They cost 0 wall points; the power-up is the cost.
+- Towers follow all wall rules: own half only, outside the no-build zone, counted in the reachability check, persistent across rounds, placed in the build phase through the same drag-rotate-confirm flow. They cost 0 wall points; the power-up is the cost.
 
 ### Breaker shot (play phase)
 
-- Tap the Breaker icon to arm, then charge as normal. A cancelled charge disarms without consuming it.
-- Consumed when the blast fires, whether or not the ball hits anything.
+- Tap the Breaker icon to arm, then shoot as normal (any tier). A cancelled aim disarms without consuming it.
+- Consumed when the Shot fires (also when the shot clock fires it), whether or not the ball hits anything.
 - The ball destroys the first wall or tower it touches, including your own, then continues at full speed.
 - A Steal tower hit by a Breaker is destroyed without triggering.
-- The Breaker and the blast explosion are separate mechanics; the explosion damages as usual.
+- The Breaker and the Splash are separate mechanics: a Power shot with Breaker armed still splashes as usual.
 
 ### Repulsor tower (build phase)
 
@@ -182,10 +188,10 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 ### Visual language
 
-- Minimal flat rendering: solid fills, thin dark outlines on walls and ball, no sprites. Glow is reserved for the charge circle, Repulsor fire and goals.
+- Minimal flat rendering: solid fills, thin dark outlines on walls and ball, no sprites. Glow is reserved for the hold ring, Repulsor fire and goals.
 - Dark night pitch with a lighter board around it. Player 1 cyan, Player 2 orange, ball white, off-white UI text. Player 2 walls carry a diagonal hatch so ownership survives colour-blindness. Your own half has a very faint tint of your colour so you always know which half you are looking at while panning.
 - Everything a player owns (walls, towers, goal line, HUD digit) carries their colour. Towers differ from walls by glyph, not colour.
-- Juice level: moderate. Hit flashes, particles, shockwave rings and screen shake, all renderer-only. No slow motion, no hit-stop.
+- Juice level: moderate. Hit flashes, particles, Splash rings and screen shake, all renderer-only. No slow motion, no hit-stop.
 
 ### Pitch markings
 
@@ -195,15 +201,15 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 ### Ball
 
-- A short fading trail of ghost discs at previous positions, length proportional to speed, gone at rest.
+- A short trail of fading discs at previous positions, length proportional to speed, gone at rest.
 - A single darker dot on the disc that orbits with distance travelled so the ball appears to roll. No squash.
 
-### Charge and blast
+### Aim and Shot
 
-- During the dwell: a thin pulsing ring in the player's colour under the finger.
-- During the ramp: the ring fills and shifts toward red as power grows, with radar-style rings sweeping outward. Structures inside the circle are tinted red, own structures darker red, so own-wall damage is always a visible choice.
-- A faint arrow on the ball shows the push direction.
-- On release: the circle collapses, a shockwave ring expands to the blast radius over 250 ms and fades, the screen shakes with amplitude scaled by power (max about 4 px, 200 ms, none below 30% power).
+- While holding still on the ball: a ring around it fills towards Power in the tier's colour (Touch green, Power red). Reaching Power pulses it for 300 ms and gives a short vibration.
+- While aiming: a faint ring shows the tier's control radius, and the Ghost is drawn from the ball in the tier's colour. While cancel-armed the Ghost turns grey and an ✕ sits on the ball.
+- While a Power aim is held, structures the Splash would reach are tinted red, own structures darker red, so own-wall damage is always a visible choice.
+- On a Power shot, a Splash ring expands to the Splash radius over 250 ms and fades. Any shot of at least 30% power shakes the screen with amplitude scaled by power (max about 4 px, 200 ms).
 
 ### Walls and towers
 
@@ -214,18 +220,18 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - Steal: square with a vortex glyph. On trigger the ball shrinks into the tower center over 300 ms and vanishes, then the tower collapses like a destroyed wall.
 - Breaker armed: HUD icon highlighted and a pulsing outline on the ball in the shooter's colour. On break, double particles, no speed loss.
 
-### Ghosts and buttons
+### Placement previews and buttons
 
-- Wall and ball ghosts are half-transparent in the owner's colour, red when illegal.
+- The build piece and the ball-in-hand placement are half-transparent in the owner's colour, red when illegal. They are not the Ghost, which is the aim's predicted path.
 - One button-row component serves both phases. Build: palette (Straight, L, Repulsor, Steal, each with cost or remaining count, selected item highlighted), Rotate, Confirm, Done. Ball-in-hand: Confirm. Rearrange has no palette, and the defence choice is a two-button row (Repair, Rearrange).
 
 ### Transitions
 
 - Handover flip: animated 180-degree rotation over 400 ms, with the turn overlay fading in during the second half so nobody sees the pitch upside-down.
-- Goal: 1.5 s hold with a full-width "GOAL" banner in the scorer's colour, the HUD digit flipping, the ball resting in the net. Then the normal handover. Behind any blocking hold (flip, goal, turn card, reveal, REPAIRED sweep) the sim is paused and pointer input, Confirm, Enter, a charge in progress, the build menu and any ghost ball are ignored, so nothing tapped during the hold carries into the next turn; only the Map and Close buttons still work (a tap on the map itself is swallowed by the overlay).
+- Goal: 1.5 s hold with a full-width "GOAL" banner in the scorer's colour, the HUD digit flipping, the ball resting in the net. Then the normal handover. Behind any blocking hold (flip, goal, turn card, reveal, REPAIRED sweep) the sim is paused and pointer input, Confirm, Enter, an aim in progress, the build menu and any ball-in-hand placement are ignored, so nothing tapped during the hold carries into the next turn; only the Map and Close buttons still work (a tap on the map itself is swallowed by the overlay).
 - Build and play: a 1 s "BUILD" or "PLAY" label sweeping across the pitch. In Siege a Repair adds a "REPAIRED" label of the same kind, and a Rearrange a "REARRANGE" label; in hot-seat the handover waits until it has finished, and the REPAIRED sweep pauses the sim online as well (both peers see the same event, so they stay in step).
 - Reveal (Siege only): when the second builder taps Done in the opening build, the fog lifts into a 1.5 s "REVEAL" hold on the map camera, so both layouts show at once. It replaces the opening PLAY sweep, and its label is pinned to the top edge of the stage (at least 112 px down, a margin kept from the former top HUD band until the HUD is redesigned), with no band so every structure stays visible. The online "Opponent is choosing" label is pinned the same way. It blocks input and the sim like the goal hold, then the normal handover goes to the ball-in-hand player. Reduced motion: the same 1.5 s hold (it has no animation to drop). Online, each peer sees it from their own orientation; it is wall-clock only, like the goal hold. Rounds and Rearrange turns have none.
-- All interstitials are one overlay component. In round 1 only, turn overlays carry short hints ("Hold on the pitch to charge a blast").
+- All interstitials are one overlay component. In round 1 only, turn overlays carry short hints ("Drag back from the ball to shoot; hold first for Power").
 
 ### HUD
 
@@ -236,20 +242,20 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 ### Screens
 
-- Title screen (name, Play), settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Each is its own layer, outside the rotating stage. No tutorial screen in v1.
+- Title screen (name, Play), settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, the "On time out: Shoot / Burn" toggle, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Each is its own layer, outside the rotating stage. No tutorial screen in v1.
 
 ### Feedback and accessibility
 
 - No sound in v1. The event list exists so an audio layer can subscribe later without touching the renderer.
-- Haptics through the Vibration API where supported: short pulse on blast release scaled by power, double pulse on goal, single tick when charge reaches 100%.
-- Reduced-motion preference disables screen shake, particles, the flip rotation (instant cut with the overlay) and haptics. Functional visuals such as the charge circle and ghosts stay.
-- Desktop keys: M map, Space recenter, R rotate, Enter confirm, Esc close map or cancel ghost.
+- Haptics through the Vibration API where supported: short pulse on firing a shot scaled by power, double pulse on goal, short buzz when the hold reaches Power.
+- Reduced-motion preference disables screen shake, particles, the flip rotation (instant cut with the overlay) and haptics. The hold ring drops its pulse but keeps its colour change. Functional visuals such as the Ghost and placement previews stay.
+- Desktop keys: M map, Space recenter, R rotate, Enter confirm, Esc close map or cancel the selection.
 - App icon: a white ball with a cyan-to-orange shockwave ring on the pitch colour, one SVG source exported to the required PNG sizes. Splash is the dark background with the title.
 
 ## P2P (milestone 3)
 
 - WebRTC between two browsers. Signaling via a tiny server or a pasted connection string, to be decided then.
-- Each peer runs the same deterministic sim and exchanges one input per shot or placement. Inputs are small integers thanks to the grid; a blast is an origin point and a power value.
+- Each peer runs the same deterministic sim and exchanges one input per shot or placement. Inputs are small integers thanks to the grid; a shot is a direction, a tier and a power. The aim a shooter is holding travels too (each peer keeps the latest per player until it is replaced, cleared or fired), so a shot clock that fires it does so identically on both peers.
 - Each player sees the pitch with themselves at the bottom.
 - Add a build-phase timer for P2P. Siege's blind build hides the layout in the renderer and HUD only: a modified client could read the peer's layout from its own sim state. True hidden information (commit-and-reveal of the layout) is a later idea.
 
