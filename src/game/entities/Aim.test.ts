@@ -55,6 +55,25 @@ describe('Aim Ghost', () => {
   })
 })
 
+describe('Aim cancel state', () => {
+  const ball = { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }
+  const ghost = { until: { contacts: 1 }, scale: 1 } as const
+
+  it('greys the Ghost and marks an ✕ on the ball while cancel is armed', () => {
+    const a = new Aim()
+    a.sync({ ...playState(), ball }, defaultConfig)
+    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.3, ghost, cancel: true }
+    expect(a.ghost).toBeDefined()
+    expect(a.cancel).toEqual({ at: { x: 20, y: 80 }, color: visual.aim.cancel.color })
+  })
+  it('shows no ✕ for an armed aim', () => {
+    const a = new Aim()
+    a.sync({ ...playState(), ball }, defaultConfig)
+    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.3, ghost }
+    expect(a.cancel).toBeUndefined()
+  })
+})
+
 describe('Aim reset', () => {
   it('forgets the rings and the aim of the last match', () => {
     const a = new Aim()
