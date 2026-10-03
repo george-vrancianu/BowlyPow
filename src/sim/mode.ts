@@ -16,8 +16,8 @@ export type ModeContext = {
 /** What a match-level hook returns. `possession` and `ball` are set only when the hook resets play (a new round). */
 export type ModeResult<M extends Match = Match> = { match: M; possession?: Possession; ball?: Point; /** Set when the hook changes structures (a repair). */ objects?: Structure[]; events: SimEvent[] }
 
-/** What a scorer can do with their defence turn. #39 adds Rearrange. */
-export type DefenceChoice = 'repair'
+/** What a scorer can do with their defence turn. */
+export type DefenceChoice = 'repair' | 'rearrange'
 
 /** How a build turn opens: the builder's wall points and which structures count as placed this turn (movable). */
 export type BuildTurn = { points: number; built: number[] }
@@ -41,6 +41,8 @@ export type GameMode<M extends Match = Match> = {
   onDefenceChoice(m: M, player: PlayerId, choice: DefenceChoice, ctx: ModeContext, c: SimConfig): ModeResult<M> | null
   /** A timed-out Done was refused: a piece to place for the builder before finishing the turn, or null for none. */
   onBuildTimeout(m: M, builder: PlayerId, ctx: ModeContext, c: SimConfig): StructureSpec | null
+  /** Whether the current build turn may place and demolish pieces (moving is always allowed); false in a Rearrange turn. */
+  mayEdit(m: M): boolean
   /** A build turn just opened for `m.builder`. */
   onBuildStart(m: M, ctx: ModeContext, c: SimConfig): BuildTurn
   /** Who has won, if anyone; derived from state. */
@@ -73,6 +75,7 @@ export const rounds: GameMode<RoundsMatch> = {
   onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, m.round) ? opponent(builder) : null }, events: [] }),
   onDefenceChoice: () => null,
   onBuildTimeout: () => null,
+  mayEdit: () => true,
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
   // The last round is over and the score is not tied; a tie means sudden death.
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
@@ -80,13 +83,14 @@ export const rounds: GameMode<RoundsMatch> = {
 
 /** Siege: one opening build (Rounds ordering), no score, no shot cap; a goal hands the conceder ball-in-hand at the center; a player with no structures left loses. */
 export const siege: GameMode<SiegeMatch> = {
-  start: (seed, c) => ({ match: { mode: 'siege', seed, winner: null, builder: firstBuilder(seed, 1), choosing: null }, possession: startingPossession(coinFlip(seed, 1), c) }),
+  start: (seed, c) => ({ match: { mode: 'siege', seed, winner: null, builder: firstBuilder(seed, 1), choosing: null, opening: true }, possession: startingPossession(coinFlip(seed, 1), c) }),
   onShotFired: (m) => m,
   onShotConsumed: () => null,
   // The scorer owes a defence choice; step holds play until it is made. The conceder's ball-in-hand is set up here, once, and stays unusable while `choosing`.
   onGoal: (m, scorer, _ctx, c) => ({ match: { ...m, choosing: scorer }, possession: startingPossession(opponent(scorer), c), ball: { ...center }, events: [] }),
   onDefenceChoice: (m, player, choice, ctx) => {
-    if (choice !== 'repair') return null
+    // Rearrange opens a build-style turn for the scorer (step then asks `onBuildStart` for it); no event, nothing is restored.
+    if (choice === 'rearrange') return { match: { ...m, choosing: null, builder: player }, events: [] }
     return {
       match: { ...m, choosing: null },
       objects: ctx.objects.map((o) => (o.owner === player ? { ...o, hp: maxHp(o) } : o)),
@@ -95,14 +99,22 @@ export const siege: GameMode<SiegeMatch> = {
     }
   },
   // An empty defence would be an instant loss, so Done is refused until the builder owns a structure.
-  onBuildDone: (m, builder, ctx) => (ctx.objects.some((o) => o.owner === builder) ? { match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] } : null),
+  // The opening build hands on to the opponent, then to play; a Rearrange turn (not `opening`) ends straight into play.
+  onBuildDone: (m, builder, ctx) => {
+    if (!ctx.objects.some((o) => o.owner === builder)) return null
+    const next = m.opening && builder === firstBuilder(m.seed, 1) ? opponent(builder) : null
+    return { match: { ...m, builder: next, opening: m.opening && next !== null }, events: [] }
+  },
   // A builder with nothing owned has the full budget: a straight wall on their half if it fits, else a Repulsor (free, always in stock at the opening).
-  onBuildTimeout: (_m, builder, _ctx, c) => {
+  onBuildTimeout: (m, builder, _ctx, c) => {
+    if (!m.opening) return null
     const at = { gx: 10, gy: builder === 1 ? 40 : 10 }
     const wall: StructureSpec = { kind: 'wall', owner: builder, shape: 'straight', rotation: 0, at }
     return structureCost(wall) <= c.wallPoints ? wall : { kind: 'tower', owner: builder, at, power: 'repulsor' }
   },
-  onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
+  mayEdit: (m) => m.opening,
+  // A Rearrange turn has no wall points and every own structure counts as placed this turn, so all of them can be moved.
+  onBuildStart: (m, ctx, c) => (m.opening ? { points: c.wallPoints, built: [] } : { points: 0, built: ctx.objects.filter((o) => o.owner === m.builder).map((o) => o.id) }),
   winner: (_m, ctx) => {
     const left = (p: PlayerId) => ctx.objects.some((o) => o.owner === p)
     if (left(1) && left(2)) return null

@@ -283,7 +283,7 @@ function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
   // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
-  const phase = state.match.builder ? 'Build' : 'Play'
+  const phase = state.match.builder ? (state.match.mode === 'siege' && !state.match.opening ? 'Rearrange' : 'Build') : 'Play'
   const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
     if (blocking(transition)) {
@@ -348,9 +348,9 @@ function frame(now: number) {
   const shooter = state.possession.shooter
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
-  // The defence turn: the scorer is offered Repair once the GOAL banner is gone (#39 adds Rearrange here).
+  // The defence turn: the scorer is offered Repair or Rearrange once the GOAL banner is gone.
   const choosing = state.match.choosing && mine(state.match.choosing) && !blocking(transition) ? state.match.choosing : undefined
-  hud.update(hudModel(state, config, { active: transition.shown, buttons: (building && [{ label: 'Done', disabled: !canFinishBuild(state, config), onClick: () => (pending = { done: building }) }]) || (choosing && [{ label: 'Repair', onClick: () => (pending = { defence: { player: choosing, choice: 'repair' } }) }]), armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  hud.update(hudModel(state, config, { active: transition.shown, buttons: (building && [{ label: 'Done', disabled: !canFinishBuild(state, config), onClick: () => (pending = { done: building }) }]) || (choosing && (['repair', 'rearrange'] as const).map((choice) => ({ label: choice === 'repair' ? 'Repair' : 'Rearrange', onClick: () => (pending = { defence: { player: choosing, choice } }) }))), armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)

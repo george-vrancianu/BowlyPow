@@ -139,6 +139,8 @@ export function step(
   // Play is held while a defence choice is owed: no blasts, no ball placement, no shot clock.
   const waiting = match.choosing !== null
   const { placeWall, demolish, moveStructure: move } = input
+  // A Rearrange turn moves pieces only: placing and demolishing are refused.
+  const edit = mode.mayEdit(match)
   /** Places a piece for the builder if cost, stock and position allow. */
   const place = (spec: StructureSpec): boolean => {
     const cost = structureCost(spec)
@@ -150,7 +152,7 @@ export function step(
     points = { ...points, [spec.owner]: points[spec.owner] - cost }
     return true
   }
-  if (placeWall && !place(placeWall)) events.push({ type: 'refused' })
+  if (placeWall && !(edit && place(placeWall))) events.push({ type: 'refused' })
   if (move) {
     const it = objects.find((o) => o.id === move.id)
     const others = objects.filter((o) => o.id !== move.id)
@@ -161,7 +163,7 @@ export function step(
   if (demolish) {
     const it = objects.find((w) => w.id === demolish.wall)
     const fresh = built.includes(demolish.wall)
-    if (it && demolish.player === match.builder && it.owner === demolish.player && (fresh || points[demolish.player] >= 1)) {
+    if (edit && it && demolish.player === match.builder && it.owner === demolish.player && (fresh || points[demolish.player] >= 1)) {
       objects = objects.filter((w) => w.id !== demolish.wall)
       // This turn's items come back in full; older ones cost a point to clear.
       points = { ...points, [demolish.player]: points[demolish.player] + (fresh ? structureCost(it) : -1) }
@@ -294,6 +296,6 @@ export function step(
   }
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
   if (possession.shooter !== state.possession.shooter || fired || ended || chose) clock = { ...clock, expiries: 0 }
-  if (expired || fired || ended || chose || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
+  if (expired || fired || ended || (chose && !match.builder) || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
   return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, built, ball: landed }, events }
 }

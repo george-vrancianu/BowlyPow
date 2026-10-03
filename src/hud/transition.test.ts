@@ -123,3 +123,10 @@ describe('online (no handover)', () => {
     expect(overlayView(t, 1600)?.text).toBe('BUILD')
   })
 })
+
+describe('rearrange', () => {
+  it('sweeps a REARRANGE label when the turn opens' , () => {
+    const t = go(open(), { now: 3000, phase: 'Rearrange' })
+    expect(overlayView(t, 3000)).toMatchObject({ text: 'REARRANGE' })
+  })
+})

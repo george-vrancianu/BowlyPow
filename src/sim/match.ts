@@ -8,8 +8,8 @@ type MatchBase = { seed: number; winner: PlayerId | null; builder: PlayerId | nu
 /** `round` counts from 1 and may exceed `config.rounds` (sudden death). */
 export type RoundsMatch = MatchBase & { mode: 'rounds'; round: number; score: Record<PlayerId, number>; roundShots: number }
 
-/** Siege has no score or rounds, so it carries nothing beyond the shared fields. */
-export type SiegeMatch = MatchBase & { mode: 'siege' }
+/** Siege has no score or rounds. `opening` is true from the start until the opening build is over (play begins); a build turn with it false is a Rearrange turn, and fog (blind build) must key on it. */
+export type SiegeMatch = MatchBase & { mode: 'siege'; opening: boolean }
 
 /** Match state, a union keyed by `mode`: read per-mode fields only after narrowing on it. */
 export type Match = RoundsMatch | SiegeMatch

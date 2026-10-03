@@ -296,3 +296,112 @@ describe('Siege build timeout', () => {
     expect(s.match.builder).toBe(opponent(first))
   })
 })
+
+describe('Siege defence turn: Rearrange', () => {
+  const wallAt = (owner: 1 | 2, id: number, hp: number, gx: number): Structure => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx, gy: owner === 1 ? 40 : 10 }, id, hp })
+  /** `scorer` has just scored and owes a choice; they own a cracked wall (1) and a full one (2), the other player owns wall 3. */
+  const scored = (scorer: 1 | 2 = 1, cfg: SimConfig = siege): SimState => {
+    const init = initialState(1, cfg)
+    const s = { ...init, match: { ...init.match, builder: null, opening: false } }
+    const other = opponent(scorer)
+    const base: SimState = { ...s, objects: [wallAt(scorer, 1, 1, 2), wallAt(scorer, 2, 3, 10), wallAt(other, 3, 1, 2)], nextId: 4 }
+    const y = scorer === 1 ? 0.5 : 107.5
+    const before = { ...base, ball: { ...base.ball, pos: { x: 20, y }, vel: { x: 0, y: scorer === 1 ? -60 : 60 } }, possession: { shooter: scorer, shots: 1, inHand: false, live: true } }
+    return step(before, {}, cfg).state
+  }
+  const choose = { defence: { player: 1 as const, choice: 'rearrange' as const } }
+  const rearranging = (): SimState => step(scored(), choose, siege).state
+  const move = (id: number, gx: number, gy: number, rotation: 0 | 1 | 2 | 3 = 0) => ({ moveStructure: { player: 1 as const, id, at: { gx, gy }, rotation } })
+
+  it('opens a turn for the scorer in which every own structure is movable and no points are left', () => {
+    const r = step(scored(), choose, siege)
+    expect(r.state.match).toMatchObject({ choosing: null, builder: 1 })
+    expect(r.state.built).toEqual([1, 2])
+    expect(r.state.points[1]).toBe(0)
+    expect(r.events).toEqual([])
+  })
+
+  it('moves and rotates structures, keeping HP and cracks', () => {
+    let s = rearranging()
+    const r1 = step(s, move(1, 20, 44, 1), siege)
+    expect(r1.events).toEqual([])
+    s = r1.state
+    expect(s.objects.find((o) => o.id === 1)).toMatchObject({ at: { gx: 20, gy: 44 }, rotation: 1, hp: 1 })
+    s = step(s, move(2, 10, 46), siege).state
+    expect(s.objects.find((o) => o.id === 2)).toMatchObject({ at: { gx: 10, gy: 46 }, hp: 3 })
+  })
+
+  it('refuses moves that break placement, no-build or reachability rules, and the opponent structure', () => {
+    const s = rearranging()
+    for (const input of [move(1, 99, 40), move(1, 5, 10), move(3, 20, 44)]) {
+      const r = step(s, input, siege)
+      expect(r.events).toContainEqual({ type: 'refused' })
+      expect(r.state.objects).toEqual(s.objects)
+    }
+  })
+
+  it('refuses placement and demolish', () => {
+    const s = rearranging()
+    const place = step(s, { placeWall: { kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 25, gy: 45 } } }, siege)
+    const tower = step(s, { placeWall: { kind: 'tower', owner: 1, power: 'repulsor', at: { gx: 25, gy: 45 } } }, siege)
+    const gone = step(s, { demolish: { player: 1, wall: 1 } }, siege)
+    for (const r of [place, tower, gone]) {
+      expect(r.events).toContainEqual({ type: 'refused' })
+      expect(r.state.objects).toEqual(s.objects)
+      expect(r.state.points[1]).toBe(0)
+    }
+  })
+
+  it('Done ends the turn: the conceder has ball-in-hand at center, whichever player rearranged', () => {
+    for (const scorer of [1, 2] as const) {
+      let s = step(scored(scorer), { defence: { player: scorer, choice: 'rearrange' } }, siege).state
+      expect(s.match.builder).toBe(scorer)
+      expect(canFinishBuild(s, siege)).toBe(true)
+      s = step(s, { done: scorer }, siege).state
+      expect(s.match).toMatchObject({ builder: null, choosing: null })
+      expect(s.possession).toEqual({ shooter: opponent(scorer), shots: siege.shots, inHand: true, live: false })
+      expect(s.ball.pos).toEqual({ x: 20, y: 54 })
+    }
+  })
+
+  it('Done with nothing moved is the escape hatch, and the choice cannot go back to Repair', () => {
+    let s = rearranging()
+    expect(step(s, { defence: { player: 1, choice: 'repair' } }, siege).events).toContainEqual({ type: 'refused' })
+    s = step(s, { done: 1 }, siege).state
+    expect(s.objects.map((o) => o.hp)).toEqual([1, 3, 1])
+    expect(step(s, { defence: { player: 1, choice: 'repair' } }, siege).events).toContainEqual({ type: 'refused' })
+  })
+
+  it('refuses a rearrange choice from the conceder', () => {
+    const r = step(scored(), { defence: { player: 2, choice: 'rearrange' } }, siege)
+    expect(r.events).toEqual([{ type: 'refused' }])
+  })
+
+  it('the turn runs on the build window, not the shot clock, and play resumes on the shot clock', () => {
+    const timed: SimConfig = { ...siege, buildTime: 30 }
+    let s = step(scored(1, timed), { defence: { player: 1, choice: 'rearrange' } }, timed).state
+    expect(s.clock.left).toBe(30 * timed.tickHz)
+    s = step(s, { done: 1 }, timed).state
+    expect(s.clock.left).toBe(timed.shotClock * timed.tickHz)
+  })
+
+  it('a build timeout in the rearrange turn ends it without a fallback piece', () => {
+    const timed: SimConfig = { ...siege, buildTime: 1 }
+    let s = step(scored(1, timed), { defence: { player: 1, choice: 'rearrange' } }, timed).state
+    const n = s.objects.length
+    for (let i = 0; i < timed.tickHz + 2; i++) s = step(s, {}, timed).state
+    expect(s.match.builder).toBeNull()
+    expect(s.objects).toHaveLength(n)
+  })
+
+  it('marks the opening build until play begins, and not the rearrange turn', () => {
+    const first = firstBuilder(1, 1)
+    let s = step(step(initialState(1, siege), { placeWall: piece(first) }, siege).state, { done: first }, siege).state
+    expect(s.match).toMatchObject({ opening: true })
+    const second = opponent(first)
+    s = step(step(s, { placeWall: piece(second) }, siege).state, { done: second }, siege).state
+    expect(s.match).toMatchObject({ builder: null, opening: false })
+    const r = step({ ...s, match: { ...s.match, choosing: 1 } }, choose, siege).state
+    expect(r.match).toMatchObject({ builder: 1, opening: false })
+  })
+})

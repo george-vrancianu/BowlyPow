@@ -17,12 +17,16 @@ The set of rules that owns a match's match-level transitions: how it starts, wha
 _Avoid_: Variant, ruleset
 
 **Defence turn**:
-The scorer's reward for a goal in Siege: after the GOAL banner they choose how to improve their defence (Repair, later Rearrange) before the conceder gets ball-in-hand. An own goal gives it to the opponent of the shooter.
+The scorer's reward for a goal in Siege: after the GOAL banner they choose how to improve their defence (Repair or Rearrange) before the conceder gets ball-in-hand. An own goal gives it to the opponent of the shooter.
 _Avoid_: Bonus turn, power-up
 
 **Repair**:
 The defence-turn choice that restores every surviving structure the scorer owns to full HP; destroyed structures stay gone.
 _Avoid_: Heal, rebuild
+**Rearrange**:
+The defence-turn choice that opens a build-style turn for the scorer in which every structure they own can be moved and rotated to any legal spot on their half, HP unchanged. Placing and demolishing are refused, so the structure count can only fall. Done ends it, and Done with nothing moved is the escape hatch. The choice is final: there is no way back to Repair.
+_Avoid_: Reposition, rebuild
+
 **Wipe-out**:
 Siege's end condition: a player owns no structures (towers included) when the ball comes to rest or a goal is scored, never mid-flight. If both players are at zero, the shooter loses.
 _Avoid_: Elimination, knockout
