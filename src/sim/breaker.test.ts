@@ -8,8 +8,7 @@ const c = defaultConfig
 const run = (s: SimState, input: SimInput = {}) => step(s, input, c)
 const shooter = (s: SimState) => s.possession.shooter
 const ready = (s = playState()): SimState => ({ ...s, possession: { ...s.possession, inHand: false } })
-const origin = (p: 1 | 2) => ({ x: 20, y: p === 1 ? 58 : 50 })
-const fire = (s: SimState, breaker: boolean, power = 0.5) => run(s, { blast: { player: shooter(s), origin: origin(shooter(s)), power, breaker } })
+const fire = (s: SimState, breaker: boolean, power = 0.5) => run(s, { shot: { player: shooter(s), dir: { x: 1, y: 0 }, tier: 0, power, breaker } })
 /** Ball on the shooter's half, so a straight wall can sit in its path. */
 const wall = (owner: 1 | 2, gy: number): WallSpec => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 9, gy } })
 const flying = (s: SimState, vy: number): SimState => ({ ...s, breaker: true, possession: { ...s.possession, live: true }, ball: { pos: { x: 20, y: 60 }, vel: { x: 0, y: vy }, rolled: 0 } })
@@ -21,7 +20,7 @@ describe('breaker', () => {
     expect(r.state.players[shooter(s)].inventory.breaker).toBe(2)
     expect(r.state.breaker).toBe(true)
   })
-  it('an unarmed blast keeps the count', () => {
+  it('an unarmed shot keeps the count', () => {
     const s = ready()
     const r = fire(s, false)
     expect(r.state.players[shooter(s)].inventory.breaker).toBe(3)

@@ -4,9 +4,8 @@ import type { GameModeName, Match } from './match'
 import { modeFor, modeNamed, type DefenceChoice, type ModeContext } from './mode'
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
-import { blastDamage, blastPush, canBlastFrom } from './blast'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
-import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
+import { canPlace, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
 const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId): ModeContext => ({ objects, possession, shooter })
 
@@ -26,7 +25,8 @@ export type SimEvent =
   | { type: 'ball-hit-wall'; wall: number; speed: number; at: Point }
   /** An illegal placement or demolition was dropped. */
   | { type: 'refused' }
-  | { type: 'blast-fired'; player: PlayerId; origin: Point; power: number; breaker?: boolean }
+  /** `from` is the ball's position at launch. */
+  | { type: 'shot-fired'; player: PlayerId; from: Point; dir: Point; power: number; tier: number; breaker?: boolean }
   | { type: 'possession-changed'; shooter: PlayerId; inHand: boolean }
   | { type: 'goal'; scorer: PlayerId; at: Point }
   /** `scorer` null = the shot cap ended the round. */
@@ -57,15 +57,18 @@ export type SimState = {
   breaker: boolean
 }
 
+/** An aim: `dir` is a world-space unit vector (the way the ball goes), `tier` an index into `rules.shot.tiers`, `power` 0-1 of maxSpeed. */
+export type Aiming = { dir: Point; tier: number; power: number; breaker?: boolean }
+
 /** Per-tick input from both players. `demolish.wall` is a wall id. */
 export type SimInput = {
-  blast?: { player: PlayerId; origin: Point; power: number; breaker?: boolean }
+  shot?: Aiming & { player: PlayerId }
   placeWall?: StructureSpec
   demolish?: { player: PlayerId; wall: number }
   /** The builder moves a structure placed this build turn. */
   moveStructure?: { player: PlayerId; id: number; at: Vertex; rotation: Rotation }
-  /** The shooter's blast charge in progress; fires at this power when the shot clock runs out. */
-  charging?: { origin: Point; power: number; breaker?: boolean }
+  /** The shooter's aim in progress (null clears it); it fires when the shot clock runs out. */
+  aiming?: Aiming | null
   /** The builder ends their build turn. */
   done?: PlayerId
   /** The player the match is waiting on makes their defence choice. */
@@ -141,7 +144,7 @@ export function step(
   const shooter = state.possession.shooter
   const events: SimEvent[] = []
   const building = match.builder !== null
-  // Play is held while a defence choice is owed: no blasts, no ball placement, no shot clock.
+  // Play is held while a defence choice is owed: no shots, no ball placement, no shot clock.
   const waiting = match.choosing !== null
   const { placeWall, demolish, moveStructure: move } = input
   // A Rearrange turn moves pieces only: placing and demolishing are refused.
@@ -205,23 +208,16 @@ export function step(
   if ((building || waiting) && config.buildTime > 0) clock = { ...clock, left: Math.max(0, clock.left - 1) }
   const expired = !building && !waiting && !possession.live && clock.left <= 1
   if (!building && !waiting && !possession.live) clock = { ...clock, left: clock.left - 1 }
-  const { charging } = input
-  const blast = input.blast ?? (expired && charging && canBlastFrom(possession.shooter, charging.origin, { objects, ball }, config) ? { player: possession.shooter, ...charging } : undefined)
-  if (blast) {
-    if (!building && !waiting && blast.player === possession.shooter && !possession.inHand && !possession.live && canBlastFrom(blast.player, blast.origin, { objects, ball }, config) && (!blast.breaker || players[blast.player].inventory.breaker > 0)) {
-      if (blast.breaker) players = spend(players, blast.player, 'breaker')
-      events.push({ type: 'blast-fired', ...blast })
+  const { aiming } = input
+  const shot = input.shot ?? (expired && aiming ? { player: possession.shooter, ...aiming } : undefined)
+  if (shot) {
+    if (!building && !waiting && shot.player === possession.shooter && !possession.inHand && !possession.live && rules.shot.tiers[shot.tier] && (!shot.breaker || players[shot.player].inventory.breaker > 0)) {
+      if (shot.breaker) players = spend(players, shot.player, 'breaker')
+      events.push({ type: 'shot-fired', ...shot, from: ball.pos })
       possession = { ...possession, live: true }
       match = mode.onShotFired(match)
-      const vel = blastPush(ball.pos, blast.origin, blast.power, blast.player, config)
-      if (vel) ball = { ...ball, vel }
-      for (const { wall, loss, at } of blastDamage(objects, blast.origin, blast.power, blast.player, config)) {
-        for (let i = 0; i < loss; i++) {
-          const r = damageWall(objects, wall.id, at)
-          objects = r.objects
-          events.push(...r.events)
-        }
-      }
+      const v = shot.power * config.maxSpeed
+      ball = { ...ball, vel: { x: shot.dir.x * v, y: shot.dir.y * v } }
     } else events.push({ type: 'refused' })
   }
   const fired = possession.live && !state.possession.live
@@ -247,7 +243,7 @@ export function step(
       }
     }
   }
-  const breaker = state.breaker || (fired && !!blast?.breaker)
+  const breaker = state.breaker || (fired && !!shot?.breaker)
   const done = input.done ?? (buildExpired ? match.builder : null)
   if (done) {
     let r = done === match.builder ? mode.onBuildDone(match, done, ctxOf(objects, possession, shooter), config) : null

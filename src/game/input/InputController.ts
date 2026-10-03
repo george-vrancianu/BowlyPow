@@ -1,14 +1,13 @@
 import { rules } from '../../config/rules'
 import { visual } from '../../config/visual'
-import { canBlastFrom } from '../../sim/blast'
 import { halfOf, type PlayerId, type Point } from '../../sim/pitch'
 import { canArm, canPlaceBall } from '../../sim/possession'
-import type { SimConfig, SimInput, SimState } from '../../sim/step'
+import type { Aiming, SimConfig, SimInput, SimState } from '../../sim/step'
 import { vertexToWorld } from '../../sim/wall'
 import { layout, type Camera } from '../entities/Camera'
 import type { Charge } from '../entities/Aim'
 import { commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type BuildActions, type Piece, type Selection } from '../view/buildMenu'
-import { gestureMove, gesturePower, gestureStart, type Gesture } from './gesture'
+import { chargeDir, gestureMove, gesturePower, gestureStart, type Gesture } from './gesture'
 
 /** What the controller needs from the game that owns it. */
 export type InputHost = {
@@ -35,10 +34,10 @@ export class InputController {
   menuOpen = false
   /** Ball-in-hand: the ghost ball. */
   ballGhost?: Point
-  /** Breaker icon armed for the next blast; the blast carries it, cancelling just disarms. */
+  /** Breaker icon armed for the next shot; the shot carries it, cancelling just disarms. */
   armed = false
 
-  // Hold on a legal spot to charge a blast; release fires it.
+  // TEMPORARY adapter (remove in the Touch shot ticket, #70): hold on your half off the ball to charge; release shoots the ball straight away from the press.
   private charge?: { gesture: Gesture; origin: Point; player: PlayerId }
   // Grab point relative to the piece's anchor, and the pointer's last canvas position (for edge scrolling).
   // `moved` once the pointer has travelled past visual.input.dragSlopPx from the press, which is when edge scrolling may start.
@@ -107,10 +106,15 @@ export class InputController {
     },
   }
 
-  /** The charge to feed the sim: the gesture's power once the dwell is over, else none. */
-  charging(now: number): SimInput['charging'] {
-    const power = this.charge?.gesture.mode === 'charge' ? gesturePower(this.charge.gesture, now) : 0
-    return power > 0 && this.charge ? { origin: this.charge.origin, power } : undefined
+  /** The aim to feed the sim: the charge as a shot once the dwell is over, else none. */
+  aiming(now: number): Aiming | null {
+    return this.charge ? this.shotOf(this.charge, gesturePower(this.charge.gesture, now)) : null
+  }
+
+  /** A charge at `power` as a Touch shot straight away from the press; null at power 0 or with no way to go. */
+  private shotOf(charge: { origin: Point }, power: number): Aiming | null {
+    const dir = chargeDir(this.host.state().ball.pos, charge.origin)
+    return power > 0 && dir ? { dir, tier: 0, power, ...(this.armed && { breaker: true }) } : null
   }
 
   /** The charge ring to draw: during the dwell too (power 0). */
@@ -191,8 +195,8 @@ export class InputController {
     this.tap = undefined
     this.pointers.delete(e.pointerId)
     this.panOnly = false
-    const power = this.charge ? gesturePower(this.charge.gesture, performance.now()) : 0
-    if (this.charge && power > 0) this.host.send({ blast: { player: this.charge.player, origin: this.charge.origin, power, breaker: this.armed } })
+    const aim = this.charge && this.shotOf(this.charge, gesturePower(this.charge.gesture, performance.now()))
+    if (this.charge && aim) this.host.send({ shot: { player: this.charge.player, ...aim } })
     else if (this.charge) this.armed = false
     this.charge = undefined
   }
@@ -246,7 +250,8 @@ export class InputController {
     }
     const at = this.pxToWorld(e.offsetX, e.offsetY)
     const player = halfOf(at.y)
-    if (player === state.possession.shooter && !state.possession.live && canBlastFrom(player, at, state, this.host.config())) {
+    const { ball } = state
+    if (player === state.possession.shooter && !state.possession.live && Math.hypot(at.x - ball.pos.x, at.y - ball.pos.y) > this.host.config().ballRadius) {
       canvas.setPointerCapture(e.pointerId)
       this.charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
     } else this.panOnly = true

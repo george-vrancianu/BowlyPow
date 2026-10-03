@@ -177,7 +177,7 @@ describe('Game', () => {
     expect(calls).toEqual(['start'])
     frame(performance.now())
     expect(calls).toContain('update')
-    expect(calls).toContain('send charging')
+    expect(calls).toContain('send aiming')
     game.destroy()
   })
 

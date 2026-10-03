@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { gestureMove, gesturePower, gestureStart } from './gesture'
+import { chargeDir, gestureMove, gesturePower, gestureStart } from './gesture'
 
 const p = (x = 0, y = 0) => ({ x, y })
 
-describe('blast gesture', () => {
+describe('hold-to-charge gesture', () => {
   it('charges nothing during the 1 s dwell', () => {
     expect(gesturePower(gestureStart(p(), 0), 999)).toBe(0)
   })
@@ -26,5 +26,14 @@ describe('blast gesture', () => {
   it('small jitter is tolerated', () => {
     const g = gestureMove(gestureStart(p(), 0), p(8, 8), 1500)
     expect(gesturePower(g, 2500)).toBe(1)
+  })
+})
+
+describe('charge direction', () => {
+  it('sends the ball straight away from the press, as a unit vector', () => {
+    expect(chargeDir(p(20, 80), p(23, 84))).toEqual({ x: -0.6, y: -0.8 })
+  })
+  it('has no direction for a press on the ball\'s centre', () => {
+    expect(chargeDir(p(20, 80), p(20, 80))).toBeNull()
   })
 })

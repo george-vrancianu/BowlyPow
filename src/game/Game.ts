@@ -221,7 +221,7 @@ export class Game implements Sink {
     this.last = this.now = now
     // Clocks advance before the sim ticks, so an effect the tick starts is drawn at age 0.
     this.camera.update(dt)
-    this.driver.send({ charging: this.input.charging(now) })
+    this.driver.send({ aiming: this.input.aiming(now) })
     this.driver.update(dt)
     this.announce([])
     this.seeBlind()
@@ -250,7 +250,6 @@ export class Game implements Sink {
     structures.selected = !mapOpen && sel && !sel.movable ? sel.id : undefined
     structures.movable = builder && !mapOpen ? state.built : []
     this.aim.charge = mapOpen ? undefined : input.chargeView(this.now)
-    structures.preview = new Map(this.aim.preview().map((h) => [h.id, h.own]))
     structures.mark()
     this.pitch.builder = builder ?? undefined
     // During the goal hold the ball rests in the net (the sim has already reset it).

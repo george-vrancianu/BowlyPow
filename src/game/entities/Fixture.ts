@@ -81,7 +81,7 @@ export abstract class Fixture<D extends FixtureData = FixtureData> extends Entit
   selected = false
   /** Drawn by the ghost or landing piece instead. */
   hidden = false
-  /** Overrides the owner colour (blast preview). */
+  /** Overrides the owner colour (splash preview). */
   tint?: string
   /** Drawn half-transparent: ghosts. */
   alpha = 1

@@ -6,7 +6,7 @@ import { damageWall, type WallSpec } from './wall'
 const spec = (shape: WallSpec['shape']): WallSpec => ({ kind: 'wall', owner: 1, shape, rotation: 0, at: { gx: 5, gy: 40 } })
 const at = { x: 11, y: 80 }
 const placed = (shape: WallSpec['shape'] = 'straight') => place(spec(shape)).state
-/** Damages the first object through the shared damage path, as a ball hit or blast would. */
+/** Damages the first object through the shared damage path, as a ball hit or splash would. */
 const hit = (s: SimState, id = s.objects[0].id) => {
   const r = damageWall(s.objects, id, at)
   return { state: { ...s, objects: r.objects }, events: r.events }

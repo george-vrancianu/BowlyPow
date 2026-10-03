@@ -1,6 +1,8 @@
 import { visual } from '../../config/visual'
 import type { Point } from '../../sim/pitch'
 
+// TEMPORARY adapter: hold-to-charge feeding the Shot until the aim gesture replaces it in the Touch shot ticket (#70).
+
 /** `charge` while still, `pan` once moved during the dwell (camera ticket), `dead` once moved during the ramp. */
 export type Gesture = { start: Point; t0: number; mode: 'charge' | 'pan' | 'dead' }
 
@@ -10,6 +12,13 @@ export const gestureStart = (start: Point, now: number): Gesture => ({ start, t0
 export function gestureMove(g: Gesture, at: Point, now: number): Gesture {
   if (g.mode !== 'charge' || Math.hypot(at.x - g.start.x, at.y - g.start.y) <= visual.input.slopPx) return g
   return { ...g, mode: now - g.t0 < visual.aim.dwellMs ? 'pan' : 'dead' }
+}
+
+/** The way a charge pressed at `origin` sends the ball: straight away from the press, as the blast pushed it. Null on the ball itself. */
+export function chargeDir(ball: Point, origin: Point): Point | null {
+  const [dx, dy] = [ball.x - origin.x, ball.y - origin.y]
+  const d = Math.hypot(dx, dy)
+  return d ? { x: dx / d, y: dy / d } : null
 }
 
 /** 0 during the dwell and for a moved gesture; otherwise the eased ramp, held at 1. Release fires iff this is above 0. */
