@@ -1,5 +1,6 @@
 import { rules } from '../config/rules'
 import { visual } from '../config/visual'
+import type { PlayerId } from '../sim/pitch'
 
 /** Renderer state: the world y at the centre of the view. The width is always the pitch width. `map` makes it the whole-pitch map camera. `held` keeps the view off the ball (manual pan or map jump) until recenter(). */
 export type Camera = { y: number; map?: { stretch: boolean }; held?: boolean }
@@ -30,8 +31,8 @@ export function viewOutline(canvas: { width: number; height: number }, map: Came
 }
 
 /** Manual pan: moves the view and holds it off the ball until recenter() (sim events call it too). */
-export function pan(cam: Camera, dy: number, visible: number): void {
-  cam.y = clampY(cam.y + dy, visible)
+export function pan(cam: Camera, dy: number, visible: number, blind?: PlayerId): void {
+  cam.y = clampY(cam.y + dy, visible, blind)
   cam.held = true
 }
 
@@ -45,9 +46,20 @@ export function layout({ width, height }: { width: number; height: number }) {
   return { scale, visibleHeight: visual.camera.maxVisibleHeight, pane: { x: (width - w) / 2, y: (height - h) / 2, w, h } }
 }
 
-export const clampY = (y: number, visible: number) => Math.min(Math.max(y, -rules.board + visible / 2), rules.pitchHeight + rules.board - visible / 2)
+/** World y range of the opponent's half left out for a blind viewer sitting at `seat`: boards and net included, up to the halfway line. */
+export const fogOf = (seat: PlayerId): { top: number; bottom: number } => (seat === 1 ? { top: rules.mapTop, bottom: rules.halfHeight } : { top: rules.halfHeight, bottom: rules.mapTop + rules.mapHeight })
+
+/**
+ * Keeps the view on the boards; for a `blind` seat, on its half plus the halfway line. The view (64) is taller than a half (54 + board), so it rests on the far board and the strip it still shows above the halfway line is what the fog covers.
+ */
+export function clampY(y: number, visible: number, blind?: PlayerId): number {
+  const top = blind === 1 ? rules.halfHeight : -rules.board
+  const bottom = blind === 2 ? rules.halfHeight : rules.pitchHeight + rules.board
+  const [lo, hi] = [top + visible / 2, bottom - visible / 2]
+  return blind === 2 ? Math.max(Math.min(y, hi), lo) : Math.min(Math.max(y, lo), hi)
+}
 
 /** Eases the camera toward the target over about 150 ms, clamped to the boards. */
-export function follow(cam: Camera, target: number, dt: number, visible: number): void {
-  cam.y = clampY(cam.y + (target - cam.y) * (1 - Math.exp(-dt / visual.camera.smoothingS)), visible)
+export function follow(cam: Camera, target: number, dt: number, visible: number, blind?: PlayerId): void {
+  cam.y = clampY(cam.y + (target - cam.y) * (1 - Math.exp(-dt / visual.camera.smoothingS)), visible, blind)
 }

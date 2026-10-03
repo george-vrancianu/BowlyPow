@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, type Frame, type Transition } from './transition'
+import { visual } from '../config/visual'
+import { advance, angle, blocking, choosingNotice, dismiss, goalBall, newTransition, overlayView, revealing, type Frame, type Transition } from './transition'
 
 const base: Frame = { active: 1, round: 1, inHand: true, phase: 'Play', events: [], now: 0, reduced: false }
 const go = (t: Transition, o: Partial<Frame>) => advance(t, { ...base, ...o })
@@ -78,6 +79,31 @@ describe('phase sweep', () => {
   })
 })
 
+describe('repaired sweep', () => {
+  it('sweeps REPAIRED once in the repairer\'s colour, however many structures were repaired, and holds the sim like the goal banner', () => {
+    const t = go(open(), { now: 2000, events: [{ type: 'repaired', id: 1, player: 1 }, { type: 'repaired', id: 2, player: 1 }] })
+    expect(overlayView(t, 2500)).toMatchObject({ kind: 'sweep', text: 'REPAIRED', progress: 0.5 })
+    expect(overlayView(t, 2500)!.color).toBe(visual.player.colors[1])
+    expect(blocking(t)).toBe(true)
+    expect(blocking(go(t, { now: 3000 }))).toBe(false)
+  })
+})
+
+describe('repaired sweep in hot-seat', () => {
+  it('holds the handover until the sweep ends, even when the active player changes in the same frame', () => {
+    let t = go(open(), { now: 2000, active: 2, events: [{ type: 'repaired', id: 1, player: 1 }] })
+    expect(blocking(t)).toBe(true) // the conceder is already active, but the scorer's screen stays up and the sim holds
+    expect(overlayView(t, 2500)).toMatchObject({ kind: 'sweep', text: 'REPAIRED' })
+    expect(t.flip).toBeUndefined()
+    t = go(t, { now: 2600, active: 2 })
+    expect(overlayView(t, 2600)?.text).toBe('REPAIRED')
+    t = go(t, { now: 3000, active: 2 })
+    expect(blocking(t)).toBe(true) // the flip and turn card keep holding it
+    expect(t.flip).toBeDefined()
+    expect(overlayView(t, 3000)?.text).toBe("Player 2's turn")
+  })
+})
+
 describe('online (no handover)', () => {
   const online = (t: Transition, o: Partial<Frame>) => go(t, { active: 2, handover: false, ...o })
   it('never flips or opens a turn card, and the screen stays with the local player', () => {
@@ -95,5 +121,92 @@ describe('online (no handover)', () => {
     t = online(t, { now: 1600, phase: 'Build' })
     expect(blocking(t)).toBe(false)
     expect(overlayView(t, 1600)?.text).toBe('BUILD')
+  })
+})
+
+describe('rearrange', () => {
+  it('sweeps a REARRANGE label when the turn opens' , () => {
+    const t = go(open(), { now: 3000, phase: 'Rearrange' })
+    expect(overlayView(t, 3000)).toMatchObject({ text: 'REARRANGE' })
+  })
+})
+
+describe('reveal', () => {
+  /** A Siege opening build in progress, then the second Done lands at `now`. */
+  const building = () => go(open(), { now: 2000, phase: 'Build', opening: true })
+  const done = (t: Transition, o: Partial<Frame> = {}) => go(t, { now: 5000, active: 2, phase: 'Play', opening: false, ...o })
+  it('holds 1.5 s on the whole pitch after the opening build ends, blocking the sim, then hands over', () => {
+    let t = done(building())
+    expect(overlayView(t, 5000)).toMatchObject({ kind: 'reveal', text: 'REVEAL' })
+    expect(revealing(t)).toBe(true)
+    expect(blocking(t)).toBe(true)
+    expect(t.flip).toBeUndefined()
+    t = go(t, { now: 6499, active: 2, phase: 'Play' })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { now: 6500, active: 2, phase: 'Play' })
+    expect(revealing(t)).toBe(false)
+    expect(overlayView(t, 6500)?.text).toBe("Player 2's turn")
+    expect(blocking(t)).toBe(true)
+  })
+  it('holds the same 1.5 s under reduced motion, with no flip afterwards', () => {
+    let t = done(go(building(), { now: 2500, opening: true, phase: 'Build', reduced: true }), { reduced: true })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { now: 6499, active: 2, phase: 'Play', reduced: true })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { now: 6500, active: 2, phase: 'Play', reduced: true })
+    expect(revealing(t)).toBe(false)
+    expect(t.flip).toBeUndefined()
+  })
+  it('pins its label to the top edge with no band, so the whole pitch stays visible', () => {
+    const t = done(building())
+    expect(overlayView(t, 5000)).toMatchObject({ placement: 'top', band: false })
+    expect(overlayView(go(open(), { now: 2000, events: [{ type: 'goal', scorer: 1, at: { x: 20, y: 110 } }] }), 2000)).toMatchObject({ placement: 'center', band: true })
+  })
+  it('ignores taps while it holds', () => {
+    const t = done(building())
+    expect(dismiss(t, 9999)).toBe(t)
+  })
+  it('shows no PLAY sweep after the reveal', () => {
+    const t = go(done(building()), { now: 6500, active: 2, phase: 'Play' })
+    expect(t.overlay?.kind).toBe('turn')
+    expect(go(t, { now: 8000, active: 2, phase: 'Play' }).overlay?.kind).not.toBe('sweep')
+  })
+  it('fires once per opening, and not for builds that are not an opening', () => {
+    // Rounds, or a Rearrange turn: `opening` was never true, so ending the build is just the PLAY sweep.
+    const rounds = go(go(open(), { now: 2000, phase: 'Build' }), { now: 5000, phase: 'Play' })
+    expect(revealing(rounds)).toBe(false)
+    expect(rounds.overlay?.text).toBe('PLAY')
+    const after = go(done(building()), { now: 6500, active: 2, phase: 'Play', opening: false })
+    expect(revealing(go(after, { now: 7000, active: 2, phase: 'Play', opening: false }))).toBe(false)
+  })
+  it('online: no turn card after it, the screen stays with the local player', () => {
+    const on = { active: 2 as const, handover: false }
+    let t = go(go(newTransition(2), { ...on, opening: true, phase: 'Build', now: 0 }), { ...on, opening: false, phase: 'Play', now: 1000 })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { ...on, opening: false, phase: 'Play', now: 2500 })
+    expect(revealing(t)).toBe(false)
+    expect(t.overlay).toBeUndefined()
+    expect(t.shown).toBe(2)
+  })
+})
+
+describe('opponent is choosing notice', () => {
+  const siegeMatch = (choosing: 1 | 2 | null) => ({ mode: 'siege' as const, seed: 1, winner: null, builder: null, choosing, opening: false })
+  const mineIs = (me: 1 | 2) => (p: 1 | 2 | null | undefined) => p === me
+  it('shows to the peer waiting on the chooser, in the chooser colour, as a non-blocking label', () => {
+    const n = choosingNotice(siegeMatch(1), mineIs(2))
+    expect(n).toEqual({ player: 1, text: 'Opponent is choosing' })
+    const v = overlayView(newTransition(2), 0, n)
+    expect(v).toMatchObject({ kind: 'notice', text: 'Opponent is choosing', color: visual.player.colors[1], placement: 'top', band: false })
+  })
+  it('does not show to the chooser, in hot-seat, or when nobody is choosing', () => {
+    expect(choosingNotice(siegeMatch(1), mineIs(1))).toBeUndefined()
+    expect(choosingNotice(siegeMatch(1), () => true)).toBeUndefined()
+    expect(choosingNotice(siegeMatch(null), mineIs(2))).toBeUndefined()
+  })
+  it('never blocks the sim and yields to a real overlay', () => {
+    expect(blocking(newTransition(2))).toBe(false)
+    const t = go(go(newTransition(2), { active: 2 }), { now: 10, active: 2 })
+    expect(overlayView(t, 10, { player: 1, text: 'x' })?.kind).toBe('turn')
   })
 })

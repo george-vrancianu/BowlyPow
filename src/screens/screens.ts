@@ -1,13 +1,16 @@
+import { buttonRow, el, FONT, type ButtonSpec } from '../hud/hud'
 import { visual } from '../config/visual'
-import { buttonRow, el, FONT } from '../hud/hud'
-import { SLIDERS, type Settings } from '../sim/settings'
+import { defaultSettings, MODES, SLIDERS, slidersFor, type Settings } from '../sim/settings'
 import type { PlayerId } from '../sim/pitch'
+
+/** The mode picker's buttons: the chosen mode reads as pressed (aria-pressed and a filled look), not just bracketed text. */
+export const modePicker = (current: Settings['mode'], pick: (mode: Settings['mode']) => void): ButtonSpec[] => MODES.map(({ mode, label }) => ({ label, pressed: mode === current, onClick: () => pick(mode) }))
 
 export type ScreenActions = { onStart(s: Settings): void; onRematch(): void; onMenu(): void; onOnline(): void }
 
 /** Full-screen overlays outside the match, in the HUD's flat style. Each call replaces the previous screen. */
 export function createScreens(root: HTMLElement, actions: ScreenActions) {
-  const settings: Settings = { shots: SLIDERS.shots.def, rounds: SLIDERS.rounds.def, wallPoints: SLIDERS.wallPoints.def }
+  const settings: Settings = { ...defaultSettings }
   const overlay = el('div', `${FONT}position:fixed;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:${visual.hud.dark};color:${visual.hud.ink};`)
   root.append(overlay)
 
@@ -17,7 +20,8 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
   }
 
   const settingsScreen = () => {
-    const rows = (Object.keys(SLIDERS) as (keyof Settings)[]).map((k) => {
+    const picker = buttonRow(modePicker(settings.mode, (mode) => ((settings.mode = mode), settingsScreen())))
+    const rows = slidersFor(settings.mode).map((k) => {
       const { label, min, max } = SLIDERS[k]
       const value = el('span', '', String(settings[k]))
       const input = el('input', 'width:100%;min-height:44px;') as HTMLInputElement
@@ -29,7 +33,7 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
       row.append(head, input)
       return row
     })
-    show(el('div', 'font-size:28px;', 'Settings'), ...rows, buttonRow([{ label: 'Start', onClick: () => (overlay.style.display = 'none', actions.onStart({ ...settings })) }]))
+    show(el('div', 'font-size:28px;', 'Settings'), picker, ...rows, buttonRow([{ label: 'Start', onClick: () => (overlay.style.display = 'none', actions.onStart({ ...settings })) }]))
   }
 
   const title = () =>
@@ -40,10 +44,10 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
   /** A message with a way back to the title (e.g. the opponent disconnected). */
   const notice = (text: string) => show(el('div', 'font-size:24px;', text), buttonRow([menu]))
 
-  const matchEnd = (winner: PlayerId, score: Record<PlayerId, number>, online = false) =>
+  const matchEnd = (winner: PlayerId, result: string, online = false) =>
     show(
       el('div', `font-size:32px;color:${visual.player.colors[winner]};`, `Player ${winner} wins`),
-      el('div', 'font-size:48px;', `${score[1]} - ${score[2]}`),
+      el('div', 'font-size:48px;', result),
       buttonRow(online ? [menu] : [{ label: 'Rematch', onClick: () => (hide(), actions.onRematch()) }, menu]),
     )
 

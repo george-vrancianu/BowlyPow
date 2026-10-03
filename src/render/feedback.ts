@@ -44,6 +44,7 @@ export function feedbackFor(events: FxEvent[], walls: { id: number; owner: Playe
       out.flashes.push({ wall: ev.id, dim: false })
       out.bursts.push({ at: ev.at, color: color(ev.id), count: visual.wall.particles.crack })
     }
+    if (ev.type === 'repaired') out.flashes.push({ wall: ev.id, dim: false })
     if (ev.type === 'wall-destroyed') out.bursts.push({ at: ev.at, color: visual.player.colors[ev.wall.owner], count: ev.breaker ? visual.wall.particles.breaker : visual.wall.particles.destroy })
     if (ev.type === 'blast-fired' && ev.power >= visual.camera.shake.minPower) out.shakes.push(visual.camera.shake.max * ev.power)
     const v = vibration(ev)

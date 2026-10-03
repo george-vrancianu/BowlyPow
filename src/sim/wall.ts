@@ -24,6 +24,8 @@ export type Structure = Wall | Tower
 export type TowerPower = TowerSpec['power']
 
 const POWER_HP: Record<TowerPower, number> = { repulsor: rules.towerHp, steal: rules.stealHp }
+/** The structures `p` owns, towers included: the HUD count, the end screen and the Siege wipe-out all read this. */
+export const structuresOf = (objects: readonly Structure[], p: PlayerId): Structure[] => objects.filter((o) => o.owner === p)
 export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? POWER_HP[s.power] : rules.wallHp)
 
 export const wallCost = (shape: WallShape): number => rules.wallCost[shape]

@@ -19,6 +19,8 @@ const base = {
   /** Each arm is a run of cells from the pivot, before rotation. */
   arms: { straight: [[4, 0]], L: [[3, 0], [0, 3]] } as Record<'straight' | 'L', [number, number][]>,
   startInventory: 3,
+  /** Where a timed-out blind opening build drops its piece for P1, in grid vertices; P2's mirrors across the halfway line. */
+  fallbackPiece: { gx: 10, gy: 40 },
   /** Seconds per build turn online. */
   onlineBuildSeconds: 30,
   /** Blast radius is `radiusBase * ballRadius * (1 + radiusGrowth * power)`; pressure above `heavy` / `light` costs more hp. */

@@ -10,8 +10,11 @@ export type Player = {
   inventory: Record<PowerUp, number>
 }
 
+/** Stock every player starts with; what the HUD shows for a hidden opponent. */
+export const STARTING_INVENTORY: Readonly<Record<PowerUp, number>> = Object.freeze({ breaker: rules.startInventory, repulsor: rules.startInventory, steal: rules.startInventory })
+
 export function initialPlayers(): Record<PlayerId, Player> {
-  const make = (id: PlayerId): Player => ({ id, color: visual.player.colors[id], inventory: { breaker: rules.startInventory, repulsor: rules.startInventory, steal: rules.startInventory } })
+  const make = (id: PlayerId): Player => ({ id, color: visual.player.colors[id], inventory: { ...STARTING_INVENTORY } })
   return { 1: make(1), 2: make(2) }
 }
 

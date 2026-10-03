@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig, step, type SimEvent, type SimState } from './step'
-import { buildState, emptied, place } from './testkit'
+import { buildState, emptied, place, roundsMatch } from './testkit'
 import type { PlayerId } from './pitch'
 import type { TowerSpec } from './wall'
 
@@ -50,9 +50,9 @@ describe('steal trigger', () => {
   })
   it('a steal on the 30th shot ends the round scoreless', () => {
     const s = shot(place(steal()).state, 2)
-    const { events, s: after } = run({ ...s, match: { ...s.match, roundShots: defaultConfig.shotCap } }, 30)
+    const { events, s: after } = run({ ...s, match: { ...roundsMatch(s), roundShots: defaultConfig.shotCap } }, 30)
     expect(events).toContainEqual({ type: 'round-ended', round: 1, scorer: null })
-    expect(after.match.round).toBe(2)
+    expect(roundsMatch(after).round).toBe(2)
   })
   it('triggers for either owner', () => {
     const { s, events } = run(shot(place(steal(2)).state, 1, 29), 30)
