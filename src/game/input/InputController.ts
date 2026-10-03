@@ -4,7 +4,7 @@ import type { PlayerId, Point } from '../../sim/pitch'
 import { canArm, canPlaceBall } from '../../sim/possession'
 import type { Aiming, SimConfig, SimInput, SimState } from '../../sim/step'
 import { vertexToWorld } from '../../sim/wall'
-import { layout, type Camera } from '../entities/Camera'
+import type { Camera } from '../entities/Camera'
 import { commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type BuildActions, type Piece, type Selection } from '../view/buildMenu'
 import { aimMove, aimOf, aimPress, aimRelease, aimTick, aimViewOf, type Aim, type AimGesture, type GestureView } from './gesture'
 
@@ -125,7 +125,7 @@ export class InputController {
 
   /** Screen (CSS) px per world unit in the main view. */
   private get pxPerUnit() {
-    return layout(this.host.canvas).scale / this.canvasPx
+    return this.host.camera.view(this.host.canvas).sy / this.canvasPx
   }
 
   private withBreaker(aim: Aim): Aiming {
@@ -172,7 +172,7 @@ export class InputController {
   edgeScroll(dt: number): void {
     const builder = this.host.state().match.builder
     if (!this.drag?.moved || !builder) return
-    const { visibleHeight } = layout(this.host.canvas)
+    const { visibleHeight } = this.host.camera.view(this.host.canvas)
     const dy = edgeScrollDy(this.host.camera.y, visibleHeight, builder, this.pxToWorld(this.drag.px, this.drag.py).y, dt)
     if (!dy) return
     this.host.camera.pan(dy)
@@ -189,7 +189,7 @@ export class InputController {
   }
 
   private panBy(dyPx: number): void {
-    this.host.camera.pan(((this.host.shown() === 2 ? 1 : -1) * (dyPx * this.canvasPx)) / layout(this.host.canvas).scale)
+    this.host.camera.pan(((this.host.shown() === 2 ? 1 : -1) * (dyPx * this.canvasPx)) / this.host.camera.view(this.host.canvas).sy)
   }
 
   private key(e: KeyboardEvent): void {
@@ -260,7 +260,7 @@ export class InputController {
       this.menuOpen = false
       const at = this.pxToWorld(e.offsetX, e.offsetY)
       // On the piece: half a cell, or a 44px touch target.
-      const tolerance = Math.max(rules.cellSize / 2, (visual.input.touchTargetPx * this.canvasPx) / layout(canvas).scale)
+      const tolerance = Math.max(rules.cellSize / 2, (visual.input.touchTargetPx * this.canvasPx) / this.host.camera.view(canvas).sy)
       if (!this.selection) this.selection = pick(state, builder, at, tolerance)
       const sel = this.selection
       if (sel?.movable && onPiece(sel.spec, at, tolerance)) {

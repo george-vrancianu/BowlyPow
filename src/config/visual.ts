@@ -13,7 +13,13 @@ export const visual = {
   frame: { maxDtS: 0.25 },
   player: { colors: { 1: '#22d3ee', 2: '#fb923c' } },
   camera: {
-    maxVisibleHeight: 64,
+    /** World units the view shows: never fewer than `minVisibleHeight` (wider screens get side bands), never more than `maxVisibleHeight` (taller ones get a band on the far side). */
+    minVisibleHeight: 64,
+    maxVisibleHeight: 80,
+    /** How far down the screen the camera holds the ball, so more of the pitch shows ahead of it. */
+    anchor: 0.7,
+    /** CSS px kept clear of the pitch for the HUD band, on the side the HUD sits. */
+    hudReservePx: 120,
     smoothingS: 0.15,
     bg: dark,
     mapOutline: white,

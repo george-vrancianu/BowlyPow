@@ -10,7 +10,7 @@ import { structuresOf } from '../sim/wall'
 import type { Driver, DriverFactory, Sink } from './driver'
 import { Aim } from './entities/Aim'
 import { Ball } from './entities/Ball'
-import { Camera, viewOutline } from './entities/Camera'
+import { anchorY, Camera, viewOutline } from './entities/Camera'
 import { EdgeFade } from './entities/EdgeFade'
 import { Fog } from './entities/Fog'
 import { Pitch } from './entities/Pitch'
@@ -209,6 +209,13 @@ export class Game implements Sink {
     this.push()
   }
 
+  /** Keeps the HUD band clear on the side the HUD sits (the stage is turned for seat 2) and takes the height the canvas shows. */
+  private fitCamera(): void {
+    const band = visual.camera.hudReservePx * (window.devicePixelRatio || 1)
+    this.camera.reserve = this.transition.shown === 2 ? { top: band, bottom: 0 } : { top: 0, bottom: band }
+    this.camera.fit(this.canvas)
+  }
+
   private toggleMap(open = !this.mapOpen): void {
     this.mapOpen = open
   }
@@ -231,11 +238,13 @@ export class Game implements Sink {
     // A ball-in-hand placement or half-made gesture does not survive a blocking hold into the next player's turn.
     if (this.blocked()) this.input.cancelGestures()
     const { state, transition, camera } = this
+    this.fitCamera()
     const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
-    if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), camera.recenter()
+    const target = anchorY(state.ball.pos.y, transition.shown, camera.visible)
+    if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = target), camera.recenter()
     this.input.edgeScroll(dt)
     this.input.tickAim()
-    if (!camera.held) camera.follow(state.ball.pos.y, dt)
+    if (!camera.held) camera.follow(target, dt)
     this.present()
     this.draw()
     this.push()
