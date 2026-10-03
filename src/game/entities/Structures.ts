@@ -28,7 +28,7 @@ export class Structures extends Entity {
   /** Blast preview: ids in range, and whether each is the shooter's own. */
   preview = new Map<number, boolean>()
   /** Drawn above the ball and aim: the game adds it to the camera after them. */
-  readonly overlay = new Overlay(this)
+  readonly overlay = new StructureFx(this)
   private fixtures = new Map<number, Fixture>()
   private particles: Particle[] = []
 
@@ -147,7 +147,7 @@ export class Structures extends Entity {
 }
 
 /** Fragments, particles, the landing piece and the build ghost: the layer that draws over the ball and aim. */
-export class Overlay extends Entity {
+export class StructureFx extends Entity {
   constructor(private structures: Structures) {
     super()
   }

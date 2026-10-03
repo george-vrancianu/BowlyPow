@@ -4,6 +4,8 @@ import type { SimEvent } from './step'
 
 /** A grid vertex: world position is (gx, gy) * rules.cellSize. */
 export type Vertex = { gx: number; gy: number }
+/** World position of a grid vertex. */
+export const vertexToWorld = ({ gx, gy }: Vertex): Point => ({ x: gx * rules.cellSize, y: gy * rules.cellSize })
 export type Segment = { a: Point; b: Point }
 export type WallShape = 'straight' | 'L'
 export type Rotation = 0 | 1 | 2 | 3
@@ -62,8 +64,9 @@ export function isLegal(w: StructureSpec): boolean {
   // A tower is judged as the whole square (a diagonal pair spans its box), so an edge resting on the halfway line is fine.
   const parts = w.kind === 'tower' ? [{ a: w.at, b: { gx: w.at.gx + 1, gy: w.at.gy + 1 } }] : wallCells(w)
   return parts.every(({ a, b }) => {
-    const [x0, x1] = [a.gx, b.gx].map((g) => g * rules.cellSize).sort((p, q) => p - q)
-    const [y0, y1] = [a.gy, b.gy].map((g) => g * rules.cellSize).sort((p, q) => p - q)
+    const [pa, pb] = [vertexToWorld(a), vertexToWorld(b)]
+    const [x0, x1] = [pa.x, pb.x].sort((p, q) => p - q)
+    const [y0, y1] = [pa.y, pb.y].sort((p, q) => p - q)
     const nearestToGoal = { x: Math.min(Math.max(rules.pitchWidth / 2, x0), x1), y: Math.min(Math.max(goalY, y0), y1) }
     return x0 >= 0 && x1 <= rules.pitchWidth && y0 >= 0 && y1 <= rules.pitchHeight && halfOf((y0 + y1) / 2) === w.owner && !inNoBuildZone(nearestToGoal)
   })
@@ -110,28 +113,9 @@ export function canPlace(existing: StructureSpec[], w: StructureSpec): boolean {
 
 /** Zero-thickness collision segments in world units, one per arm. */
 export function wallSegments(w: StructureSpec): Segment[] {
-  if (w.kind === 'tower') return wallCells(w).map(({ a, b }) => ({ a: { x: a.gx * rules.cellSize, y: a.gy * rules.cellSize }, b: { x: b.gx * rules.cellSize, y: b.gy * rules.cellSize } }))
-  const a = { x: w.at.gx * rules.cellSize, y: w.at.gy * rules.cellSize }
+  if (w.kind === 'tower') return wallCells(w).map(({ a, b }) => ({ a: vertexToWorld(a), b: vertexToWorld(b) }))
+  const a = vertexToWorld(w.at)
   return arms(w).map(([x, y]) => ({ a, b: { x: a.x + x * rules.cellSize, y: a.y + y * rules.cellSize } }))
-}
-
-/** One jagged crack per lost hit point, as world-space polylines. Deterministic in (id, hp) so peers draw the same cracks. */
-export function crackLines(w: Structure): Point[][] {
-  const cells = wallCells(w)
-  return Array.from({ length: maxHp(w) - w.hp }, (_, k) => {
-    // Seeded from id and the hp remaining after this crack, so earlier cracks never move.
-    let seed = (w.id * 31 + (maxHp(w) - 1 - k)) * 2654435761
-    const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) >>> 0) / 2 ** 32)
-    const { a, b } = cells[Math.floor(rnd() * cells.length)]
-    const [cx, cy] = [((a.gx + b.gx) / 2) * rules.cellSize, ((a.gy + b.gy) / 2) * rules.cellSize]
-    // Across the wall: perpendicular to the cell's direction.
-    const [nx, ny] = [Math.abs(b.gy - a.gy), Math.abs(b.gx - a.gx)]
-    const along = (rnd() - 0.5) * rules.cellSize * 0.6
-    return [-0.4, -0.13, 0.13, 0.4].map((t) => {
-      const j = (rnd() - 0.5) * 0.5
-      return { x: cx + nx * t + ny * (along + j), y: cy + ny * t + nx * (along + j) }
-    })
-  })
 }
 
 /** Removes 1 hp from the wall (one pool per wall); the shared damage path for every source. Unknown ids are ignored. */

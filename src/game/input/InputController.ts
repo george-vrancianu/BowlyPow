@@ -4,6 +4,7 @@ import { canBlastFrom } from '../../sim/blast'
 import { halfOf, type PlayerId, type Point } from '../../sim/pitch'
 import { canArm, canPlaceBall } from '../../sim/possession'
 import type { SimConfig, SimInput, SimState } from '../../sim/step'
+import { vertexToWorld } from '../../sim/wall'
 import { layout, type Camera } from '../entities/Camera'
 import type { Charge } from '../entities/Aim'
 import { commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type BuildActions, type Piece, type Selection } from '../view/buildMenu'
@@ -68,10 +69,6 @@ export class InputController {
 
   private get canvasPx() {
     return this.host.canvas.width / this.host.canvas.clientWidth
-  }
-
-  private toWorld(e: PointerEvent) {
-    return this.host.camera.toWorld(this.host.canvas, e.offsetX * this.canvasPx, e.offsetY * this.canvasPx)
   }
 
   private pxToWorld(px: number, py: number) {
@@ -175,7 +172,7 @@ export class InputController {
 
   private move(e: PointerEvent): void {
     const now = performance.now()
-    if (this.draggingBall) this.ballGhost = this.toWorld(e)
+    if (this.draggingBall) this.ballGhost = this.pxToWorld(e.offsetX, e.offsetY)
     const prev = this.pointers.get(e.pointerId)
     if (prev) {
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
@@ -190,7 +187,7 @@ export class InputController {
   private up(e: PointerEvent): void {
     this.draggingBall = false
     if (this.drag?.id === e.pointerId) this.drag = undefined
-    if (this.tap && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) <= visual.input.tapSlopPx) this.ballGhost = this.toWorld(e)
+    if (this.tap && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) <= visual.input.tapSlopPx) this.ballGhost = this.pxToWorld(e.offsetX, e.offsetY)
     this.tap = undefined
     this.pointers.delete(e.pointerId)
     this.panOnly = false
@@ -218,13 +215,13 @@ export class InputController {
     const builder = state.match.builder
     if (builder) {
       this.menuOpen = false
-      const at = this.toWorld(e)
+      const at = this.pxToWorld(e.offsetX, e.offsetY)
       // On the piece: half a cell, or a 44px touch target.
       const tolerance = Math.max(rules.cellSize / 2, (visual.input.touchTargetPx * this.canvasPx) / layout(canvas).scale)
       if (!this.selection) this.selection = pick(state, builder, at, tolerance)
       const sel = this.selection
       if (sel?.movable && onPiece(sel.spec, at, tolerance)) {
-        const anchor = { x: sel.spec.at.gx * rules.cellSize, y: sel.spec.at.gy * rules.cellSize }
+        const anchor = vertexToWorld(sel.spec.at)
         this.drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY, id: e.pointerId, from: { x: e.offsetX, y: e.offsetY }, moved: false }
         canvas.setPointerCapture(e.pointerId)
       } else this.panOnly = true
@@ -237,7 +234,7 @@ export class InputController {
     }
     // Ball-in-hand: tap a point to place the ghost ball, drag it to move (dragging elsewhere pans), Confirm fixes it.
     if (state.possession.inHand) {
-      const at = this.toWorld(e)
+      const at = this.pxToWorld(e.offsetX, e.offsetY)
       if (this.ballGhost && Math.hypot(at.x - this.ballGhost.x, at.y - this.ballGhost.y) <= 2 * this.host.config().ballRadius) {
         this.draggingBall = true
         canvas.setPointerCapture(e.pointerId)
@@ -247,7 +244,7 @@ export class InputController {
       }
       return
     }
-    const at = this.toWorld(e)
+    const at = this.pxToWorld(e.offsetX, e.offsetY)
     const player = halfOf(at.y)
     if (player === state.possession.shooter && !state.possession.live && canBlastFrom(player, at, state, this.host.config())) {
       canvas.setPointerCapture(e.pointerId)

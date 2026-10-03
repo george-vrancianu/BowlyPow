@@ -1,7 +1,8 @@
 import { rules } from '../../config/rules'
 import { visual } from '../../config/visual'
-import type { Structure, TowerPower } from '../../sim/wall'
-import { drawCracks, Fixture, ownerFill } from './Fixture'
+import { cellToWorld } from '../../sim/pitch'
+import { vertexToWorld, type TowerPower } from '../../sim/wall'
+import { Fixture, ownerFill, type TowerData } from './Fixture'
 
 const GLYPHS: Record<TowerPower, (ctx: CanvasRenderingContext2D, x: number, y: number, spent: boolean) => void> = {
   // Concentric rings; dimmed once spent for the shot.
@@ -24,29 +25,23 @@ const GLYPHS: Record<TowerPower, (ctx: CanvasRenderingContext2D, x: number, y: n
 }
 
 /** A square in the owner's colour with its power-up glyph inset. */
-export class Tower extends Fixture {
-  /** Ms since the Repulsor fired; undefined when not glowing. */
-  private pulseAge?: number
+export class Tower extends Fixture<TowerData> {
+  /** The clock when the Repulsor fired; undefined when not glowing. */
+  private pulsedAt?: number
 
   /** Repulsor fire effect: a glow over the tower and rings bursting outward for `visual.tower.glowMs`. */
   pulse(): void {
-    this.pulseAge = 0
+    this.pulsedAt = this.clock
   }
 
   get glowing(): boolean {
-    return this.pulseAge !== undefined && this.pulseAge < visual.tower.glowMs
-  }
-
-  override update(dt: number): void {
-    super.update(dt)
-    if (this.pulseAge !== undefined) this.pulseAge += dt * 1000
+    return this.pulsedAt !== undefined && this.clock - this.pulsedAt < visual.tower.glowMs
   }
 
   protected drawBody(ctx: CanvasRenderingContext2D, fill?: string): void {
     const d = this.data
-    if (d.kind !== 'tower') return
     const { cellSize } = rules
-    const [x, y] = [d.at.gx * cellSize, d.at.gy * cellSize]
+    const { x, y } = vertexToWorld(d.at)
     ctx.fillStyle = fill ?? ownerFill(ctx, d.owner)
     ctx.fillRect(x, y, cellSize, cellSize)
     ctx.strokeStyle = visual.tower.outline
@@ -56,14 +51,18 @@ export class Tower extends Fixture {
     const inset = visual.tower.innerInset
     ctx.strokeRect(x + inset, y + inset, cellSize - 2 * inset, cellSize - 2 * inset)
     GLYPHS[d.power](ctx, x, y, !!d.spent)
-    if (d.hp !== undefined) drawCracks(ctx, d as Structure)
+    this.drawCracks(ctx)
+  }
+
+  protected footprint() {
+    const a = vertexToWorld(this.data.at)
+    return [{ a, b: { x: a.x + rules.cellSize, y: a.y + rules.cellSize } }]
   }
 
   protected override drawEffect(ctx: CanvasRenderingContext2D): void {
-    const d = this.data
-    if (d.kind !== 'tower' || !this.glowing) return
-    const k = this.pulseAge! / visual.tower.glowMs
-    const [cx, cy] = [(d.at.gx + 0.5) * rules.cellSize, (d.at.gy + 0.5) * rules.cellSize]
+    if (!this.glowing) return
+    const k = (this.clock - this.pulsedAt!) / visual.tower.glowMs
+    const { x: cx, y: cy } = cellToWorld({ cx: this.data.at.gx, cy: this.data.at.gy })
     ctx.globalAlpha = 1 - k
     ctx.fillStyle = visual.tower.glow
     ctx.fillRect(cx - rules.cellSize / 2, cy - rules.cellSize / 2, rules.cellSize, rules.cellSize)

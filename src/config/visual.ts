@@ -19,8 +19,10 @@ export const visual = {
     /** A blast of at least `minPower` shakes the view by `max * power` px, decaying over `ms`. */
     shake: { ms: 200, max: 4, minPower: 0.3, freqX: 0.11, freqY: 0.137 },
   },
-  /** The soft gradient at a pane edge where more pitch lies beyond, and how far the blind-build cover bleeds past the pitch sides. */
-  fog: { bleed: 1, fadeFraction: 0.06, color: dark, clear: 'rgba(11,15,26,0)' },
+  /** How far the blind-build cover bleeds past the pitch sides. */
+  fog: { bleed: 1 },
+  /** The soft gradient at a pane edge where more pitch lies beyond: its height as a fraction of the pane, and its colours. */
+  edgeFade: { fraction: 0.06, color: dark, clear: 'rgba(11,15,26,0)' },
   pitch: {
     board: '#3a4258',
     pitch: '#121a2b',
@@ -43,6 +45,8 @@ export const visual = {
     hatch: { tile: 8, stripe: 2, scale: 0.25 },
     outlineWidth: 1,
     crackWidth: 0.12,
+    /** One crack's shape: how far along its cell it may sit (fraction of a cell), where its four points lie across the wall, and the jitter on each (world units). */
+    crack: { spread: 0.6, across: [-0.4, -0.13, 0.13, 0.4], jitter: 0.5 },
     shatterMs: 400,
     shatterFly: 6,
     shatterSpin: 4,
@@ -107,7 +111,7 @@ export const visual = {
     waveMs: 250,
     wave: cream,
     waveWidth: 0.3,
-    vibration: { blastBase: 10, blastPerPower: 40, goal: [60, 40, 60], chargeFull: 15 },
+    vibration: { blastBase: 10, blastPerPower: 40, goal: [60, 40, 60] },
   },
   input: { slopPx: 12, tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
   transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000, revealMs: 1500 },

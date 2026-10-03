@@ -2,21 +2,17 @@ import { visual } from '../config/visual'
 import type { PlayerId, Point } from '../sim/pitch'
 import type { SimEvent } from '../sim/step'
 
-/** Events other tickets add to the sim; power is 0..1.. */
-type LaterEvent = { type: 'goal' } | { type: 'charge-full' }
-type FxEvent = SimEvent | LaterEvent
 
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /** Vibration pattern for an event, if it has one. */
-export function vibration(ev: FxEvent): number | number[] | undefined {
+export function vibration(ev: SimEvent): number | number[] | undefined {
   if (ev.type === 'blast-fired') return Math.round(visual.aim.vibration.blastBase + visual.aim.vibration.blastPerPower * ev.power)
   if (ev.type === 'goal') return [...visual.aim.vibration.goal]
-  if (ev.type === 'charge-full') return visual.aim.vibration.chargeFull
 }
 
 /** What an event batch should trigger. Pure; `Game` turns it into entity calls. Flashes survive reduced motion. */
-export function feedbackFor(events: FxEvent[], walls: { id: number; owner: PlayerId }[], reduced: boolean) {
+export function feedbackFor(events: SimEvent[], walls: { id: number; owner: PlayerId }[], reduced: boolean) {
   const out = { flashes: [] as { wall: number; dim: boolean }[], bursts: [] as { at: Point; color: string; count: number }[], shakes: [] as number[], vibrations: [] as (number | number[])[] }
   const cracked = new Set(events.flatMap((e) => (e.type === 'wall-cracked' ? [e.id] : [])))
   const color = (id: number) => visual.player.colors[walls.find((w) => w.id === id)?.owner ?? 1]
