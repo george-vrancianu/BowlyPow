@@ -1,5 +1,6 @@
 import { goalCrossed, HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
-import { coinFlip, endRound, firstBuilder, newMatch, startingPossession, type Match } from './match'
+import type { GameModeName, Match } from './match'
+import { modeFor } from './mode'
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
@@ -71,6 +72,8 @@ export type SimConfig = {
   destroyedSpeedFactor: number
   /** Shots per possession. */
   shots: number
+  /** Which game mode decides the match. */
+  mode: GameModeName
   rounds: number
   /** Wall points per build phase. */
   wallPoints: number
@@ -92,6 +95,7 @@ export const defaultConfig: SimConfig = {
   damageFraction: 0.5,
   destroyedSpeedFactor: 0.5,
   shots: 3,
+  mode: 'rounds',
   rounds: 5,
   wallPoints: 10,
   shotCap: 30,
@@ -100,7 +104,8 @@ export const defaultConfig: SimConfig = {
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, built: [], ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
+  const start = modeFor(config.mode).start(seed, config)
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, built: [], ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: start.possession, match: start.match, clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
 }
 
 const spend = (players: SimState['players'], id: PlayerId, power: PowerUp, n = 1): SimState['players'] => ({ ...players, [id]: { ...players[id], inventory: { ...players[id].inventory, [power]: players[id].inventory[power] - n } } })
@@ -114,6 +119,7 @@ export function step(
   if (state.match.winner) return { state, events: [] }
   let { objects, points, nextId, players, built } = state
   let { match } = state
+  const mode = modeFor(config.mode)
   const events: SimEvent[] = []
   const building = match.builder !== null
   const { placeWall, demolish, moveStructure: move } = input
@@ -166,7 +172,7 @@ export function step(
       if (blast.breaker) players = spend(players, blast.player, 'breaker')
       events.push({ type: 'blast-fired', ...blast })
       possession = { ...possession, live: true }
-      match = { ...match, roundShots: match.roundShots + 1 }
+      match = mode.onShotFired(match)
       const vel = blastPush(ball.pos, blast.origin, blast.power, blast.player, config)
       if (vel) ball = { ...ball, vel }
       for (const { wall, loss, at } of blastDamage(objects, blast.origin, blast.power, blast.player, config)) {
@@ -186,7 +192,7 @@ export function step(
     events.push({ type: 'shot-clock-expired', player: shooter })
     if (!possession.live) {
       consumed = true
-      match = { ...match, roundShots: match.roundShots + 1 }
+      match = mode.onShotFired(match)
       if (clock.expiries >= 1) {
         possession = { shooter: opponent(shooter), shots: config.shots, inHand: true, live: false }
         events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
@@ -205,7 +211,7 @@ export function step(
   const breaker = state.breaker || (fired && !!blast?.breaker)
   const done = input.done ?? (buildExpired ? match.builder : null)
   if (done) {
-    if (done === match.builder) match = { ...match, builder: done === firstBuilder(match.seed, match.round) ? opponent(done) : null }
+    if (done === match.builder) match = { ...match, builder: mode.onBuildDone(match, done) }
     else events.push({ type: 'refused' })
   }
   const rolled = rollBall(ball, objects, config, breaker, possession.shooter)
@@ -227,13 +233,13 @@ export function step(
     possession = r.possession
     events.push(...r.events)
   }
-  const ended = conceder || (consumed && match.roundShots >= config.shotCap && match.round <= config.rounds)
-  if (ended) {
-    const e = endRound(match, conceder && opponent(conceder), config)
-    match = e.match
-    possession = e.possession
-    landed = { ...landed, pos: e.ball, vel: { x: 0, y: 0 } }
-    events.push(...e.events)
+  const turn = conceder ? mode.onGoal(match, opponent(conceder), config) : consumed ? mode.onShotConsumed(match, config) : null
+  const ended = !!turn
+  if (turn) {
+    match = turn.match
+    if (turn.possession) possession = turn.possession
+    if (turn.ball) landed = { ...landed, pos: turn.ball, vel: { x: 0, y: 0 } }
+    events.push(...turn.events)
   }
   if (match.builder !== state.match.builder) built = []
   if (match.builder && match.builder !== state.match.builder) {

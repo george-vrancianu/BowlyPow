@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { coinFlip } from './match'
-import { defaultConfig as c, step, type SimState } from './step'
+import { defaultConfig as c, initialState, step, type SimState } from './step'
 import { playState } from './testkit'
 
 const mid = { x: 20, y: 54 }
@@ -74,6 +74,13 @@ describe('coin flip', () => {
   })
   it('decides round 1 ball-in-hand from the seed', () => {
     expect(playState(5).possession).toMatchObject({ shooter: coinFlip(5, 1), inHand: true })
+  })
+})
+
+describe('game mode', () => {
+  it('defaults to Rounds, and a new match carries that mode with round 1 and a 0-0 score', () => {
+    expect(c.mode).toBe('rounds')
+    expect(initialState(1, c).match).toMatchObject({ mode: 'rounds', round: 1, score: { 1: 0, 2: 0 }, roundShots: 0, winner: null })
   })
 })
 

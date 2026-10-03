@@ -53,6 +53,8 @@ Expect to tune friction and max speed by feel in the first hour of play. A full-
 
 ## Match structure
 
+Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstraction.md`); the sim config names it. Rounds is the only mode so far, and the rules below are Rounds.
+
 - Pre-match settings screen with three sliders: shots per possession (default 3), rounds (default 5), wall points per build phase (default 10).
 - A match is a fixed number of rounds. Most goals after all rounds wins. If tied, sudden-death rounds with no shot cap until someone scores.
 - Each round is a build phase followed by a play phase.
