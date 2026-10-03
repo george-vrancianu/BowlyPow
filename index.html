@@ -13,24 +13,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <style>
       html, body { margin: 0; height: 100%; background: #0b0f1a; overflow: hidden; }
-      #dev { position: fixed; top: 4px; left: 4px; display: flex; gap: 4px; }
-      #dev button { font: 14px sans-serif; padding: 6px 10px; }
       #splash { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0b0f1a; color: #e8eaf0; font: 800 12vw system-ui, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; }
-      #map { position: fixed; z-index: 10; top: 4px; right: 4px; display: none; gap: 4px; }
-      #map button { font: 14px sans-serif; padding: 6px 10px; }
       canvas { display: block; width: 100%; height: 100%; touch-action: none; }
     </style>
   </head>
   <body>
-    <canvas id="game"></canvas>
-    <div id="dev">
-      <button id="confirm" hidden>Confirm</button>
-    </div>
-    <div id="map">
-      <button id="map-stretch">Stretch</button>
-      <button id="map-close">Close</button>
-    </div>
+    <div id="root"></div>
     <div id="splash">BreachBall</div>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

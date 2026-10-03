@@ -1,0 +1,31 @@
+import type { CSSProperties, ReactNode } from 'react'
+import { visual } from '../../config/visual'
+import type { OverlayView } from '../../game/view/transition'
+
+/** The one interstitial layer: turn card, GOAL banner, BUILD/PLAY/REPAIRED sweep and the REVEAL and "Opponent is choosing" labels (pinned to the top, no band, so the pitch stays visible). Mount inside the rotating stage; no view renders nothing. */
+export function Overlay({ view: v, onTap, className, style, children }: { view?: OverlayView; onTap(): void; className?: string; style?: CSSProperties; children?: ReactNode }) {
+  if (!v) return null
+  const top = v.placement === 'top'
+  return (
+    <div
+      className={className}
+      onPointerDown={onTap}
+      style={{
+        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center',
+        font: '800 9vmin system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', textTransform: 'uppercase',
+        justifyContent: top ? 'flex-start' : 'center',
+        opacity: v.opacity,
+        pointerEvents: v.kind === 'sweep' || v.kind === 'notice' ? 'none' : 'auto',
+        color: v.color,
+        background: top || v.band ? 'transparent' : visual.hud.scrim,
+        transform: v.kind === 'sweep' ? `translateX(${(0.5 - v.progress) * 200}%)` : undefined,
+        ...style,
+      }}
+    >
+      {/* Pinned labels sit well below the top edge so they clear rotated phone screens' notches and status bars. */}
+      <div style={top ? { padding: '1vmin 3vmin', marginTop: 'max(19vmin,112px)', background: visual.hud.scrimLight, borderRadius: '1vmin', fontSize: '6vmin' } : v.band ? { width: '100%', padding: '2vmin 0', background: visual.hud.scrim, ...(v.kind === 'goal' ? { borderBlock: `1vmin solid ${v.color}` } : {}) } : undefined}>{v.text}</div>
+      <div style={{ font: '600 3.5vmin system-ui,sans-serif', textTransform: 'none', color: visual.hud.ink }}>{v.hint}</div>
+      {children}
+    </div>
+  )
+}
