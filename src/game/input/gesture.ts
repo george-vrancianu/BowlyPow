@@ -42,14 +42,15 @@ export function cancelArmed(g: AimGesture): boolean {
 }
 
 /**
- * What the gesture shows: its phase and tier, the tier's control radius in screen px, and the aim once there is one.
+ * What the gesture shows: its phase and tier, the tier's control radius in screen px and Ghost config, and the aim once there is one.
  * `cancel` while cancel-armed: the aim is still shown (greyed) though none is held.
  */
-export type GestureView = { phase: 'holding' | 'aiming'; tier: number; radiusPx: number; dir?: Point; power?: number; cancel?: true }
+export type GestureView = { phase: 'holding' | 'aiming'; tier: number; radiusPx: number; ghost: Tier['ghost']; dir?: Point; power?: number; cancel?: true }
 
 export function aimViewOf(g: AimGesture): GestureView | undefined {
   if (g.phase === 'pan') return undefined
-  return { phase: g.phase, tier: g.tier, radiusPx: tierOf(g.tier).radiusPx, ...dragAim(g), ...(cancelArmed(g) && { cancel: true }) }
+  const { radiusPx, ghost } = tierOf(g.tier)
+  return { phase: g.phase, tier: g.tier, radiusPx, ghost, ...dragAim(g), ...(cancelArmed(g) && { cancel: true }) }
 }
 
 /** A second finger keeps the usual pinch/pan and abandons the aim. */

@@ -102,9 +102,9 @@ export const visual = {
     slopPx: 8,
     /** Within this many screen px of any canvas edge the aim is cancel-armed: releasing cancels, moving back out re-arms. */
     edgeCancelPx: 24,
-    /** The direction line: world units of length per unit of launch speed (power * maxSpeed). */
-    line: { color: '#4ade80', width: 0.3, scale: 0.4 },
-    /** Cancel-armed: the line greys out and an ✕ (half-size `size`, world units) sits on the ball. */
+    /** The Ghost: the ball's predicted path while aiming. */
+    ghost: { color: '#4ade80', width: 0.3 },
+    /** Cancel-armed: the Ghost greys out and an ✕ (half-size `size`, world units) sits on the ball. */
     cancel: { color: '#9ca3af', size: 1.2, width: 0.35 },
     waveMs: 250,
     wave: cream,

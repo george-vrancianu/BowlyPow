@@ -23,6 +23,8 @@ export type SimEvent =
   /** Carries the removed wall (hp 0) so the renderer can shatter it. */
   | { type: 'wall-destroyed'; wall: Structure; at: Point; /** Broken by a Breaker shot. */ breaker?: true }
   | { type: 'ball-hit-wall'; wall: number; speed: number; at: Point }
+  /** The ball bounced off a board or net. */
+  | { type: 'ball-hit-board'; speed: number; at: Point }
   /** An illegal placement or demolition was dropped. */
   | { type: 'refused' }
   /** `from` is the ball's position at launch. */
