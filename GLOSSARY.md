@@ -16,6 +16,10 @@ _Avoid_: Mode, level, charge
 The ball's predicted path, drawn from the ball while aiming a Shot in its Tier's colour, showing where it will go.
 _Avoid_: Preview, arrow, trajectory
 
+**Splash**:
+The burst every Power Shot sets off where the ball starts, damaging every structure in range, the shooter's own included and across the halfway line. It grows with power within the Tier; the shooter's own structures lose hit points only to its strongest part. It doesn't move the ball.
+_Avoid_: Blast, explosion, area damage
+
 **Rounds**:
 The game mode where a match is a series of rounds, each with its own build phase, decided by score after the configured number of rounds (a tie goes to sudden death).
 _Avoid_: Classic, standard mode
