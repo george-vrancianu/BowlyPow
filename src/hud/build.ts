@@ -43,6 +43,16 @@ export function legal(s: SimState, sel: Selection): boolean {
   return canPlace(others, sel.spec) && (sel.id !== undefined || s.points[sel.spec.owner] >= structureCost(sel.spec))
 }
 
+const EDGE_SPEED = 30
+
+/** How far to pan while a piece is held near the top or bottom tenth of the view: toward any of the builder's half that is off screen, never past it. */
+export function edgeScrollDy(camY: number, visibleHeight: number, builder: PlayerId, pointerY: number, dt: number): number {
+  const [lo, hi] = builder === 1 ? [HALF_HEIGHT, PITCH_HEIGHT] : [0, HALF_HEIGHT]
+  const [top, bottom] = [camY - visibleHeight / 2, camY + visibleHeight / 2]
+  const margin = visibleHeight / 10
+  return pointerY < top + margin && top > lo ? -Math.min(EDGE_SPEED * dt, top - lo) : pointerY > bottom - margin && bottom < hi ? Math.min(EDGE_SPEED * dt, hi - bottom) : 0
+}
+
 /** The sim input ✓ sends: place a new piece or move a structure. Undefined when there is nothing to send. */
 export function commit(sel: Selection): SimInput | undefined {
   const { spec, id } = sel
@@ -71,11 +81,10 @@ export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selectio
       ],
     }
   }
-  const fresh = sel.id !== undefined && sel.movable
   return {
     kind: 'selected',
     buttons: [
-      ...(sel.id !== undefined ? [{ label: '🗑', disabled: !fresh && s.points[b] < 1, onClick: a.remove }] : []),
+      ...(sel.id !== undefined ? [{ label: '🗑', disabled: !sel.movable && s.points[b] < 1, onClick: a.remove }] : []),
       ...(sel.movable && sel.spec.kind === 'wall' ? [{ label: '↻', onClick: a.rotate }] : []),
       { label: '✕', onClick: a.cancel },
       ...(sel.movable ? [{ label: '✓', disabled: !legal(s, sel), onClick: a.confirm }] : []),

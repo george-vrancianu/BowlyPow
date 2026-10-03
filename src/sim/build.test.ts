@@ -132,4 +132,34 @@ describe('moving and refunding this turn\'s items', () => {
     const s = { ...run(buildState(1), { placeWall: wall(1) }), built: [] }
     expect(run(s, { demolish: { player: 1, wall: 1 } }).points[1]).toBe(s.points[1] - 1)
   })
+  it('placing and Done in the same tick leaves nothing movable', () => {
+    expect(run(buildState(1), { placeWall: wall(1), done: 1 }).built).toEqual([])
+  })
+  it('demolishing a tower placed this turn leaves the points alone and returns the charge', () => {
+    const tower: TowerSpec = { kind: 'tower', owner: 1, power: 'steal', at: { gx: 10, gy: 40 } }
+    const s = run(buildState(1), { placeWall: tower })
+    const r = run(s, { demolish: { player: 1, wall: 1 } })
+    expect(r.points[1]).toBe(s.points[1])
+    expect(r.players[1].inventory.steal).toBe(buildState(1).players[1].inventory.steal)
+  })
+  it('moving a tower keeps its power, id and hp', () => {
+    const tower: TowerSpec = { kind: 'tower', owner: 1, power: 'repulsor', at: { gx: 10, gy: 40 } }
+    const s = run(buildState(1), { placeWall: tower })
+    const r = step(s, { moveStructure: { player: 1, id: 1, at: moved, rotation: 0 } }, c)
+    expect(r.events).toEqual([])
+    expect(r.state.objects).toEqual([{ ...s.objects[0], at: moved }])
+    expect(r.state.objects[0]).toMatchObject({ power: 'repulsor', id: 1, hp: s.objects[0].hp })
+  })
+  it('a wall built in an earlier turn costs 1 to demolish and cannot be moved, across a real turn sequence', () => {
+    let s = run(initialState(), { placeWall: wall(loser) }, { done: loser })
+    expect(s.built).toEqual([])
+    s = run(s, { done: opponent(loser) })
+    expect(s.match.builder).toBeNull()
+    expect(s.built).toEqual([])
+    s = { ...s, match: { ...s.match, builder: loser }, points: { ...s.points, [loser]: c.wallPoints } }
+    expect(step(s, { moveStructure: { player: loser, id: 1, at: moved, rotation: 0 } }, c).events).toEqual([{ type: 'refused' }])
+    const r = step(s, { demolish: { player: loser, wall: 1 } }, c)
+    expect(r.events).toEqual([])
+    expect(r.state.points[loser]).toBe(c.wallPoints - 1)
+  })
 })

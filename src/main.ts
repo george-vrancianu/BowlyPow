@@ -6,7 +6,7 @@ import { createScreens } from './screens/screens'
 import { configFrom } from './sim/settings'
 import { createHud } from './hud/hud'
 import { hudModel } from './hud/model'
-import { buildMenu, commit, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
+import { buildMenu, commit, edgeScrollDy, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
 import { createFab } from './hud/fab'
 import { createOverlay } from './hud/overlay'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
@@ -60,7 +60,9 @@ document.getElementById('map-stretch')!.onclick = () => {
 let selection: Selection | undefined
 let menuOpen = false
 // Grab point relative to the piece's anchor, and the pointer's last canvas position (for edge scrolling).
-let drag: { offset: Point; px: number; py: number } | undefined
+// `moved` once the pointer has travelled past DRAG_SLOP from the press, which is when edge scrolling may start.
+let drag: { offset: Point; px: number; py: number; id: number; from: Point; moved: boolean } | undefined
+const DRAG_SLOP = 6
 let fragments: Fragment[] = []
 const fx = newFx()
 let pending: SimInput = {}
@@ -84,7 +86,7 @@ const pxToWorld = (px: number, py: number) => screenToWorld(canvas, camera, px *
 const dragTo = (px: number, py: number) => {
   if (!drag || !selection) return
   const p = pxToWorld(px, py)
-  drag = { ...drag, px, py }
+  drag = { ...drag, px, py, moved: drag.moved || Math.hypot(px - drag.from.x, py - drag.from.y) > DRAG_SLOP }
   selection = { ...selection, spec: { ...selection.spec, at: { gx: Math.round((p.x - drag.offset.x) / CELL_SIZE), gy: Math.round((p.y - drag.offset.y) / CELL_SIZE) } } }
 }
 const build = {
@@ -127,12 +129,12 @@ canvas.onpointermove = (e) => {
     if (pointers.size > 1) panBy(dy / pointers.size)
     else if (panOnly || (charge && gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now()).mode === 'pan')) panBy(dy)
   }
-  dragTo(e.offsetX, e.offsetY)
+  if (drag?.id === e.pointerId) dragTo(e.offsetX, e.offsetY)
   if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
 }
 canvas.onpointerup = (e) => {
   draggingBall = false
-  drag = undefined
+  if (drag?.id === e.pointerId) drag = undefined
   if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= 12) ballGhost = toWorld(e)
   tap = undefined
   pointers.delete(e.pointerId)
@@ -150,7 +152,7 @@ canvas.onpointerdown = (e) => {
   }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   if (pointers.size > 1) {
-    charge = undefined
+    charge = drag = undefined
     return
   }
   const builder = state.match.builder
@@ -166,7 +168,7 @@ canvas.onpointerdown = (e) => {
     if (!selection) selection = pick(state, builder, at, tolerance)
     if (selection?.movable && onPiece(selection.spec, at, tolerance)) {
       const anchor = { x: selection.spec.at.gx * CELL_SIZE, y: selection.spec.at.gy * CELL_SIZE }
-      drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY }
+      drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY, id: e.pointerId, from: { x: e.offsetX, y: e.offsetY }, moved: false }
       canvas.setPointerCapture(e.pointerId)
     } else panOnly = true
     return
@@ -230,14 +232,9 @@ function onLink(peer: Peer, hosting: boolean, status: 'connected' | 'disconnecte
 screens.title()
 const fab = createFab(stage)
 // While dragging near the top or bottom tenth of the view, scroll toward any of the builder's half that is off screen.
-const EDGE_SPEED = 30
 function edgeScroll(builder: PlayerId, dt: number) {
   const { visibleHeight } = layout(canvas)
-  const [lo, hi] = builder === 1 ? [HALF_HEIGHT, PITCH_HEIGHT] : [0, HALF_HEIGHT]
-  const [top, bottom] = [camera.y - visibleHeight / 2, camera.y + visibleHeight / 2]
-  const y = pxToWorld(drag!.px, drag!.py).y
-  const margin = visibleHeight / 10
-  const dy = y < top + margin && top > lo ? -Math.min(EDGE_SPEED * dt, top - lo) : y > bottom - margin && bottom < hi ? Math.min(EDGE_SPEED * dt, hi - bottom) : 0
+  const dy = edgeScrollDy(camera.y, visibleHeight, builder, pxToWorld(drag!.px, drag!.py).y, dt)
   if (!dy) return
   pan(camera, dy, visibleHeight)
   dragTo(drag!.px, drag!.py)
@@ -306,7 +303,7 @@ function frame(now: number) {
   if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), recenter(camera)
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
   overlay.update(overlayView(transition, now))
-  if (drag && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
+  if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
   if (state.match.winner && !matchShown) (matchShown = true, screens.matchEnd(state.match.winner, state.match.score, !!net))
@@ -318,15 +315,15 @@ function frame(now: number) {
   const b = state.match.builder
   const shooter = state.possession.shooter
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
-  const building = b && mine(b) && !mapOpen ? b : undefined
+  const building = b && mine(b) ? b : undefined
   hud.update(hudModel(state, config, { active: transition.shown, buttons: building && [{ label: 'Done', onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
-  fab.update(building && buildMenu(state, building, { open: menuOpen, selection }, build), build.toggle, size, transition.shown === 2)
+  fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
   render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
     ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
     selected: !mapOpen && selection?.id !== undefined ? { id: selection.id, moving: selection.movable } : undefined,
-    movable: b && mine(b) && !mapOpen ? state.built : undefined,
+    movable: building && !mapOpen ? state.built : undefined,
     fragments,
     now,
     charge: !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined,

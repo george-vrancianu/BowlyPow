@@ -7,11 +7,12 @@ const ROUND = `${FONT}width:52px;height:52px;border-radius:50%;border:2px solid 
 const ICON = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="1"/><path d="M2 9.3h20M2 14.7h20M8 4v5.3M16 4v5.3M12 9.3v5.4M8 14.7V20M16 14.7V20"/></svg>'
 
 // Drawn rather than an emoji, which some fonts lack.
-const GLYPHS: Record<string, string> = { '🗑': '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>' }
+const GLYPHS: Record<string, { svg: string; aria: string }> = { '🗑': { svg: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>', aria: 'Demolish' } }
 
 const button = (s: ButtonSpec, css: string) => {
   const b = el('button', `${css}opacity:${s.disabled ? 0.4 : 1};`, s.label) as HTMLButtonElement
-  if (GLYPHS[s.label]) (b.innerHTML = GLYPHS[s.label]), b.setAttribute('aria-label', 'Demolish')
+  const g = GLYPHS[s.label]
+  if (g) (b.innerHTML = g.svg), b.setAttribute('aria-label', g.aria)
   b.disabled = !!s.disabled
   b.onclick = s.onClick
   return b

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultConfig as c, step, type SimState } from '../sim/step'
 import { buildState } from '../sim/testkit'
 import type { WallSpec } from '../sim/wall'
-import { buildMenu, commit, legal, pick, rotated, spawn, type BuildActions } from './build'
+import { buildMenu, commit, edgeScrollDy, legal, pick, rotated, spawn, type BuildActions } from './build'
 
 const noop = () => {}
 const actions: BuildActions = { toggle: noop, spawn: noop, confirm: noop, cancel: noop, rotate: noop, remove: noop }
@@ -56,5 +56,24 @@ describe('build menu', () => {
   it('a placed structure also gets the bin; an older one only bin and cancel', () => {
     expect(labels(placed(), { open: false, selection: { spec: wall, id: 1, movable: true } })).toEqual(['🗑', '↻', '✕', '✓'])
     expect(labels(placed(), { open: false, selection: { spec: wall, id: 1, movable: false } })).toEqual(['🗑', '✕'])
+  })
+})
+
+describe('edge scroll', () => {
+  // A 30-high view; builder 1 owns y 54..108, builder 2 y 0..54. The edge band is the outer tenth (3).
+  it('does nothing in the middle of the view', () => {
+    expect(edgeScrollDy(70, 30, 1, 70, 0.1)).toBe(0)
+  })
+  it('scrolls toward the off-screen part of the builder\'s half', () => {
+    expect(edgeScrollDy(70, 30, 1, 84, 0.1)).toBeGreaterThan(0)
+    expect(edgeScrollDy(40, 30, 2, 26, 0.1)).toBeLessThan(0)
+  })
+  it('never scrolls past the half\'s edge', () => {
+    expect(edgeScrollDy(90, 30, 1, 104, 10)).toBe(3)
+    expect(edgeScrollDy(30, 30, 2, 16, 10)).toBe(-15)
+  })
+  it('does nothing when that edge of the half is already in view', () => {
+    expect(edgeScrollDy(69, 30, 1, 55, 0.1)).toBe(0)
+    expect(edgeScrollDy(93, 30, 1, 107, 0.1)).toBe(0)
   })
 })
