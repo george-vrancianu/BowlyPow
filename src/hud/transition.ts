@@ -5,18 +5,19 @@ import type { SimEvent } from '../sim/step'
 const FLIP_MS = 400
 const GOAL_MS = 1500
 const SWEEP_MS = 1000
+const REVEAL_MS = 1500
 const DISMISS_MS = 1000
 
-type Overlay = { kind: 'turn' | 'goal' | 'sweep'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point }
+type Overlay = { kind: 'turn' | 'goal' | 'sweep' | 'reveal'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point }
 /** `shown` is whose end of the pitch is at the bottom of the screen; `due` = a handover is waiting (e.g. for the goal hold to end). */
-export type Transition = { shown: PlayerId; flip?: { at: number; ms: number; from: PlayerId; to: PlayerId }; overlay?: Overlay; due?: boolean; phase?: string }
+export type Transition = { shown: PlayerId; flip?: { at: number; ms: number; from: PlayerId; to: PlayerId }; overlay?: Overlay; due?: boolean; phase?: string; opening?: boolean }
 
 export const newTransition = (active: PlayerId): Transition => ({ shown: active, due: true })
 
 const rot = (p: PlayerId) => (p === 1 ? 0 : 180)
 
 /** `handover` false = online: each player always sits at the bottom, so no flip or turn card. */
-export type Frame = { handover?: boolean; active: PlayerId; /** Round number for modes that have rounds; the first-play hints show on round 1. */ round?: number; inHand: boolean; phase: string; events: SimEvent[]; now: number; reduced: boolean }
+export type Frame = { handover?: boolean; active: PlayerId; /** Round number for modes that have rounds; the first-play hints show on round 1. */ round?: number; inHand: boolean; phase: string; /** A Siege opening build is in progress (not a Rearrange turn); its end triggers the reveal. */ opening?: boolean; events: SimEvent[]; now: number; reduced: boolean }
 
 /** Call each tick (with that tick's events) and once per frame. Pure; the sim never waits on it, the shell pauses `step` while `blocking`. */
 export function advance(t: Transition, f: Frame): Transition {
@@ -28,11 +29,13 @@ export function advance(t: Transition, f: Frame): Transition {
     if (ev.type === 'round-ended') due = true
     if (ev.type === 'repaired') overlay = { kind: 'sweep', at: f.now, player: ev.player, text: 'REPAIRED', ms: SWEEP_MS }
   }
-  if (t.phase !== undefined && t.phase !== f.phase && overlay?.kind !== 'goal') overlay = { kind: 'sweep', at: f.now, player: f.active, text: f.phase.toUpperCase(), ms: SWEEP_MS }
+  // The second Done of a Siege opening build lifts the fog into a 1.5 s hold on the whole pitch; the same hold under reduced motion (it has no animation to drop).
+  if (t.opening && !f.opening) (overlay = { kind: 'reveal', at: f.now, player: f.active, text: 'REVEAL', ms: REVEAL_MS }), (due = true)
+  if (t.phase !== undefined && t.phase !== f.phase && overlay?.kind !== 'goal' && overlay?.kind !== 'reveal') overlay = { kind: 'sweep', at: f.now, player: f.active, text: f.phase.toUpperCase(), ms: SWEEP_MS }
   // The handover waits for the REPAIRED sweep, so the flash and label are seen before the turn flips.
   const repairing = overlay?.kind === 'sweep' && overlay.text === 'REPAIRED'
   if (f.handover === false) due = false
-  else if ((due || f.active !== shown) && !flip && !repairing && overlay?.kind !== 'goal' && overlay?.kind !== 'turn') {
+  else if ((due || f.active !== shown) && !flip && !repairing && overlay?.kind !== 'goal' && overlay?.kind !== 'reveal' && overlay?.kind !== 'turn') {
     const ms = f.reduced ? 0 : FLIP_MS
     if (ms) flip = { at: f.now, ms, from: shown, to: f.active }
     else shown = f.active
@@ -41,11 +44,14 @@ export function advance(t: Transition, f: Frame): Transition {
     due = false
   }
   // A phase change during the goal hold is announced once the hold ends.
-  return { shown, flip, overlay, due, phase: overlay?.kind === 'goal' ? t.phase : f.phase }
+  return { shown, flip, overlay, due, opening: f.opening, phase: overlay?.kind === 'goal' ? t.phase : f.phase }
 }
 
 /** The shell stops stepping the sim while a flip, goal, turn or REPAIRED overlay is up: the conceder's clock and ball are out of reach until the handover is seen. */
-export const blocking = (t: Transition) => !!t.flip || t.overlay?.kind === 'goal' || t.overlay?.kind === 'turn' || (t.overlay?.kind === 'sweep' && t.overlay.text === 'REPAIRED')
+export const blocking = (t: Transition) => !!t.flip || t.overlay?.kind === 'goal' || t.overlay?.kind === 'turn' || t.overlay?.kind === 'reveal' || (t.overlay?.kind === 'sweep' && t.overlay.text === 'REPAIRED')
+
+/** The reveal hold is up: the shell shows the whole pitch through the map camera. */
+export const revealing = (t: Transition) => t.overlay?.kind === 'reveal'
 
 /** Tap on the turn overlay; ignored in its first second. */
 export const dismiss = (t: Transition, now: number): Transition => (t.overlay?.kind === 'turn' && !t.flip && now - t.overlay.at >= DISMISS_MS ? { ...t, overlay: undefined } : t)
