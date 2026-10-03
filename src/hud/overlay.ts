@@ -1,3 +1,4 @@
+import { visual } from '../config/visual'
 import type { overlayView } from './transition'
 
 type View = NonNullable<ReturnType<typeof overlayView>>
@@ -8,7 +9,7 @@ export function createOverlay(root: HTMLElement, onTap: () => void) {
   e.style.cssText = 'position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;font:800 9vmin system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-transform:uppercase;'
   const text = document.createElement('div')
   const hint = document.createElement('div')
-  hint.style.cssText = 'font:600 3.5vmin system-ui,sans-serif;text-transform:none;color:#e8eaf0;'
+  hint.style.cssText = `font:600 3.5vmin system-ui,sans-serif;text-transform:none;color:${visual.hud.ink};`
   e.append(text, hint)
   e.onpointerdown = onTap
   root.append(e)
@@ -23,10 +24,10 @@ export function createOverlay(root: HTMLElement, onTap: () => void) {
         opacity: String(v.opacity),
         pointerEvents: v.kind === 'sweep' ? 'none' : 'auto',
         color: v.color,
-        background: banner ? 'transparent' : 'rgba(11,15,26,0.85)',
+        background: banner ? 'transparent' : visual.hud.scrim,
         transform: v.kind === 'sweep' ? `translateX(${(0.5 - v.progress) * 200}%)` : '',
       })
-      text.style.cssText = banner ? `width:100%;padding:2vmin 0;background:rgba(11,15,26,0.85);${v.kind === 'goal' ? `border-block:1vmin solid ${v.color};` : ''}` : ''
+      text.style.cssText = banner ? `width:100%;padding:2vmin 0;background:${visual.hud.scrim};${v.kind === 'goal' ? `border-block:1vmin solid ${v.color};` : ''}` : ''
     },
   }
 }

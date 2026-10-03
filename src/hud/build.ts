@@ -1,5 +1,7 @@
+import { visual } from '../config/visual'
+import { rules } from '../config/rules'
 import { nearestOnWall } from '../sim/blast'
-import { CELL_SIZE, HALF_HEIGHT, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from '../sim/pitch'
+import { type PlayerId, type Point } from '../sim/pitch'
 import type { SimInput, SimState } from '../sim/step'
 import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../sim/wall'
 import type { ButtonSpec } from './hud'
@@ -13,12 +15,12 @@ export type Selection = { spec: StructureSpec; id?: number; movable: boolean }
 export type Piece = WallShape | TowerPower
 
 /** Grid rows (vertices) a piece anchored on `owner`'s half may use. */
-const rows = (owner: PlayerId) => (owner === 1 ? [HALF_HEIGHT / CELL_SIZE, PITCH_HEIGHT / CELL_SIZE - 1] : [0, HALF_HEIGHT / CELL_SIZE - 1])
+const rows = (owner: PlayerId) => (owner === 1 ? [rules.halfHeight / rules.cellSize, rules.pitchHeight / rules.cellSize - 1] : [0, rules.halfHeight / rules.cellSize - 1])
 
 /** A new piece at the vertex nearest the view centre, clamped to the owner's half. */
 export function spawn(piece: Piece, owner: PlayerId, viewY: number): Selection {
   const [lo, hi] = rows(owner)
-  const at = { gx: PITCH_WIDTH / CELL_SIZE / 2, gy: Math.min(Math.max(Math.round(viewY / CELL_SIZE), lo), hi) }
+  const at = { gx: rules.pitchWidth / rules.cellSize / 2, gy: Math.min(Math.max(Math.round(viewY / rules.cellSize), lo), hi) }
   const spec: StructureSpec = piece === 'repulsor' || piece === 'steal' ? { kind: 'tower', owner, power: piece, at } : { kind: 'wall', owner, shape: piece, rotation: 0, at }
   return { spec, movable: true }
 }
@@ -43,14 +45,13 @@ export function legal(s: SimState, sel: Selection): boolean {
   return canPlace(others, sel.spec) && (sel.id !== undefined || s.points[sel.spec.owner] >= structureCost(sel.spec))
 }
 
-const EDGE_SPEED = 30
 
 /** How far to pan while a piece is held near the top or bottom tenth of the view: toward any of the builder's half that is off screen, never past it. */
 export function edgeScrollDy(camY: number, visibleHeight: number, builder: PlayerId, pointerY: number, dt: number): number {
-  const [lo, hi] = builder === 1 ? [HALF_HEIGHT, PITCH_HEIGHT] : [0, HALF_HEIGHT]
+  const [lo, hi] = builder === 1 ? [rules.halfHeight, rules.pitchHeight] : [0, rules.halfHeight]
   const [top, bottom] = [camY - visibleHeight / 2, camY + visibleHeight / 2]
   const margin = visibleHeight / 10
-  return pointerY < top + margin && top > lo ? -Math.min(EDGE_SPEED * dt, top - lo) : pointerY > bottom - margin && bottom < hi ? Math.min(EDGE_SPEED * dt, hi - bottom) : 0
+  return pointerY < top + margin && top > lo ? -Math.min(visual.input.edgeScrollSpeed * dt, top - lo) : pointerY > bottom - margin && bottom < hi ? Math.min(visual.input.edgeScrollSpeed * dt, hi - bottom) : 0
 }
 
 const sameSpec = (a: StructureSpec, b: StructureSpec) =>

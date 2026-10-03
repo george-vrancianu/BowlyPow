@@ -1,5 +1,5 @@
+import { visual } from '../config/visual'
 import type { PlayerId, Point } from '../sim/pitch'
-import { PLAYER_COLORS } from '../sim/player'
 import type { SimEvent } from '../sim/step'
 import type { Structure } from '../sim/wall'
 
@@ -7,21 +7,13 @@ import type { Structure } from '../sim/wall'
 type LaterEvent = { type: 'goal' } | { type: 'charge-full' }
 type FxEvent = SimEvent | LaterEvent
 
-export const SHAKE_MS = 200
-export const FLASH_MS = 100
-export const DIM_FLASH_MS = 50
-export const PARTICLE_MS = 400
-const MAX_SHAKE = 4
 
 export type Particle = { at: Point; vel: Point; color: string; born: number }
 export type Flash = { wall: number; dim: boolean; born: number }
-/** A Repulsor fire: ring burst and tower glow last GLOW_MS, the ball's trail brightens for TRAIL_MS. */
+/** A Repulsor fire: ring burst and tower glow last visual.tower.glowMs, the ball's trail brightens for visual.ball.trailMs. */
 export type Pulse = { tower: number; born: number }
-export const GLOW_MS = 300
-export const TRAIL_MS = 500
-/** A Steal trigger: the ball shrinks into the tower for STEAL_MS, then the tower collapses. */
+/** A Steal trigger: the ball shrinks into the tower for visual.ball.stealMs, then the tower collapses. */
 export type Steal = { tower: Structure; at: Point; born: number }
-export const STEAL_MS = 300
 export type Fx = { particles: Particle[]; flashes: Flash[]; shake: { amp: number; born: number }; pulses: Pulse[]; steals: Steal[] }
 export const newFx = (): Fx => ({ particles: [], flashes: [], shake: { amp: 0, born: 0 }, pulses: [], steals: [] })
 
@@ -36,7 +28,7 @@ export function vibration(ev: FxEvent): number | number[] | undefined {
 
 /** Screen offset in px at time `now` for a shake of `amp` px that started at `born`, decaying linearly to nothing. */
 export function shakeOffset(amp: number, born: number, now: number): Point {
-  const t = (now - born) / SHAKE_MS
+  const t = (now - born) / visual.fx.shakeMs
   if (t < 0 || t >= 1) return { x: 0, y: 0 }
   const a = amp * (1 - t)
   return { x: a * Math.sin(now * 0.11), y: a * Math.cos(now * 0.137) }
@@ -46,15 +38,15 @@ export function shakeOffset(amp: number, born: number, now: number): Point {
 export function feedbackFor(events: FxEvent[], walls: { id: number; owner: PlayerId }[], reduced: boolean) {
   const out = { flashes: [] as { wall: number; dim: boolean }[], bursts: [] as { at: Point; color: string; count: number }[], shakes: [] as number[], vibrations: [] as (number | number[])[] }
   const cracked = new Set(events.flatMap((e) => (e.type === 'wall-cracked' ? [e.id] : [])))
-  const color = (id: number) => PLAYER_COLORS[walls.find((w) => w.id === id)?.owner ?? 1]
+  const color = (id: number) => visual.player.colors[walls.find((w) => w.id === id)?.owner ?? 1]
   for (const ev of events) {
     if (ev.type === 'ball-hit-wall' && !cracked.has(ev.wall)) out.flashes.push({ wall: ev.wall, dim: true })
     if (ev.type === 'wall-cracked') {
       out.flashes.push({ wall: ev.id, dim: false })
-      out.bursts.push({ at: ev.at, color: color(ev.id), count: 4 })
+      out.bursts.push({ at: ev.at, color: color(ev.id), count: visual.fx.burst.crack })
     }
-    if (ev.type === 'wall-destroyed') out.bursts.push({ at: ev.at, color: PLAYER_COLORS[ev.wall.owner], count: ev.breaker ? 24 : 12 })
-    if (ev.type === 'blast-fired' && ev.power >= 0.3) out.shakes.push(MAX_SHAKE * ev.power)
+    if (ev.type === 'wall-destroyed') out.bursts.push({ at: ev.at, color: visual.player.colors[ev.wall.owner], count: ev.breaker ? visual.fx.burst.breaker : visual.fx.burst.destroy })
+    if (ev.type === 'blast-fired' && ev.power >= visual.aim.minShakePower) out.shakes.push(visual.fx.maxShake * ev.power)
     const v = vibration(ev)
     if (v !== undefined) out.vibrations.push(v)
   }
@@ -75,8 +67,8 @@ export function applyEvents(fx: Fx, events: FxEvent[], walls: { id: number; owne
   for (const e of events) if (e.type === 'steal-triggered') fx.steals.push({ tower: e.tower, at: e.at, born: now })
   for (const amp of r.shakes) fx.shake = { amp, born: now }
   for (const v of r.vibrations) navigator.vibrate?.(v)
-  fx.particles = fx.particles.filter((p) => now - p.born < PARTICLE_MS)
-  fx.flashes = fx.flashes.filter((f) => now - f.born < FLASH_MS)
-  fx.pulses = fx.pulses.filter((p) => now - p.born < TRAIL_MS)
-  fx.steals = fx.steals.filter((s) => now - s.born < STEAL_MS)
+  fx.particles = fx.particles.filter((p) => now - p.born < visual.fx.particleMs)
+  fx.flashes = fx.flashes.filter((f) => now - f.born < visual.wall.flashMs)
+  fx.pulses = fx.pulses.filter((p) => now - p.born < visual.ball.trailMs)
+  fx.steals = fx.steals.filter((s) => now - s.born < visual.ball.stealMs)
 }

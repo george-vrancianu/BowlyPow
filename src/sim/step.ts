@@ -1,4 +1,5 @@
-import { goalCrossed, HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { rules } from '../config/rules'
+import { goalCrossed, type PlayerId, type Point } from './pitch'
 import { coinFlip, endRound, firstBuilder, newMatch, startingPossession, type Match } from './match'
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
@@ -100,7 +101,7 @@ export const defaultConfig: SimConfig = {
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, built: [], ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, built: [], ball: { pos: { x: rules.pitchWidth / 2, y: rules.halfHeight }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
 }
 
 const spend = (players: SimState['players'], id: PlayerId, power: PowerUp, n = 1): SimState['players'] => ({ ...players, [id]: { ...players[id], inventory: { ...players[id].inventory, [power]: players[id].inventory[power] - n } } })
@@ -192,7 +193,7 @@ export function step(
         events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
       } else {
         if (possession.inHand) {
-          ball = { ...ball, pos: { x: PITCH_WIDTH / 2, y: shooter === 1 ? 1.5 * HALF_HEIGHT : HALF_HEIGHT / 2 }, vel: { x: 0, y: 0 } }
+          ball = { ...ball, pos: { x: rules.pitchWidth / 2, y: shooter === 1 ? 1.5 * rules.halfHeight : rules.halfHeight / 2 }, vel: { x: 0, y: 0 } }
           possession = { ...possession, inHand: false }
         }
         const r = resolveRest(possession, ball.pos.y, config)

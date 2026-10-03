@@ -1,8 +1,9 @@
+import { rules } from '../config/rules'
 import { describe, expect, it } from 'vitest'
 import { canPlaceBall } from './possession'
 import { defaultConfig as c, step, type SimState } from './step'
 import { playState } from './testkit'
-import { WALL_HP, type Wall } from './wall'
+import { type Wall } from './wall'
 
 const at = (y: number, x = 20) => ({ x, y })
 const base = (ball: { x: number; y: number }, shooter: 1 | 2 = 1, shots = 3): SimState => ({
@@ -58,7 +59,7 @@ describe('possession', () => {
 })
 
 describe('ball-in-hand', () => {
-  const wall: Wall = { kind: 'wall', owner: 2, shape: 'straight', rotation: 0, at: { gx: 10, gy: 20 }, id: 1, hp: WALL_HP }
+  const wall: Wall = { kind: 'wall', owner: 2, shape: 'straight', rotation: 0, at: { gx: 10, gy: 20 }, id: 1, hp: rules.wallHp }
   const inHand: SimState = { ...base(at(80), 2), objects: [wall], possession: { shooter: 2, shots: 3, inHand: true, live: false } }
   const place = (p: { x: number; y: number }, player: 1 | 2 = 2) => step(inHand, { placeBall: { player, at: p } }, c)
 

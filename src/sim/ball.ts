@@ -1,18 +1,19 @@
-import { BOARD, GOAL_LEFT, GOAL_RIGHT, NET_DEPTH, PITCH_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
+import { rules } from '../config/rules'
+import { type PlayerId, type Point } from './pitch'
 import type { SimConfig, SimEvent } from './step'
 import { damageWall, wallSegments, type Segment, type Structure } from './wall'
 
 export type Ball = { pos: Point; vel: Point; /** Distance travelled, drives the rolling dot. */ rolled: number }
 
 const seg = (x1: number, y1: number, x2: number, y2: number): Segment => ({ a: { x: x1, y: y1 }, b: { x: x2, y: y2 } })
-const NET = NET_DEPTH + BOARD
+const NET = rules.netDepth + rules.board
 /** Side boards, end boards with a goal-mouth gap, and the net box behind each goal. */
 const boards: Segment[] = [
-  seg(0, 0, 0, PITCH_HEIGHT),
-  seg(PITCH_WIDTH, 0, PITCH_WIDTH, PITCH_HEIGHT),
-  ...[0, PITCH_HEIGHT].flatMap((y) => {
+  seg(0, 0, 0, rules.pitchHeight),
+  seg(rules.pitchWidth, 0, rules.pitchWidth, rules.pitchHeight),
+  ...[0, rules.pitchHeight].flatMap((y) => {
     const back = y + (y === 0 ? -NET : NET)
-    return [seg(0, y, GOAL_LEFT, y), seg(GOAL_RIGHT, y, PITCH_WIDTH, y), seg(GOAL_LEFT, y, GOAL_LEFT, back), seg(GOAL_RIGHT, y, GOAL_RIGHT, back), seg(GOAL_LEFT, back, GOAL_RIGHT, back)]
+    return [seg(0, y, rules.goalLeft, y), seg(rules.goalRight, y, rules.pitchWidth, y), seg(rules.goalLeft, y, rules.goalLeft, back), seg(rules.goalRight, y, rules.goalRight, back), seg(rules.goalLeft, back, rules.goalRight, back)]
   }),
 ]
 

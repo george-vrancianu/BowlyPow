@@ -1,7 +1,9 @@
+import { visual } from './config/visual'
+import { rules } from './config/rules'
 import { showConnectScreen } from './net/connectScreen'
 import { lockstep } from './net/lockstep'
 import type { Peer } from './net/peer'
-import { applyEvents, newFx, reducedMotion, STEAL_MS } from './render/feedback'
+import { applyEvents, newFx, reducedMotion } from './render/feedback'
 import { createScreens } from './screens/screens'
 import { configFrom } from './sim/settings'
 import { createHud } from './hud/hud'
@@ -12,10 +14,10 @@ import { createOverlay } from './hud/overlay'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
-import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
+import { follow, layout, pan, recenter, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
-import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
+import { halfOf, type Point } from './sim/pitch'
 import { canArm, canPlaceBall, whoActs } from './sim/possession'
 import type { PlayerId } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
@@ -31,7 +33,6 @@ canvas.before(stage)
 stage.append(canvas)
 
 // Online: the sim runs on both peers from the same seed; `me` sits at the bottom and only my own inputs are sent.
-const ONLINE_BUILD_SECONDS = 30
 let net: { me: PlayerId; peer: Peer; sync: ReturnType<typeof lockstep> } | undefined
 const mine = (p: PlayerId | null | undefined) => !net || p === net.me
 const canvasPx = () => canvas.width / canvas.clientWidth
@@ -42,7 +43,7 @@ const overlay = createOverlay(stage, () => (transition = dismiss(transition, per
 const camera: Camera = { y: state.ball.pos.y }
 // Map overlay: a second camera over the whole pitch; the fit/stretch choice lasts the session.
 const stored = (() => { try { return sessionStorage.getItem('mapStretch') === '1' } catch { return false } })()
-const mapCam: Camera = { y: MAP_Y, map: { stretch: stored } }
+const mapCam: Camera = { y: rules.mapY, map: { stretch: stored } }
 let mapOpen = false
 // A map jump holds the camera until the next sim event or wall placement, then it returns to the ball.
 const mapUi = document.getElementById('map')!
@@ -62,9 +63,8 @@ let selection: Selection | undefined
 let landing: Selection | undefined
 let menuOpen = false
 // Grab point relative to the piece's anchor, and the pointer's last canvas position (for edge scrolling).
-// `moved` once the pointer has travelled past DRAG_SLOP from the press, which is when edge scrolling may start.
+// `moved` once the pointer has travelled past visual.input.dragSlopPx from the press, which is when edge scrolling may start.
 let drag: { offset: Point; px: number; py: number; id: number; from: Point; moved: boolean } | undefined
-const DRAG_SLOP = 6
 let fragments: Fragment[] = []
 const fx = newFx()
 let pending: SimInput = {}
@@ -88,8 +88,8 @@ const pxToWorld = (px: number, py: number) => screenToWorld(canvas, camera, px *
 const dragTo = (px: number, py: number) => {
   if (!drag || !selection) return
   const p = pxToWorld(px, py)
-  drag = { ...drag, px, py, moved: drag.moved || Math.hypot(px - drag.from.x, py - drag.from.y) > DRAG_SLOP }
-  selection = { ...selection, spec: { ...selection.spec, at: { gx: Math.round((p.x - drag.offset.x) / CELL_SIZE), gy: Math.round((p.y - drag.offset.y) / CELL_SIZE) } } }
+  drag = { ...drag, px, py, moved: drag.moved || Math.hypot(px - drag.from.x, py - drag.from.y) > visual.input.dragSlopPx }
+  selection = { ...selection, spec: { ...selection.spec, at: { gx: Math.round((p.x - drag.offset.x) / rules.cellSize), gy: Math.round((p.y - drag.offset.y) / rules.cellSize) } } }
 }
 const build = {
   toggle: () => (menuOpen = !menuOpen),
@@ -139,7 +139,7 @@ canvas.onpointercancel = (e) => canvas.onpointerup!(e)
 canvas.onpointerup = (e) => {
   draggingBall = false
   if (drag?.id === e.pointerId) drag = undefined
-  if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= 12) ballGhost = toWorld(e)
+  if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= visual.aim.tapSlopPx) ballGhost = toWorld(e)
   tap = undefined
   pointers.delete(e.pointerId)
   panOnly = false
@@ -168,10 +168,10 @@ canvas.onpointerdown = (e) => {
     menuOpen = false
     const at = toWorld(e)
     // On the piece: half a cell, or a 44px touch target.
-    const tolerance = Math.max(CELL_SIZE / 2, (22 * canvasPx()) / layout(canvas).scale)
+    const tolerance = Math.max(rules.cellSize / 2, (visual.input.touchTargetPx * canvasPx()) / layout(canvas).scale)
     if (!selection) selection = pick(state, builder, at, tolerance)
     if (selection?.movable && onPiece(selection.spec, at, tolerance)) {
-      const anchor = { x: selection.spec.at.gx * CELL_SIZE, y: selection.spec.at.gy * CELL_SIZE }
+      const anchor = { x: selection.spec.at.gx * rules.cellSize, y: selection.spec.at.gy * rules.cellSize }
       drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY, id: e.pointerId, from: { x: e.offsetX, y: e.offsetY }, moved: false }
       canvas.setPointerCapture(e.pointerId)
     } else panOnly = true
@@ -216,7 +216,7 @@ const screens = createScreens(document.body, {
 })
 // Host is player 1 and picks the seed; the guest starts when it arrives. A drop mid-match ends it with a message.
 function startOnline(peer: Peer, me: PlayerId, seed: number) {
-  config = { ...defaultConfig, buildTime: ONLINE_BUILD_SECONDS }
+  config = { ...defaultConfig, buildTime: rules.onlineBuildSeconds }
   net = { me, peer, sync: lockstep((f) => peer.send({ type: 'frame', ...f }), me) }
   screens.hide()
   newMatch(seed)
@@ -244,8 +244,7 @@ function edgeScroll(builder: PlayerId, dt: number) {
   dragTo(drag!.px, drag!.py)
 }
 const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && mine(state.possession.shooter) && canArm(state, state.possession.shooter) && (armed = !armed) })
-// Online: the charge last submitted, in 1/CHARGE_STEPS of full power.
-const CHARGE_STEPS = 20
+// Online: the charge last submitted, in 1/visual.aim.chargeSteps of full power.
 let sentCharge = 0
 let lastBuilder: SimState['match']['builder'] | undefined
 let acc = 0
@@ -267,8 +266,8 @@ function frame(now: number) {
     let input = power > 0 && charge && !net ? { charging: { origin: charge.origin, power }, ...pending } : pending
     if (net) {
       // Only changes in the charge (in steps) go over the wire; the lockstep holds it for the shot-clock auto-fire.
-      const steps = charge ? Math.round(power * CHARGE_STEPS) : 0
-      if (steps !== sentCharge) pending = { ...pending, charging: { origin: charge?.origin ?? { x: 0, y: 0 }, power: steps / CHARGE_STEPS } }
+      const steps = charge ? Math.round(power * visual.aim.chargeSteps) : 0
+      if (steps !== sentCharge) pending = { ...pending, charging: { origin: charge?.origin ?? { x: 0, y: 0 }, power: steps / visual.aim.chargeSteps } }
       sentCharge = steps
       net.sync.submit(pending)
       pending = {}
@@ -289,7 +288,7 @@ function frame(now: number) {
       lastBuilder = state.match.builder
       selection = landing = drag = undefined
       menuOpen = false
-      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight)
+      if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * rules.halfHeight - camera.y, layout(canvas).visibleHeight)
       else recenter(camera)
     }
     if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
@@ -297,7 +296,7 @@ function frame(now: number) {
     announce(tick.events)
     applyEvents(fx, tick.events, state.objects, now)
     for (const ev of tick.events) if (ev.type === 'wall-destroyed') fragments.push(...shatter(ev.wall, ev.at, now))
-      else if (ev.type === 'steal-triggered') fragments.push(...shatter(ev.tower, ev.at, now + STEAL_MS))
+      else if (ev.type === 'steal-triggered') fragments.push(...shatter(ev.tower, ev.at, now + visual.ball.stealMs))
       else if (ev.type === 'blast-fired') {
         waves.push({ origin: ev.origin, radius: blastRadius(ev.power, config), born: now })
       }
@@ -325,7 +324,7 @@ function frame(now: number) {
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
-  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
+  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, config, {
     ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
     landing: mapOpen ? undefined : landing?.spec,
     hidden: mapOpen ? [] : [selection?.movable ? selection.id : undefined, landing?.id].filter((id) => id !== undefined),
@@ -341,7 +340,7 @@ function frame(now: number) {
   })
   if (mapOpen) {
     const o = viewOutline(canvas, mapCam, camera)
-    ctx.strokeStyle = '#fff'
+    ctx.strokeStyle = visual.map.outline
     ctx.lineWidth = 2 * dpr
     ctx.strokeRect(o.x, o.y, o.w, o.h)
   }

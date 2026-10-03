@@ -1,5 +1,5 @@
+import { visual } from '../config/visual'
 import { buttonRow, el, FONT } from '../hud/hud'
-import { PLAYER_COLORS } from '../sim/player'
 import { SLIDERS, type Settings } from '../sim/settings'
 import type { PlayerId } from '../sim/pitch'
 
@@ -8,7 +8,7 @@ export type ScreenActions = { onStart(s: Settings): void; onRematch(): void; onM
 /** Full-screen overlays outside the match, in the HUD's flat style. Each call replaces the previous screen. */
 export function createScreens(root: HTMLElement, actions: ScreenActions) {
   const settings: Settings = { shots: SLIDERS.shots.def, rounds: SLIDERS.rounds.def, wallPoints: SLIDERS.wallPoints.def }
-  const overlay = el('div', `${FONT}position:fixed;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:#0b0f1a;color:#e8eaf0;`)
+  const overlay = el('div', `${FONT}position:fixed;inset:0;z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:${visual.hud.dark};color:${visual.hud.ink};`)
   root.append(overlay)
 
   const show = (...children: HTMLElement[]) => {
@@ -42,7 +42,7 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
 
   const matchEnd = (winner: PlayerId, score: Record<PlayerId, number>, online = false) =>
     show(
-      el('div', `font-size:32px;color:${PLAYER_COLORS[winner]};`, `Player ${winner} wins`),
+      el('div', `font-size:32px;color:${visual.player.colors[winner]};`, `Player ${winner} wins`),
       el('div', 'font-size:48px;', `${score[1]} - ${score[2]}`),
       buttonRow(online ? [menu] : [{ label: 'Rematch', onClick: () => (hide(), actions.onRematch()) }, menu]),
     )

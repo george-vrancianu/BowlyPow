@@ -1,11 +1,9 @@
-import { CELL_SIZE, halfOf, type PlayerId, type Point } from './pitch'
+import { rules } from '../config/rules'
+import { halfOf, type PlayerId, type Point } from './pitch'
 import type { SimConfig, SimState } from './step'
 import { wallSegments, type Segment, type Structure, type StructureSpec } from './wall'
 
-/** Half the drawn wall thickness; a blast cannot start on it. */
-export const WALL_HALF = 0.35
-
-export const blastRadius = (power: number, c: SimConfig): number => 2 * c.ballRadius * (1 + 4 * power)
+export const blastRadius = (power: number, c: SimConfig): number => rules.blast.radiusBase * c.ballRadius * (1 + rules.blast.radiusGrowth * power)
 
 function nearestOn({ a, b }: Segment, p: Point): Point {
   const [vx, vy] = [b.x - a.x, b.y - a.y]
@@ -22,14 +20,14 @@ export function nearestOnWall(w: StructureSpec, p: Point): { at: Point; dist: nu
 
 /** A tower is solid, so its interior counts as on it too. */
 export const insideTower = (w: Structure, p: Point): boolean =>
-  w.kind === 'tower' && Math.abs(p.x - (w.at.gx + 0.5) * CELL_SIZE) < CELL_SIZE / 2 && Math.abs(p.y - (w.at.gy + 0.5) * CELL_SIZE) < CELL_SIZE / 2
+  w.kind === 'tower' && Math.abs(p.x - (w.at.gx + 0.5) * rules.cellSize) < rules.cellSize / 2 && Math.abs(p.y - (w.at.gy + 0.5) * rules.cellSize) < rules.cellSize / 2
 
 /** On the player's own half (not the line), not on a wall, not on the ball. */
 export function canBlastFrom(player: PlayerId, origin: Point, s: Pick<SimState, 'objects' | 'ball'>, c: SimConfig): boolean {
   return (
     halfOf(origin.y) === player &&
     Math.hypot(origin.x - s.ball.pos.x, origin.y - s.ball.pos.y) > c.ballRadius &&
-    s.objects.every((w) => nearestOnWall(w, origin).dist > WALL_HALF && !insideTower(w, origin))
+    s.objects.every((w) => nearestOnWall(w, origin).dist > rules.wallHalf && !insideTower(w, origin))
   )
 }
 
@@ -50,7 +48,7 @@ export function blastDamage(objects: Structure[], origin: Point, power: number, 
     const { at, dist } = nearestOnWall(wall, origin)
     if (dist >= r) return []
     const pressure = power * (1 - dist / r)
-    const loss = wall.owner === player ? (pressure > 0.8 ? 1 : 0) : pressure > 0.8 ? 2 : pressure > 0.4 ? 1 : 0
+    const loss = wall.owner === player ? (pressure > rules.blast.heavy ? 1 : 0) : pressure > rules.blast.heavy ? 2 : pressure > rules.blast.light ? 1 : 0
     return [{ wall, loss, at }]
   })
 }
