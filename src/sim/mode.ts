@@ -7,6 +7,7 @@ import { structureCost, type Structure, type StructureSpec } from './wall'
 /** The board a hook may read when deciding: read-only, so hooks stay pure. */
 export type ModeContext = {
   objects: readonly Structure[]
+  /** The possession at the moment the hook is called: for `onGoal` and `onShotConsumed` before the result is applied, for `winner` and `onBuildStart` after. */
   possession: Possession
   /** Who took the shot being resolved (possession may already have passed to the opponent). */
   shooter: PlayerId

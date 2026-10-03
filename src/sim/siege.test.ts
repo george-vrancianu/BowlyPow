@@ -154,6 +154,19 @@ describe('Siege wipe-out', () => {
     expect(r.events[last]).toContainEqual({ type: 'match-ended', winner: 2 })
   })
 
+  it('destroying the last structure mid-flight ends the match only when the ball rests', () => {
+    // A blast at the ball's edge sends it rolling while also breaking player 2's last wall.
+    const s = ready(playing(1, [wall(1, 1), wall(2, 2, 1)]), 1, { x: 14, y: 60 })
+    const fired = step(s, { blast: { player: 1, origin: { x: 14, y: 56.5 }, power: 1 } }, siege)
+    expect(fired.events.some((e) => e.type === 'wall-destroyed')).toBe(true)
+    expect(fired.state.objects.some((o) => o.owner === 2)).toBe(false)
+    expect(fired.state.possession.live).toBe(true)
+    expect(fired.state.match.winner).toBeNull()
+    const r = settle(fired.state)
+    expect(r.events.slice(0, -1).flat().some((e) => e.type === 'match-ended')).toBe(false)
+    expect(r.events[r.events.length - 1]).toContainEqual({ type: 'match-ended', winner: 1 })
+  })
+
   it('a goal on the shot that wipes a player out still ends the match on the wipe-out rule', () => {
     // Player 1 scores but owns nothing; player 2 still has a wall.
     const r = step(shot(playing(1, [wall(2, 2)]), 1, 0.5, -60), {}, siege)

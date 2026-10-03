@@ -268,7 +268,7 @@ const showMatchEnd = (m: SimState['match'], winner: PlayerId, objects: SimState[
     case 'rounds':
       return screens.matchEnd(winner, `${m.score[1]} - ${m.score[2]}`, !!net)
     case 'siege':
-      return screens.matchEnd(winner, `${objects.filter((o) => o.owner === winner).length} left`, !!net)
+      return screens.matchEnd(winner, `${objects.filter((o) => o.owner === winner).length} structure${objects.filter((o) => o.owner === winner).length === 1 ? '' : 's'} left`, !!net)
     default:
       return m satisfies never
   }
