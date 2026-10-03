@@ -1,6 +1,6 @@
-import { visual } from '../config/visual'
-import type { PlayerId, Point } from '../sim/pitch'
-import type { SimEvent } from '../sim/step'
+import { visual } from '../../config/visual'
+import type { PlayerId, Point } from '../../sim/pitch'
+import type { SimEvent } from '../../sim/step'
 
 type Overlay = { kind: 'turn' | 'goal' | 'sweep'; at: number; player: PlayerId; text: string; hint?: string; ms: number; net?: Point }
 /** `shown` is whose end of the pitch is at the bottom of the screen; `due` = a handover is waiting (e.g. for the goal hold to end). */
@@ -52,7 +52,9 @@ export function angle(t: Transition, now: number): number {
 /** Where the ball rests in the net during the goal hold (the sim has already reset it). */
 export const goalBall = (t: Transition) => (t.overlay?.kind === 'goal' ? t.overlay.net : undefined)
 
-export function overlayView(t: Transition, now: number) {
+export type OverlayView = { kind: Overlay['kind']; text: string; hint?: string; color: string; opacity: number; progress: number; dismissable: boolean }
+
+export function overlayView(t: Transition, now: number): OverlayView | undefined {
   const o = t.overlay
   if (!o) return undefined
   const half = t.flip ? t.flip.ms / 2 : 0

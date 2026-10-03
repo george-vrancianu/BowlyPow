@@ -1,10 +1,10 @@
-import { visual } from '../config/visual'
-import { rules } from '../config/rules'
-import { nearestOnWall } from '../sim/blast'
-import { type PlayerId, type Point } from '../sim/pitch'
-import type { SimInput, SimState } from '../sim/step'
-import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../sim/wall'
-import type { ButtonSpec } from './hud'
+import { visual } from '../../config/visual'
+import { rules } from '../../config/rules'
+import { nearestOnWall } from '../../sim/blast'
+import { type PlayerId, type Point } from '../../sim/pitch'
+import type { SimInput, SimState } from '../../sim/step'
+import { canPlace, structureCost, wallCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from '../../sim/wall'
+import type { ButtonSpec } from './hudModel'
 
 /**
  * The builder's selection: a new piece (no `id`), or one of their structures (`id`). Only this turn's structures can be

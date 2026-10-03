@@ -1,7 +1,8 @@
 import { visual } from '../config/visual'
-import { layout } from '../render/camera'
-import { type PowerUp } from '../sim/player'
+import { layout } from '../game/entities/Camera'
+import type { PowerUp } from '../sim/player'
 import type { PlayerId } from '../sim/pitch'
+import type { ButtonSpec, HudModel } from '../game/view/hudModel'
 
 export type Band = { x: number; y: number; w: number; h: number }
 
@@ -15,26 +16,7 @@ export function bands(size: { width: number; height: number }): { near: Band; fa
     : { wide, far: { x: 0, y: 0, w: W, h: pane.y }, near: { x: 0, y: pane.y + pane.h, w: W, h: pane.y } }
 }
 
-export type HudModel = {
-  players: Record<PlayerId, { score: number; inventory: Record<PowerUp, number> }>
-  /** Whose turn it is; their strip goes to the bottom. */
-  active: PlayerId
-  round: number
-  rounds: number
-  /** Seconds left and fraction of the clock remaining, or null when no clock runs. */
-  clock: { seconds: number; fraction: number } | null
-  shotsLeft: number
-  shotsMax: number
-  phase: string
-  /** Phase buttons (Done in a build turn) shown under the shared strip; rebuilt only when labels or state change. */
-  buttons?: ButtonSpec[]
-  /** Breaker is armed (highlighted) and whether the active player may tap it now. */
-  breaker: { armed: boolean; tappable: boolean }
-}
-
 export type HudActions = { onMap(): void; onRecenter(): void; onPowerUp?(p: PowerUp): void }
-
-export type ButtonSpec = { label: string; onClick(): void; disabled?: boolean }
 
 const ICONS: Record<PowerUp, string> = { breaker: 'B', repulsor: 'R', steal: 'S' }
 export const el = (tag: string, css = '', text = '') => {

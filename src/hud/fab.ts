@@ -1,7 +1,8 @@
 import { visual } from '../config/visual'
-import { layout } from '../render/camera'
-import type { BuildMenu } from './build'
-import { el, FONT, type ButtonSpec } from './hud'
+import { layout } from '../game/entities/Camera'
+import type { BuildMenu } from '../game/view/buildMenu'
+import type { ButtonSpec } from '../game/view/hudModel'
+import { el, FONT } from './hud'
 
 const ROUND = `${FONT}width:52px;height:52px;border-radius:50%;border:2px solid ${visual.hud.ink};color:${visual.hud.ink};background:${visual.hud.panel};font-size:22px;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 2px 8px #0008;`
 // A small brick wall.

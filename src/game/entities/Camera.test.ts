@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { follow, layout, pan, recenter, viewOf, viewOutline } from './camera'
-import { rules } from '../config/rules'
-
+import { Camera, layout, viewOf, viewOutline } from './Camera'
+import { rules } from '../../config/rules'
 
 describe('manual pan', () => {
   it('moves the view and holds it until recentered', () => {
-    const cam = { y: 54, held: false }
-    pan(cam, -10, 64)
-    expect(cam).toEqual({ y: 44, held: true })
-    recenter(cam)
+    const cam = new Camera(54)
+    cam.pan(-10)
+    expect([cam.y, cam.held]).toEqual([44, true])
+    cam.recenter()
     expect(cam.held).toBe(false)
   })
   it('stays inside the boards', () => {
-    const cam = { y: 54, held: false }
-    pan(cam, 1000, 64)
+    const cam = new Camera(54)
+    cam.pan(1000)
     expect(cam.y).toBe(77)
   })
 })
@@ -39,18 +38,39 @@ describe('layout', () => {
 
 describe('follow', () => {
   it('moves about 63% of the way in 150 ms and settles at rest', () => {
-    const t = { y: 40 }
-    follow(t, 70, 0.15, 64)
+    const t = new Camera(40)
+    t.follow(70, 0.15)
     expect(t.y).toBeCloseTo(40 + 30 * 0.632, 1)
-    for (let i = 0; i < 100; i++) follow(t, 70, 1 / 60, 64)
+    for (let i = 0; i < 100; i++) t.follow(70, 1 / 60)
     expect(t.y).toBeCloseTo(70, 0)
   })
   it('never shows beyond the boards', () => {
-    const t = { y: 50 }
-    follow(t, -500, 10, 64)
+    const t = new Camera(50)
+    t.follow(-500, 10)
     expect(t.y).toBe(31)
-    follow(t, 900, 10, 64)
+    t.follow(900, 10)
     expect(t.y).toBe(77)
+  })
+})
+
+describe('shake', () => {
+  it('never exceeds its amplitude and is gone after 200 ms', () => {
+    const cam = new Camera(54)
+    cam.shake(4)
+    for (let i = 0; i < 28; i++) {
+      cam.update(0.007)
+      expect(Math.abs(cam.shakeNow.x)).toBeLessThanOrEqual(4)
+      expect(Math.abs(cam.shakeNow.y)).toBeLessThanOrEqual(4)
+    }
+    cam.update(0.01)
+    expect(cam.shakeNow).toEqual({ x: 0, y: 0 })
+  })
+  it('decays linearly: 5% of the amplitude is left at 190 ms', () => {
+    const cam = new Camera(54)
+    cam.shake(4)
+    cam.update(0.19)
+    expect(Math.abs(cam.shakeNow.x)).toBeLessThanOrEqual(0.2 + 1e-9)
+    expect(Math.abs(cam.shakeNow.y)).toBeLessThanOrEqual(0.2 + 1e-9)
   })
 })
 
@@ -75,5 +95,9 @@ describe('map camera', () => {
     expect(o.h).toBe(640)
     expect(o.y + o.h / 2).toBeCloseTo(600)
     expect(viewOutline(canvas, map, { y: rules.mapY + 10 }).y - o.y).toBeCloseTo(100)
+  })
+  it('converts canvas pixels back to world units', () => {
+    const cam = new Camera(54)
+    expect(cam.toWorld(canvas, 200, 600)).toEqual({ x: 20, y: 54 })
   })
 })

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig as c, step, type SimState } from '../sim/step'
-import { buildState } from '../sim/testkit'
-import type { WallSpec } from '../sim/wall'
-import { buildMenu, commit, landed, edgeScrollDy, legal, pick, rotated, spawn, type BuildActions } from './build'
+import { defaultConfig as c, step, type SimState } from '../../sim/step'
+import { buildState } from '../../sim/testkit'
+import type { WallSpec } from '../../sim/wall'
+import { buildMenu, commit, landed, edgeScrollDy, legal, pick, rotated, spawn, type BuildActions } from './buildMenu'
 
 const noop = () => {}
 const actions: BuildActions = { toggle: noop, spawn: noop, confirm: noop, cancel: noop, rotate: noop, remove: noop }

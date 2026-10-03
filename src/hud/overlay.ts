@@ -1,7 +1,5 @@
 import { visual } from '../config/visual'
-import type { overlayView } from './transition'
-
-type View = NonNullable<ReturnType<typeof overlayView>>
+import type { OverlayView } from '../game/view/transition'
 
 /** The one interstitial component: turn card, GOAL banner and BUILD/PLAY sweep. Mount inside the rotating stage; call `update` every frame (undefined hides it). */
 export function createOverlay(root: HTMLElement, onTap: () => void) {
@@ -14,7 +12,7 @@ export function createOverlay(root: HTMLElement, onTap: () => void) {
   e.onpointerdown = onTap
   root.append(e)
   return {
-    update(v: View | undefined) {
+    update(v: OverlayView | undefined) {
       e.style.display = v ? 'flex' : 'none'
       if (!v) return
       const banner = v.kind !== 'turn'

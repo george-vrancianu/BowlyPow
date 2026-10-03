@@ -16,9 +16,10 @@ A two-player, turn-based pitch game. Blast a ball into the opponent's goal throu
 
 - A pure, deterministic simulation: `step(state, input, config)` returns the new state plus a list of events for that tick. No DOM access and no randomness other than a seeded coin flip. Fixed tick at 60 Hz driven by an accumulator.
 - Events carry a moment in time that state alone cannot: ball hit wall (with speed), wall cracked, wall destroyed, blast fired (origin, power), Repulsor fired, Steal triggered, goal, possession changed. The renderer, haptics and a future audio layer consume them. The sim never waits for an animation.
-- A renderer that only reads state and events, takes a camera as input, and draws on requestAnimationFrame. Latest sim state only, no interpolation in v1.
-- An input layer that turns touches, clicks and keys into sim inputs and camera moves.
-- A hot-seat controller feeds both players' inputs into one sim. A P2P peer is just another input source, so P2P is additive.
+- A game renderer in `src/game/`: a `Game` instance owns an entity tree (`Camera`, `Pitch`, `Ball`, `Structures` with `Wall` and `Tower` children, `Fog`, `Aim`) that animates itself and draws on requestAnimationFrame (see ADR-0002). Sim state enters only through `game.apply(state, events)`, which routes events to entity methods (`src/game/events.ts`); entities never see `SimEvent`. Latest sim state only, no interpolation in v1.
+- An `InputController` (`src/game/input/`) turns touches, clicks and keys into sim inputs and camera moves.
+- A driver feeds the sim to `Game`. `LocalDriver` (`src/game/driver.ts`) is the hot-seat one: it alone calls `step` and feeds both players' inputs into one sim. A P2P peer would be another driver, so P2P is additive.
+- The DOM HUD and screens are fed only from `Game`'s `onView` callback (fired when the view changes) and drive it through `GameActions`. The pure view models live in `src/game/view/`.
 - Physics is hand-rolled: one ball, static walls, swept circle-vs-segment collision per tick so the ball cannot tunnel through zero-thickness walls at max speed.
 - The sim has unit tests from day one. The renderer has none.
 
