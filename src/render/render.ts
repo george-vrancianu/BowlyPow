@@ -4,7 +4,7 @@ import { BOARD, NET_DEPTH, GOAL_LEFT, GOAL_RIGHT, HALF_HEIGHT, PITCH_HEIGHT, PIT
 import { blastDamage, blastPush, blastRadius } from '../sim/blast'
 import { defaultConfig, type SimState } from '../sim/step'
 import { CELL_SIZE, NO_BUILD_RADIUS } from '../sim/pitch'
-import { viewOf, type Camera } from './camera'
+import { fogOf, viewOf, type Camera } from './camera'
 import { DIM_FLASH_MS, FLASH_MS, GLOW_MS, PARTICLE_MS, STEAL_MS, TRAIL_MS, shakeOffset, type Fx } from './feedback'
 import { canPlace, crackLines, wallCells, wallSegments, type Structure, type StructureSpec, type TowerPower, type TowerSpec } from '../sim/wall'
 
@@ -267,9 +267,11 @@ export type Overlays = {
   ballGhost?: { at: Point; legal: boolean }
   /** The shooter whose ball gets the Breaker outline. */
   armed?: PlayerId
+  /** Siege blind build: the seat whose half is the only one drawn; the other half is fogged out. */
+  blind?: PlayerId
 }
 
-export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, { ghost, landing, hidden = [], selected, movable = [], fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed }: Overlays = {}): void {
+export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Camera, { ghost, landing, hidden = [], selected, movable = [], fragments = [], now = 0, charge, waves = [], fx, ballGhost, armed, blind }: Overlays = {}): void {
   const { width, height } = ctx.canvas
   const { sx, sy, pane, visibleHeight } = viewOf(ctx.canvas, cam)
   ctx.fillStyle = COLORS.bg
@@ -393,6 +395,14 @@ export function render(ctx: CanvasRenderingContext2D, state: SimState, cam: Came
     ctx.fillStyle = ballGhost.legal ? '#f4f4f0' : COLORS.illegal
     ctx.fill()
     ctx.globalAlpha = 1
+  }
+  if (blind) {
+    // Over everything, so neither structures, grid, arc nor the ball betray the other half; the halfway line stays.
+    const { top, bottom } = fogOf(blind)
+    ctx.fillStyle = COLORS.bg
+    ctx.fillRect(-1, top, PITCH_WIDTH + 2, bottom - top)
+    ctx.fillStyle = COLORS.line
+    ctx.fillRect(0, HALF_HEIGHT - 0.15, PITCH_WIDTH, 0.3)
   }
   ctx.restore()
   edgeFade(ctx, pane, cam.y - visibleHeight / 2 > -BOARD, cam.y + visibleHeight / 2 < PITCH_HEIGHT + BOARD)

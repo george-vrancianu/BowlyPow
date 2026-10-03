@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coinFlip } from './match'
+import { blindSeat, coinFlip } from './match'
 import { defaultConfig as c, initialState, step, type SimState } from './step'
 import { playState, roundsMatch } from './testkit'
 
@@ -106,5 +106,15 @@ describe('match end', () => {
   it('a finished match no longer steps', () => {
     const s = shotAt(0.5, -60, { match: { ...matchAt(5, { 1: 2, 2: 0 }), winner: 1 } })
     expect(step(s, {}, c).state).toBe(s)
+  })
+})
+
+describe('blindSeat', () => {
+  const siege = initialState(1, { ...c, mode: 'siege' })
+  it('is the viewer during a Siege build, builder or not, never in Rounds or in play', () => {
+    expect(blindSeat(siege.match, 1)).toBe(1)
+    expect(blindSeat(siege.match, 2)).toBe(2)
+    expect(blindSeat({ ...siege.match, builder: null }, 1)).toBeUndefined()
+    expect(blindSeat(initialState(1).match, 1)).toBeUndefined()
   })
 })

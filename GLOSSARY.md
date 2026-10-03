@@ -26,3 +26,11 @@ _Avoid_: Heal, rebuild
 **Wipe-out**:
 Siege's end condition: a player owns no structures (towers included) when the ball comes to rest or a goal is scored, never mid-flight. If both players are at zero, the shooter loses.
 _Avoid_: Elimination, knockout
+
+**Blind build**:
+Siege's opening build, during which each viewer sees only their own half; the opponent's structure count, tower stock and build points are hidden. Hiding is renderer and HUD only, the sim state is complete.
+_Avoid_: Hidden build, secret build
+
+**Fog**:
+The renderer's cover over the opponent's half (up to the halfway line, boards and nets included) during a blind build, in the main view and the map.
+_Avoid_: Mask, blackout
