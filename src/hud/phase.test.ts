@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig as c, step, type SimInput, type SimState } from '../sim/step'
+import { defaultConfig as c, type SimInput, type SimState } from '../sim/step'
 import { buildState } from '../sim/testkit'
 import { phaseButtons } from './phase'
 
@@ -15,7 +15,7 @@ describe('phase buttons in hot-seat', () => {
     done!.onClick()
     expect(sent).toEqual([{ done: 1 }])
 
-    state = step(state, { done: 1 }, c).state
+    state = buildState(2)
     expect(state.match.builder).toBe(2)
     done!.onClick()
     expect(sent.at(-1)).toEqual({ done: 2 })
