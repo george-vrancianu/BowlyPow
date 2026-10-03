@@ -8,8 +8,8 @@ type MatchBase = { seed: number; winner: PlayerId | null; builder: PlayerId | nu
 /** `round` counts from 1 and may exceed `config.rounds` (sudden death). */
 export type RoundsMatch = MatchBase & { mode: 'rounds'; round: number; score: Record<PlayerId, number>; roundShots: number }
 
-/** Siege has no score or rounds, so it carries nothing beyond the shared fields. */
-export type SiegeMatch = MatchBase & { mode: 'siege' }
+/** Siege has no score or rounds. `opening` is true from the start until the opening build is over (play begins); a build turn with it false is a Rearrange turn, and fog (blind build) must key on it. */
+export type SiegeMatch = MatchBase & { mode: 'siege'; opening: boolean }
 
 /** Match state, a union keyed by `mode`: read per-mode fields only after narrowing on it. */
 export type Match = RoundsMatch | SiegeMatch
@@ -28,5 +28,8 @@ export function coinFlip(seed: number, round: number): PlayerId {
 
 export const startingPossession = (shooter: PlayerId, c: SimConfig): Possession => ({ shooter, shots: c.shots, inHand: true, live: false })
 
-/** The seat whose own half is the only one `viewer` may see: the viewer themselves while a Siege build is on (also while waiting on the opponent's build), else undefined. Rounds stays open information. A pure function of state; hiding is view-only, so the sim stays complete. */
-export const blindSeat = (m: Match, viewer: PlayerId): PlayerId | undefined => (m.mode === 'siege' && m.builder ? viewer : undefined)
+/** The Siege opening build is in progress: a build turn while `opening` is set (a Rearrange turn has it cleared). Fog, the reveal and the build label key on this. */
+export const openingBuild = (m: Match): boolean => m.mode === 'siege' && m.opening && m.builder !== null
+
+/** The seat whose own half is the only one `viewer` may see: the viewer themselves while the Siege opening build is on (also while waiting on the opponent's build; not a Rearrange turn), else undefined. Rounds stays open information. A pure function of state; hiding is view-only, so the sim stays complete. */
+export const blindSeat = (m: Match, viewer: PlayerId): PlayerId | undefined => (openingBuild(m) ? viewer : undefined)

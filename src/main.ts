@@ -14,7 +14,8 @@ import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
-import { blindSeat } from './sim/match'
+import { blindSeat, openingBuild } from './sim/match'
+import { buildPhase } from './sim/mode'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
@@ -36,7 +37,6 @@ stage.append(canvas)
 const ONLINE_BUILD_SECONDS = 30
 let net: { me: PlayerId; peer: Peer; sync: ReturnType<typeof lockstep> } | undefined
 const mine = (p: PlayerId | null | undefined) => !net || p === net.me
-// `blindSeat` doubles as the opening-build test for the reveal (it turns false when play begins, and stays false for a Rearrange turn after #39).
 // Siege blind build: the seat whose half is the only one this screen may show. Hot-seat: whoever builds; online: my own seat, also while I wait.
 const viewer = (): PlayerId => (net ? net.me : (state.match.builder ?? transition.shown))
 const blind = () => blindSeat(state.match, viewer())
@@ -289,8 +289,7 @@ function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
   // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold, reveal or turn card.
-  const phase = state.match.builder ? 'Build' : 'Play'
-  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase, opening: blindSeat(state.match, 1) !== undefined, events, now, reduced: reducedMotion() }))
+  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase: buildPhase(state.match), opening: openingBuild(state.match), events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
     if (blocking(transition)) {
       pending = {}
@@ -354,7 +353,7 @@ function frame(now: number) {
   const shooter = state.possession.shooter
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
-  // The defence turn: the scorer is offered Repair once the GOAL banner is gone (#39 adds Rearrange here).
+  // The defence turn: the scorer is offered Repair or Rearrange once the GOAL banner is gone.
   const buttons = phaseButtons(state, config, { mine, current: () => state, send: (i) => (pending = i), repairable: !blocking(transition) })
   hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons, armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)

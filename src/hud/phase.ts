@@ -8,11 +8,11 @@ export type PhaseSeam = {
   /** The live state. Handlers read it at click time: the HUD keeps a button row while its labels are unchanged, so a handler must never carry the player it was created for. */
   current(): SimState
   send(input: SimInput): void
-  /** Repair is offered only while the defence choice is not hidden behind an overlay. */
+  /** The defence choice is offered only while the defence choice is not hidden behind an overlay. */
   repairable?: boolean
 }
 
-/** The phase buttons under the shared strip: Done in a build turn, Repair when the scorer owes a defence choice. */
+/** The phase buttons under the shared strip: Done in a build turn, Repair and Rearrange when the scorer owes a defence choice. */
 export function phaseButtons(s: SimState, config: SimConfig, h: PhaseSeam): ButtonSpec[] | undefined {
   const { builder, choosing } = s.match
   if (builder && h.mine(builder)) {
@@ -26,13 +26,13 @@ export function phaseButtons(s: SimState, config: SimConfig, h: PhaseSeam): Butt
     }]
   }
   if (choosing && h.mine(choosing) && h.repairable !== false) {
-    return [{
-      label: 'Repair',
+    return (['repair', 'rearrange'] as const).map((choice) => ({
+      label: choice === 'repair' ? 'Repair' : 'Rearrange',
       onClick: () => {
         const c = h.current().match.choosing
-        if (c && h.mine(c)) h.send({ defence: { player: c, choice: 'repair' } })
+        if (c && h.mine(c)) h.send({ defence: { player: c, choice } })
       },
-    }]
+    }))
   }
   return undefined
 }

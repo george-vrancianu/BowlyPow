@@ -124,6 +124,13 @@ describe('online (no handover)', () => {
   })
 })
 
+describe('rearrange', () => {
+  it('sweeps a REARRANGE label when the turn opens' , () => {
+    const t = go(open(), { now: 3000, phase: 'Rearrange' })
+    expect(overlayView(t, 3000)).toMatchObject({ text: 'REARRANGE' })
+  })
+})
+
 describe('reveal', () => {
   /** A Siege opening build in progress, then the second Done lands at `now`. */
   const building = () => go(open(), { now: 2000, phase: 'Build', opening: true })

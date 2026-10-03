@@ -1,4 +1,5 @@
 import { blindSeat, type Match } from '../sim/match'
+import { buildPhase } from '../sim/mode'
 import type { PlayerId } from '../sim/pitch'
 import { STARTING_INVENTORY } from '../sim/player'
 import { opponent } from '../sim/possession'
@@ -38,7 +39,7 @@ export function hudModel(s: SimState, c: SimConfig, v: HudView): HudModel {
     shotsLeft: s.possession.shots,
     shotsMax: c.shots,
     // Waiting on a blind opponent's build, the spent points would show what they placed.
-    phase: b ? (b === hidden ? 'Build' : `Build · ${s.points[b]} pts`) : 'Play',
+    phase: buildPhase(s.match) === 'Rearrange' ? 'Rearrange' : b ? (b === hidden ? 'Build' : `Build · ${s.points[b]} pts`) : 'Play',
     buttons: v.buttons,
     breaker: { armed: v.armed, tappable: v.tappable },
   }

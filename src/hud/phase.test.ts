@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig as c, type SimInput, type SimState } from '../sim/step'
+import { initialState } from '../sim/step'
 import { buildState } from '../sim/testkit'
 import { phaseButtons } from './phase'
 
@@ -21,3 +22,30 @@ describe('phase buttons in hot-seat', () => {
     expect(sent.at(-1)).toEqual({ done: 2 })
   })
 })
+
+describe('defence choice buttons', () => {
+  const owing = (player: 1 | 2): SimState => {
+    const s = initialState(1, { ...c, mode: 'siege' })
+    return { ...s, match: { ...s.match, builder: null, opening: false, choosing: player } as SimState['match'] }
+  }
+  it('offer Repair and Rearrange, and Rearrange sends the chooser at click time', () => {
+    let state = owing(1)
+    const sent: SimInput[] = []
+    const row = phaseButtons(state, c, { mine: hotSeat, current: () => state, send: (i) => sent.push(i) })!
+    expect(row.map((b) => b.label)).toEqual(['Repair', 'Rearrange'])
+    row[1]!.onClick()
+    expect(sent).toEqual([{ defence: { player: 1, choice: 'rearrange' } }])
+    state = owing(2)
+    row[1]!.onClick()
+    row[0]!.onClick()
+    expect(sent.slice(1)).toEqual([{ defence: { player: 2, choice: 'rearrange' } }, { defence: { player: 2, choice: 'repair' } }])
+  })
+  it('send nothing for a seat this device does not play', () => {
+    const state = owing(1)
+    const sent: SimInput[] = []
+    const row = phaseButtons(state, c, { mine: (p) => p === 1, current: () => ({ ...state, match: { ...state.match, choosing: 2 } }), send: (i) => sent.push(i) })!
+    row[1]!.onClick()
+    expect(sent).toEqual([])
+  })
+})
+

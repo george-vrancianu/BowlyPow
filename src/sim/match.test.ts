@@ -118,3 +118,13 @@ describe('blindSeat', () => {
     expect(blindSeat(initialState(1).match, 1)).toBeUndefined()
   })
 })
+
+describe('blindSeat after the opening build', () => {
+  const init = initialState(1, { ...c, mode: 'siege' })
+  it('is not blind in a Rearrange turn or while a defence choice is pending', () => {
+    const over = { ...init.match, opening: false } as typeof init.match
+    expect(blindSeat({ ...over, builder: 1 }, 1)).toBeUndefined()
+    expect(blindSeat({ ...over, builder: 1 }, 2)).toBeUndefined()
+    expect(blindSeat({ ...over, builder: null, choosing: 1 }, 1)).toBeUndefined()
+  })
+})
