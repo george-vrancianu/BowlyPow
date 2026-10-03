@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { visual } from '../config/visual'
 import { defaultSettings } from '../sim/settings'
+import { LocalDriver, type Driver } from './driver'
+import type { Structure } from '../sim/wall'
 import { Game, type HudView } from './Game'
 
 // No DOM in the test run: a canvas that is an EventTarget, a window that is one, a context that swallows every call.
@@ -36,7 +38,7 @@ const frame = (t: number) => {
   frames.delete(id)
   f(t)
 }
-const make = (onView?: (v: HudView) => void) => new Game(new FakeCanvas() as unknown as HTMLCanvasElement, onView)
+const make = (onView?: (v: HudView) => void) => new Game(new FakeCanvas() as unknown as HTMLCanvasElement, (sink) => new LocalDriver(sink), onView)
 const press = (key: string) => win.dispatchEvent(Object.assign(new Event('keydown'), { key, code: key }))
 
 describe('Game', () => {
@@ -160,5 +162,30 @@ describe('Game', () => {
     expect(onView.mock.lastCall![0].winner).toBe(1)
     game.actions.rematch()
     expect(onView.mock.lastCall![0].winner).toBeUndefined()
+  })
+
+  it('runs on whatever driver it is given: it starts, steps and sends through that driver alone', () => {
+    const calls: string[] = []
+    const fake: Driver = {
+      start: (config, seed) => (calls.push('start'), new LocalDriver({ apply() {}, blocked: () => false }).start(config, seed)),
+      send: (input) => void calls.push(`send ${Object.keys(input)}`),
+      update: () => void calls.push('update'),
+    }
+    const game = new Game(new FakeCanvas() as unknown as HTMLCanvasElement, () => fake)
+    expect(calls).toEqual(['start'])
+    frame(performance.now())
+    expect(calls).toContain('update')
+    game.actions.confirmBall()
+    game.destroy()
+  })
+
+  it('routes a tick\'s destroy events before syncing structures, so a destroyed wall shatters instead of being dropped', () => {
+    const game = make()
+    const wall: Structure = { id: 99, kind: 'wall', owner: 1, shape: 'straight', rotation: 0, at: { gx: 10, gy: 40 }, hp: 3 }
+    game.apply({ ...game.state, objects: [wall] }, [])
+    expect(game.structures.count).toBe(1)
+    game.apply({ ...game.state, objects: [] }, [{ type: 'wall-destroyed', wall: { ...wall, hp: 0 }, at: { x: 20, y: 40 } }])
+    expect(game.structures.count).toBe(1)
+    expect(game.structures.get(99)!.isShattering).toBe(true)
   })
 })

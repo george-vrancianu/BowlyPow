@@ -7,7 +7,7 @@ import { canArm, canPlaceBall, whoActs } from '../sim/possession'
 import { configFrom, type Settings } from '../sim/settings'
 import { defaultConfig, type SimConfig, type SimEvent, type SimState } from '../sim/step'
 import { structuresOf } from '../sim/wall'
-import { LocalDriver, type Sink } from './driver'
+import type { Driver, DriverFactory, Sink } from './driver'
 import { Aim } from './entities/Aim'
 import { Ball } from './entities/Ball'
 import { Camera, viewOutline } from './entities/Camera'
@@ -109,7 +109,7 @@ export class Game implements Sink {
   readonly actions: GameActions
   state!: SimState
   private config: SimConfig = defaultConfig
-  private driver = new LocalDriver(this)
+  private driver: Driver
   private input: InputController
   private ctx: CanvasRenderingContext2D
   private transition = newTransition(1)
@@ -121,7 +121,8 @@ export class Game implements Sink {
   private dead = false
   private lastView = ''
 
-  constructor(private canvas: HTMLCanvasElement, private onView?: (view: HudView) => void) {
+  constructor(private canvas: HTMLCanvasElement, makeDriver: DriverFactory, private onView?: (view: HudView) => void) {
+    this.driver = makeDriver(this)
     this.ctx = canvas.getContext('2d')!
     this.camera.add(this.pitch)
     this.camera.add(this.structures)

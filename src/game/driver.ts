@@ -3,8 +3,17 @@ import { initialState, step, type SimConfig, type SimEvent, type SimInput, type 
 /** Where a driver delivers sim state: `Game`. A blocked sink (a flip, goal hold or turn card) makes the driver stop stepping. */
 export type Sink = { apply(state: SimState, events: SimEvent[]): void; blocked(): boolean }
 
-/** How `Game` sends local inputs to whatever runs the match. */
-export type Driver = { send(input: SimInput): void }
+/** Whatever runs the match for `Game`: starts it, takes local inputs, and advances it, delivering each tick to its `Sink`. Hot-seat is `LocalDriver`; online play would be another. */
+export type Driver = {
+  /** A new match; the sink gets the first state from the caller. */
+  start(config: SimConfig, seed?: number): SimState
+  send(input: SimInput): void
+  /** Advances by `dt` seconds. */
+  update(dt: number): void
+}
+
+/** Builds the driver for a sink; `Game` passes itself. */
+export type DriverFactory = (sink: Sink) => Driver
 
 /** Hot-seat: runs the sim on this device at its tick rate. The only place `step` is called. */
 export class LocalDriver implements Driver {

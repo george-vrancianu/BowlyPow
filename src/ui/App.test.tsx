@@ -12,7 +12,7 @@ vi.mock('../game/Game', () => ({
     destroyed = false
     // Like the real Game, starting a match pushes its (winnerless) view at once.
     actions = { start: vi.fn(() => this.onView(freshView())), rematch: vi.fn(() => this.onView(freshView())), map: vi.fn() }
-    constructor(_canvas: HTMLCanvasElement, public onView: (v: HudView) => void) {
+    constructor(_canvas: HTMLCanvasElement, _driver: unknown, public onView: (v: HudView) => void) {
       games.push(this)
     }
     destroy() {

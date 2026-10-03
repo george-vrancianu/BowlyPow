@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { LocalDriver } from '../game/driver'
 import { Game, type HudView } from '../game/Game'
 import { defaultSettings, type Settings } from '../game/view/settings'
 import { Shell } from './hud/Shell'
@@ -18,7 +19,7 @@ export function App() {
   const [settings, setSettings] = useState<Settings>(defaultSettings)
 
   useEffect(() => {
-    const g = new Game(canvas.current!, setView)
+    const g = new Game(canvas.current!, (sink) => new LocalDriver(sink), setView)
     game.current = g
     document.getElementById('splash')?.remove()
     return () => g.destroy()
