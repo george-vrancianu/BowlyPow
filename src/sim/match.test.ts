@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { coinFlip } from './match'
 import { defaultConfig as c, initialState, step, type SimState } from './step'
-import { playState } from './testkit'
+import { playState, roundsMatch } from './testkit'
 
 const mid = { x: 20, y: 54 }
 const shotAt = (y: number, vy: number, over: Partial<SimState> = {}): SimState => ({
@@ -15,21 +15,21 @@ const matchAt = (round: number, score: { 1: number; 2: number }, roundShots = 0)
 describe('goals', () => {
   it('credits the shooter when the ball centre crosses the opponent goal line', () => {
     const r = step(shotAt(0.5, -60), {}, c)
-    expect(r.state.match.score).toEqual({ 1: 1, 2: 0 })
+    expect(roundsMatch(r.state).score).toEqual({ 1: 1, 2: 0 })
     expect(r.events).toContainEqual({ type: 'goal', scorer: 1, at: expect.any(Object) })
   })
   it('credits the opponent for an own goal', () => {
     const r = step(shotAt(107.5, 60), {}, c)
-    expect(r.state.match.score).toEqual({ 1: 0, 2: 1 })
+    expect(roundsMatch(r.state).score).toEqual({ 1: 0, 2: 1 })
     expect(r.events).toContainEqual(expect.objectContaining({ type: 'goal', scorer: 2 }))
   })
   it('does not score outside the goal mouth', () => {
     const r = step(shotAt(0.5, -60, { ball: { pos: { x: 3, y: 2 }, vel: { x: 0, y: -60 }, rolled: 0 } }), {}, c)
-    expect(r.state.match.score).toEqual({ 1: 0, 2: 0 })
+    expect(roundsMatch(r.state).score).toEqual({ 1: 0, 2: 0 })
   })
   it('hands the conceder ball-in-hand, a fresh counter and the next round', () => {
     const r = step(shotAt(0.5, -60), {}, c)
-    expect(r.state.match.round).toBe(2)
+    expect(roundsMatch(r.state).round).toBe(2)
     expect(r.state.possession).toEqual({ shooter: 2, shots: 3, inHand: true, live: false })
     expect(r.state.ball.pos).toEqual(mid)
     expect(r.state.ball.vel).toEqual({ x: 0, y: 0 })
@@ -41,7 +41,7 @@ describe('shot cap', () => {
   const resting = (round: number, shots: number) => shotAt(80, 0, { match: matchAt(round, { 1: 0, 2: 0 }, shots) })
   it('counts every blast', () => {
     const s = shotAt(80, 0, { match: matchAt(1, { 1: 0, 2: 0 }, 4), possession: { shooter: 1, shots: 3, inHand: false, live: false } })
-    expect(step(s, { blast: { player: 1, origin: { x: 5, y: 90 }, power: 0.1 } }, c).state.match.roundShots).toBe(5)
+    expect(roundsMatch(step(s, { blast: { player: 1, origin: { x: 5, y: 90 }, power: 0.1 } }, c).state).roundShots).toBe(5)
   })
   it('ends a scoreless round once the 30th shot has come to rest', () => {
     const r = step(resting(1, 30), {}, c)
@@ -60,10 +60,10 @@ describe('shot cap', () => {
     expect(r.events).toContainEqual({ type: 'round-ended', round: 1, scorer: null })
   })
   it('does not end the round before the 30th shot', () => {
-    expect(step(resting(1, 29), {}, c).state.match.round).toBe(1)
+    expect(roundsMatch(step(resting(1, 29), {}, c).state).round).toBe(1)
   })
   it('has no cap in sudden death', () => {
-    expect(step(resting(6, 30), {}, c).state.match.round).toBe(6)
+    expect(roundsMatch(step(resting(6, 30), {}, c).state).round).toBe(6)
   })
 })
 

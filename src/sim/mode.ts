@@ -1,5 +1,5 @@
 import { HALF_HEIGHT, PITCH_WIDTH, type PlayerId, type Point } from './pitch'
-import { coinFlip, firstBuilder, startingPossession, type GameModeName, type Match, type RoundsMatch } from './match'
+import { coinFlip, firstBuilder, startingPossession, type GameModeName, type Match, type RoundsMatch, type SiegeMatch } from './match'
 import { opponent, type Possession } from './possession'
 import type { SimConfig, SimEvent } from './step'
 import type { Structure } from './wall'
@@ -15,7 +15,7 @@ export type BuildTurn = { points: number; built: number[] }
 
 /**
  * A game mode: pure hooks that own the match-level transitions. The step function owns physics, possession, build turns and the shot clock,
- * and calls `winner` after every transition that returns a result.
+ * and calls `winner` whenever a shot is consumed or a goal is scored.
  */
 export type GameMode<M extends Match = Match> = {
   /** Fresh match state and the opening possession. */
@@ -63,11 +63,24 @@ export const rounds: GameMode<RoundsMatch> = {
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
 }
 
+/** Siege: one opening build (Rounds ordering), no score, no shot cap; a goal hands the conceder ball-in-hand at the center. */
+export const siege: GameMode<SiegeMatch> = {
+  start: (seed, c) => ({ match: { mode: 'siege', seed, winner: null, builder: firstBuilder(seed, 1) }, possession: startingPossession(coinFlip(seed, 1), c) }),
+  onShotFired: (m) => m,
+  onShotConsumed: () => null,
+  onGoal: (m, scorer, _ctx, c) => ({ match: m, possession: startingPossession(opponent(scorer), c), ball: { ...center }, events: [] }),
+  onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] }),
+  onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
+  winner: () => null,
+}
+
 /** The mode a match is being played in, read off the match itself. */
 export function modeFor(m: Match): GameMode {
   switch (m.mode) {
     case 'rounds':
       return rounds
+    case 'siege':
+      return siege
   }
 }
 
@@ -76,5 +89,7 @@ export const modeNamed = (name: GameModeName): GameMode => {
   switch (name) {
     case 'rounds':
       return rounds
+    case 'siege':
+      return siege
   }
 }

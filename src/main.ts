@@ -3,7 +3,7 @@ import { lockstep } from './net/lockstep'
 import type { Peer } from './net/peer'
 import { applyEvents, newFx, reducedMotion, STEAL_MS } from './render/feedback'
 import { createScreens } from './screens/screens'
-import { configFrom } from './sim/settings'
+import { configFrom, defaultSettings } from './sim/settings'
 import { createHud } from './hud/hud'
 import { hudModel } from './hud/model'
 import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
@@ -216,7 +216,7 @@ const screens = createScreens(document.body, {
 })
 // Host is player 1 and picks the seed; the guest starts when it arrives. A drop mid-match ends it with a message.
 function startOnline(peer: Peer, me: PlayerId, seed: number) {
-  config = { ...defaultConfig, buildTime: ONLINE_BUILD_SECONDS }
+  config = { ...configFrom(defaultSettings), buildTime: ONLINE_BUILD_SECONDS }
   net = { me, peer, sync: lockstep((f) => peer.send({ type: 'frame', ...f }), me) }
   screens.hide()
   newMatch(seed)
@@ -256,6 +256,10 @@ const roundOf = (m: SimState['match']): number | undefined => {
   switch (m.mode) {
     case 'rounds':
       return m.round
+    case 'siege':
+      return undefined
+    default:
+      return m satisfies never
   }
 }
 
@@ -263,6 +267,10 @@ const showMatchEnd = (m: SimState['match'], winner: PlayerId) => {
   switch (m.mode) {
     case 'rounds':
       return screens.matchEnd(winner, m.score, !!net)
+    case 'siege':
+      return // no end condition yet
+    default:
+      return m satisfies never
   }
 }
 

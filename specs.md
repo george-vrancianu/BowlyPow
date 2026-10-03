@@ -51,9 +51,22 @@ Expect to tune friction and max speed by feel in the first hour of play. A full-
 - A soft gradient at the view edge shows when more pitch lies beyond it.
 - Camera is renderer state. The sim never knows about it.
 
-## Match structure
+## Game modes
 
-Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstraction.md`); the sim config names it. Rounds is the only mode so far, and the rules below are Rounds.
+Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstraction.md`); the sim config names it. The settings screen has a mode picker above the sliders, Siege is the default, and only the sliders a mode uses are shown (no rounds slider in Siege). Online matches run Siege on default settings.
+
+### Siege
+
+- No score and no rounds. One opening build phase with the Rounds ordering (coin-flip loser builds first, the winner gets ball-in-hand), then play; there are no further build phases.
+- A goal emits the goal event, resets the ball to the pitch center and gives the conceder ball-in-hand with a fresh shot counter. Own goals count for the opponent.
+- There is no shot cap: shots never end anything.
+- The HUD shows no score digit and no round label.
+- The match has no end condition yet.
+- Wall points default to 10; a value to tune after play-testing.
+
+### Rounds
+
+The match structure below is Rounds.
 
 - Pre-match settings screen with three sliders: shots per possession (default 3), rounds (default 5), wall points per build phase (default 10).
 - A match is a fixed number of rounds. Most goals after all rounds wins. If tied, sudden-death rounds with no shot cap until someone scores.

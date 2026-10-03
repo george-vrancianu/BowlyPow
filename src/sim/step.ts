@@ -244,6 +244,8 @@ export function step(
     if (turn.possession) possession = turn.possession
     if (turn.ball) landed = { ...landed, pos: turn.ball, vel: { x: 0, y: 0 } }
     events.push(...turn.events)
+  }
+  if (conceder || consumed) {
     const winner = mode.winner(match, { objects: rolled.objects, possession }, config)
     if (winner && !match.winner) {
       match = { ...match, winner, builder: null }
