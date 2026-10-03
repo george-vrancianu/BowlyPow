@@ -15,7 +15,7 @@ export function bands(size: { width: number; height: number }): { near: Band; fa
 }
 
 export type HudModel = {
-  players: Record<PlayerId, { score: number | null; /** Siege: the owner's remaining structures, in the score digit's place. Null in Rounds. */ structures: number | null; inventory: Record<PowerUp, number> }>
+  players: Record<PlayerId, { /** What the strip's big digit shows (Rounds: the score; Siege: remaining structures); null hides it. */ digit: string | null; inventory: Record<PowerUp, number> }>
   /** Whose turn it is; their strip goes to the bottom. */
   active: PlayerId
   /** Null in modes without rounds. */
@@ -104,9 +104,8 @@ export function createHud(root: HTMLElement, actions: HudActions) {
     for (const id of [1, 2] as const) {
       const s = strips[id]
       const p = m.players[id]
-      const value = p.score ?? p.structures
-      s.score.style.display = value === null ? 'none' : ''
-      const shown = value === null ? '' : String(value)
+      s.score.style.display = p.digit === null ? 'none' : ''
+      const shown = p.digit ?? ''
       if (s.score.textContent !== shown) {
         if (s.score.textContent && shown) s.score.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], 400)
         s.score.textContent = shown

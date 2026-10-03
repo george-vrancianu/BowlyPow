@@ -60,7 +60,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 - No score and no rounds. One opening build phase with the Rounds ordering (coin-flip loser builds first, the winner gets ball-in-hand), then play; there are no further build phases.
 - A goal emits the goal event, resets the ball to the pitch center and gives the conceder ball-in-hand with a fresh shot counter. Own goals count for the opponent.
 - There is no shot cap: shots never end anything.
-- The HUD shows no score digit and no round label.
+- The HUD shows each player's remaining structure count, towers included, in place of the score digit, and no round label.
 - The match has no end condition yet.
 - Wall points default to 10; a value to tune after play-testing.
 
