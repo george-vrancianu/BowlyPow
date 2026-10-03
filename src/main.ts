@@ -5,19 +5,20 @@ import { applyEvents, newFx, reducedMotion, STEAL_MS } from './render/feedback'
 import { createScreens } from './screens/screens'
 import { configFrom } from './sim/settings'
 import { createHud } from './hud/hud'
-import { hudModel, paletteButtons } from './hud/model'
+import { hudModel } from './hud/model'
+import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
+import { createFab } from './hud/fab'
 import { createOverlay } from './hud/overlay'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
-import { blastRadius, canBlastFrom, nearestOnWall } from './sim/blast'
+import { blastRadius, canBlastFrom } from './sim/blast'
 import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
 import { canArm, canPlaceBall, whoActs } from './sim/possession'
 import type { PlayerId } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
-import { canPlace, structureCost, type Rotation, type StructureSpec, type TowerPower, type WallShape } from './sim/wall'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
@@ -54,10 +55,16 @@ document.getElementById('map-stretch')!.onclick = () => {
   mapCam.map!.stretch = !mapCam.map!.stretch
   try { sessionStorage.setItem('mapStretch', mapCam.map!.stretch ? '1' : '0') } catch {}
 }
-// Build turn: pick a shape, drag the ghost, Rotate, Confirm drops it through the sim as a placeWall input.
-let ghost: StructureSpec | undefined
-let demolishing = false
-let draggingGhost = false
+// Build turn: the floating menu spawns a piece; drag it by pressing on it, ✓ sends it through the sim, ✕ drops it.
+// Pressing one of this turn's structures picks it up again; an older one is only selected, to demolish it.
+let selection: Selection | undefined
+// A confirmed selection stays drawn until the sim has it (online it runs a few ticks later) or refuses it.
+let landing: Selection | undefined
+let menuOpen = false
+// Grab point relative to the piece's anchor, and the pointer's last canvas position (for edge scrolling).
+// `moved` once the pointer has travelled past DRAG_SLOP from the press, which is when edge scrolling may start.
+let drag: { offset: Point; px: number; py: number; id: number; from: Point; moved: boolean } | undefined
+const DRAG_SLOP = 6
 let fragments: Fragment[] = []
 const fx = newFx()
 let pending: SimInput = {}
@@ -76,30 +83,38 @@ const confirmBall = () => {
   if (mine(shooter) && ballGhost && canPlaceBall(shooter, ballGhost, state.objects, config)) pending = { placeBall: { player: shooter, at: ballGhost } }
 }
 confirm.onclick = confirmBall
-const snap = (e: PointerEvent) => {
-  const p = toWorld(e)
-  return { gx: Math.round(p.x / CELL_SIZE), gy: Math.round(p.y / CELL_SIZE) }
+const pxToWorld = (px: number, py: number) => screenToWorld(canvas, camera, px * canvasPx(), py * canvasPx())
+// Drags keep the grab point under the finger and snap the anchor to the grid.
+const dragTo = (px: number, py: number) => {
+  if (!drag || !selection) return
+  const p = pxToWorld(px, py)
+  drag = { ...drag, px, py, moved: drag.moved || Math.hypot(px - drag.from.x, py - drag.from.y) > DRAG_SLOP }
+  selection = { ...selection, spec: { ...selection.spec, at: { gx: Math.round((p.x - drag.offset.x) / CELL_SIZE), gy: Math.round((p.y - drag.offset.y) / CELL_SIZE) } } }
 }
-const spawn = (shape: WallShape | TowerPower) => {
-  const b = state.match.builder!
-  if (!mine(b)) return
-  demolishing = false
-  const at = ghost?.at ?? { gx: 10, gy: b === 1 ? 40 : 14 }
-  ghost = shape === 'repulsor' || shape === 'steal' ? { kind: 'tower', owner: b, power: shape, at } : { kind: 'wall', owner: b, shape, rotation: ghost?.kind === 'wall' ? ghost.rotation : 0, at }
+const build = {
+  toggle: () => (menuOpen = !menuOpen),
+  spawn: (p: Piece) => {
+    const b = state.match.builder
+    if (b && mine(b)) (selection = spawn(p, b, camera.y)), (menuOpen = false)
+  },
+  rotate: () => selection?.movable && (selection = rotated(selection)),
+  cancel: () => (selection = undefined),
+  confirm: () => {
+    const input = !landing && selection && legal(state, selection) && commit(selection)
+    if (input) (pending = input), (landing = selection), (selection = undefined)
+  },
+  remove: () => {
+    if (selection?.id !== undefined) pending = { demolish: { player: selection.spec.owner, wall: selection.id } }
+    selection = undefined
+  },
 }
-const rotate = () => ghost?.kind === 'wall' && (ghost = { ...ghost, rotation: ((ghost.rotation + 1) % 4) as Rotation })
-const confirmWall = () => {
-  if (!ghost || !canPlace(state.objects, ghost) || state.points[ghost.owner] < structureCost(ghost)) return
-  pending = { placeWall: ghost }
-  ghost = undefined
-}
-// Desktop keys: M map, Space recenter, R rotate, Enter confirm, Esc close the map or cancel the ghost.
+// Desktop keys: M map, Space recenter, R rotate, Enter confirm, Esc close the map or cancel the selection.
 addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase()
   if (key === 'm') toggleMap()
-  else if (key === 'escape') mapOpen ? toggleMap(false) : (ghost = ballGhost = undefined)
-  else if (key === 'r') rotate()
-  else if (key === 'enter') state.match.builder ? confirmWall() : confirmBall()
+  else if (key === 'escape') mapOpen ? toggleMap(false) : ((selection = ballGhost = undefined), (menuOpen = false))
+  else if (key === 'r') build.rotate()
+  else if (key === 'enter') state.match.builder ? build.confirm() : confirmBall()
 })
 // Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
 const pointers = new Map<number, Point>()
@@ -116,12 +131,14 @@ canvas.onpointermove = (e) => {
     if (pointers.size > 1) panBy(dy / pointers.size)
     else if (panOnly || (charge && gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now()).mode === 'pan')) panBy(dy)
   }
-  if (draggingGhost && ghost) ghost = { ...ghost, at: snap(e) }
+  if (drag?.id === e.pointerId) dragTo(e.offsetX, e.offsetY)
   if (charge) charge.gesture = gestureMove(charge.gesture, { x: e.clientX, y: e.clientY }, performance.now())
 }
+// A cancelled pointer (the browser took the gesture) ends like a release.
+canvas.onpointercancel = (e) => canvas.onpointerup!(e)
 canvas.onpointerup = (e) => {
   draggingBall = false
-  draggingGhost = false
+  if (drag?.id === e.pointerId) drag = undefined
   if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) <= 12) ballGhost = toWorld(e)
   tap = undefined
   pointers.delete(e.pointerId)
@@ -139,7 +156,7 @@ canvas.onpointerdown = (e) => {
   }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   if (pointers.size > 1) {
-    charge = undefined
+    charge = drag = undefined
     return
   }
   const builder = state.match.builder
@@ -148,12 +165,14 @@ canvas.onpointerdown = (e) => {
       panOnly = true
       return
     }
+    menuOpen = false
     const at = toWorld(e)
-    const near = (w: StructureSpec | undefined, r: number) => w && nearestOnWall(w, at).dist < r
-    const hit = demolishing ? state.objects.find((w) => w.owner === builder && near(w, 1)) : undefined
-    if (hit) pending = { demolish: { player: builder, wall: hit.id } }
-    else if (!demolishing && near(ghost, 3)) {
-      draggingGhost = true
+    // On the piece: half a cell, or a 44px touch target.
+    const tolerance = Math.max(CELL_SIZE / 2, (22 * canvasPx()) / layout(canvas).scale)
+    if (!selection) selection = pick(state, builder, at, tolerance)
+    if (selection?.movable && onPiece(selection.spec, at, tolerance)) {
+      const anchor = { x: selection.spec.at.gx * CELL_SIZE, y: selection.spec.at.gy * CELL_SIZE }
+      drag = { offset: { x: at.x - anchor.x, y: at.y - anchor.y }, px: e.offsetX, py: e.offsetY, id: e.pointerId, from: { x: e.offsetX, y: e.offsetY }, moved: false }
       canvas.setPointerCapture(e.pointerId)
     } else panOnly = true
     return
@@ -215,6 +234,15 @@ function onLink(peer: Peer, hosting: boolean, status: 'connected' | 'disconnecte
   }
 }
 screens.title()
+const fab = createFab(stage)
+// While dragging near the top or bottom tenth of the view, scroll toward any of the builder's half that is off screen.
+function edgeScroll(builder: PlayerId, dt: number) {
+  const { visibleHeight } = layout(canvas)
+  const dy = edgeScrollDy(camera.y, visibleHeight, builder, pxToWorld(drag!.px, drag!.py).y, dt)
+  if (!dy) return
+  pan(camera, dy, visibleHeight)
+  dragTo(drag!.px, drag!.py)
+}
 const hud = createHud(stage, { onMap: () => toggleMap(), onRecenter: () => recenter(camera), onPowerUp: (p) => p === 'breaker' && mine(state.possession.shooter) && canArm(state, state.possession.shooter) && (armed = !armed) })
 // Online: the charge last submitted, in 1/CHARGE_STEPS of full power.
 const CHARGE_STEPS = 20
@@ -257,12 +285,14 @@ function frame(now: number) {
     if (!state.possession.inHand) ballGhost = undefined
     if (!state.match.builder && tick.events.length) recenter(camera)
     if (state.match.builder !== lastBuilder) {
+      // Done or the build timer drops the selection: a new piece is gone, a moved one never left its spot in the sim.
       lastBuilder = state.match.builder
-      ghost = undefined
-      demolishing = false
+      selection = landing = drag = undefined
+      menuOpen = false
       if (lastBuilder) pan(camera, (lastBuilder === 1 ? 1.5 : 0.5) * HALF_HEIGHT - camera.y, layout(canvas).visibleHeight)
       else recenter(camera)
     }
+    if (landing && (landed(state, landing) || tick.events.some((ev) => ev.type === 'refused'))) landing = undefined
     pending = {}
     announce(tick.events)
     applyEvents(fx, tick.events, state.objects, now)
@@ -278,6 +308,7 @@ function frame(now: number) {
   if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), recenter(camera)
   stage.style.transform = `rotate(${angle(transition, now)}deg)`
   overlay.update(overlayView(transition, now))
+  if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
   if (state.match.winner && !matchShown) (matchShown = true, screens.matchEnd(state.match.winner, state.match.score, !!net))
@@ -288,15 +319,18 @@ function frame(now: number) {
   fragments = fragments.filter((f) => fragmentAlive(f, now))
   const b = state.match.builder
   const shooter = state.possession.shooter
-  const palette = { ghost, demolishing, spawn, rotate, confirm: confirmWall, toggleDemolish: () => ((demolishing = !demolishing), (ghost = undefined)), done: () => (pending = { done: b! }) }
-  hud.update(
-    hudModel(state, config, { active: transition.shown, buttons: b && mine(b) ? paletteButtons(state, b, palette) : undefined, armed, tappable: mine(shooter) && canArm(state, shooter) }),
-    { width: canvas.clientWidth, height: canvas.clientHeight },
-  )
+  const size = { width: canvas.clientWidth, height: canvas.clientHeight }
+  const building = b && mine(b) ? b : undefined
+  hud.update(hudModel(state, config, { active: transition.shown, buttons: building && [{ label: 'Done', onClick: () => (pending = { done: building }) }], armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
   render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
-    ghost: mapOpen ? undefined : ghost,
+    ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
+    landing: mapOpen ? undefined : landing?.spec,
+    hidden: mapOpen ? [] : [selection?.movable ? selection.id : undefined, landing?.id].filter((id) => id !== undefined),
+    selected: !mapOpen && selection && !selection.movable ? selection.id : undefined,
+    movable: building && !mapOpen ? state.built : undefined,
     fragments,
     now,
     charge: !mapOpen && charge?.gesture.mode === 'charge' ? { origin: charge.origin, player: charge.player, power: gesturePower(charge.gesture, now) } : undefined,

@@ -4,7 +4,7 @@ import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
 import { blastDamage, blastPush, canBlastFrom } from './blast'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
-import { canPlace, damageWall, maxHp, structureCost, type Structure, type StructureSpec } from './wall'
+import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
 export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
@@ -31,6 +31,8 @@ export type SimState = {
   /** Wall points; demolishing spends them. */
   points: Record<PlayerId, number>
   nextId: number
+  /** Ids placed in the current build turn: they can still be moved, and demolishing them refunds them. */
+  built: number[]
   ball: Ball
   possession: Possession
   match: Match
@@ -45,6 +47,8 @@ export type SimInput = {
   blast?: { player: PlayerId; origin: Point; power: number; breaker?: boolean }
   placeWall?: StructureSpec
   demolish?: { player: PlayerId; wall: number }
+  /** The builder moves a structure placed this build turn. */
+  moveStructure?: { player: PlayerId; id: number; at: Vertex; rotation: Rotation }
   /** The shooter's blast charge in progress; fires at this power when the shot clock runs out. */
   charging?: { origin: Point; power: number; breaker?: boolean }
   /** The builder ends their build turn. */
@@ -96,10 +100,10 @@ export const defaultConfig: SimConfig = {
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
+  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, built: [], ball: { pos: { x: PITCH_WIDTH / 2, y: HALF_HEIGHT }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: startingPossession(coinFlip(seed, 1), config), match: newMatch(seed), clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
 }
 
-const spend = (players: SimState['players'], id: PlayerId, power: PowerUp): SimState['players'] => ({ ...players, [id]: { ...players[id], inventory: { ...players[id].inventory, [power]: players[id].inventory[power] - 1 } } })
+const spend = (players: SimState['players'], id: PlayerId, power: PowerUp, n = 1): SimState['players'] => ({ ...players, [id]: { ...players[id], inventory: { ...players[id].inventory, [power]: players[id].inventory[power] - n } } })
 
 /** Pure and deterministic: no DOM, no randomness. */
 export function step(
@@ -108,24 +112,37 @@ export function step(
   config: SimConfig,
 ): { state: SimState; events: SimEvent[] } {
   if (state.match.winner) return { state, events: [] }
-  let { objects, points, nextId, players } = state
+  let { objects, points, nextId, players, built } = state
   let { match } = state
   const events: SimEvent[] = []
   const building = match.builder !== null
-  const { placeWall, demolish } = input
+  const { placeWall, demolish, moveStructure: move } = input
   if (placeWall) {
     const cost = structureCost(placeWall)
     const stocked = placeWall.kind === 'wall' || players[placeWall.owner].inventory[placeWall.power] > 0
     if (placeWall.owner === match.builder && stocked && points[placeWall.owner] >= cost && canPlace(objects, placeWall)) {
       if (placeWall.kind === 'tower') players = spend(players, placeWall.owner, placeWall.power)
+      built = [...built, nextId]
       objects = [...objects, { ...placeWall, id: nextId++, hp: maxHp(placeWall) }]
       points = { ...points, [placeWall.owner]: points[placeWall.owner] - cost }
     } else events.push({ type: 'refused' })
   }
+  if (move) {
+    const it = objects.find((o) => o.id === move.id)
+    const others = objects.filter((o) => o.id !== move.id)
+    const moved = it && (it.kind === 'wall' ? { ...it, at: move.at, rotation: move.rotation } : { ...it, at: move.at })
+    if (moved && move.player === match.builder && it.owner === move.player && built.includes(move.id) && canPlace(others, moved)) objects = objects.map((o) => (o.id === move.id ? moved : o))
+    else events.push({ type: 'refused' })
+  }
   if (demolish) {
-    if (demolish.player === match.builder && objects.find((w) => w.id === demolish.wall)?.owner === demolish.player && points[demolish.player] >= 1) {
+    const it = objects.find((w) => w.id === demolish.wall)
+    const fresh = built.includes(demolish.wall)
+    if (it && demolish.player === match.builder && it.owner === demolish.player && (fresh || points[demolish.player] >= 1)) {
       objects = objects.filter((w) => w.id !== demolish.wall)
-      points = { ...points, [demolish.player]: points[demolish.player] - 1 }
+      // This turn's items come back in full; older ones cost a point to clear.
+      points = { ...points, [demolish.player]: points[demolish.player] + (fresh ? structureCost(it) : -1) }
+      if (fresh && it.kind === 'tower') players = spend(players, it.owner, it.power, -1)
+      built = built.filter((id) => id !== demolish.wall)
     } else events.push({ type: 'refused' })
   }
   let ball = state.ball
@@ -218,6 +235,7 @@ export function step(
     landed = { ...landed, pos: e.ball, vel: { x: 0, y: 0 } }
     events.push(...e.events)
   }
+  if (match.builder !== state.match.builder) built = []
   if (match.builder && match.builder !== state.match.builder) {
     points = { ...points, [match.builder]: config.wallPoints }
     if (config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
@@ -225,5 +243,5 @@ export function step(
   if (!match.builder && state.match.builder) clock = { left: config.shotClock * config.tickHz, expiries: 0 }
   if (possession.shooter !== state.possession.shooter || fired || ended) clock = { ...clock, expiries: 0 }
   if (expired || fired || ended || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
-  return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, ball: landed }, events }
+  return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, built, ball: landed }, events }
 }
