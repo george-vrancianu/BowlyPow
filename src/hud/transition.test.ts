@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PLAYER_COLORS } from '../sim/player'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, type Frame, type Transition } from './transition'
+import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, revealing, type Frame, type Transition } from './transition'
 
 const base: Frame = { active: 1, round: 1, inHand: true, phase: 'Play', events: [], now: 0, reduced: false }
 const go = (t: Transition, o: Partial<Frame>) => advance(t, { ...base, ...o })
@@ -121,5 +121,64 @@ describe('online (no handover)', () => {
     t = online(t, { now: 1600, phase: 'Build' })
     expect(blocking(t)).toBe(false)
     expect(overlayView(t, 1600)?.text).toBe('BUILD')
+  })
+})
+
+describe('reveal', () => {
+  /** A Siege opening build in progress, then the second Done lands at `now`. */
+  const building = () => go(open(), { now: 2000, phase: 'Build', opening: true })
+  const done = (t: Transition, o: Partial<Frame> = {}) => go(t, { now: 5000, active: 2, phase: 'Play', opening: false, ...o })
+  it('holds 1.5 s on the whole pitch after the opening build ends, blocking the sim, then hands over', () => {
+    let t = done(building())
+    expect(overlayView(t, 5000)).toMatchObject({ kind: 'reveal', text: 'REVEAL' })
+    expect(revealing(t)).toBe(true)
+    expect(blocking(t)).toBe(true)
+    expect(t.flip).toBeUndefined()
+    t = go(t, { now: 6499, active: 2, phase: 'Play' })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { now: 6500, active: 2, phase: 'Play' })
+    expect(revealing(t)).toBe(false)
+    expect(overlayView(t, 6500)?.text).toBe("Player 2's turn")
+    expect(blocking(t)).toBe(true)
+  })
+  it('holds the same 1.5 s under reduced motion, with no flip afterwards', () => {
+    let t = done(go(building(), { now: 2500, opening: true, phase: 'Build', reduced: true }), { reduced: true })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { now: 6499, active: 2, phase: 'Play', reduced: true })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { now: 6500, active: 2, phase: 'Play', reduced: true })
+    expect(revealing(t)).toBe(false)
+    expect(t.flip).toBeUndefined()
+  })
+  it('pins its label to the top edge with no band, so the whole pitch stays visible', () => {
+    const t = done(building())
+    expect(overlayView(t, 5000)).toMatchObject({ placement: 'top', band: false })
+    expect(overlayView(go(open(), { now: 2000, events: [{ type: 'goal', scorer: 1, at: { x: 20, y: 110 } }] }), 2000)).toMatchObject({ placement: 'center', band: true })
+  })
+  it('ignores taps while it holds', () => {
+    const t = done(building())
+    expect(dismiss(t, 9999)).toBe(t)
+  })
+  it('shows no PLAY sweep after the reveal', () => {
+    const t = go(done(building()), { now: 6500, active: 2, phase: 'Play' })
+    expect(t.overlay?.kind).toBe('turn')
+    expect(go(t, { now: 8000, active: 2, phase: 'Play' }).overlay?.kind).not.toBe('sweep')
+  })
+  it('fires once per opening, and not for builds that are not an opening', () => {
+    // Rounds, or a Rearrange turn: `opening` was never true, so ending the build is just the PLAY sweep.
+    const rounds = go(go(open(), { now: 2000, phase: 'Build' }), { now: 5000, phase: 'Play' })
+    expect(revealing(rounds)).toBe(false)
+    expect(rounds.overlay?.text).toBe('PLAY')
+    const after = go(done(building()), { now: 6500, active: 2, phase: 'Play', opening: false })
+    expect(revealing(go(after, { now: 7000, active: 2, phase: 'Play', opening: false }))).toBe(false)
+  })
+  it('online: no turn card after it, the screen stays with the local player', () => {
+    const on = { active: 2 as const, handover: false }
+    let t = go(go(newTransition(2), { ...on, opening: true, phase: 'Build', now: 0 }), { ...on, opening: false, phase: 'Play', now: 1000 })
+    expect(revealing(t)).toBe(true)
+    t = go(t, { ...on, opening: false, phase: 'Play', now: 2500 })
+    expect(revealing(t)).toBe(false)
+    expect(t.overlay).toBeUndefined()
+    expect(t.shown).toBe(2)
   })
 })

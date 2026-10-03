@@ -222,6 +222,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - Handover flip: animated 180-degree rotation over 400 ms, with the turn overlay fading in during the second half so nobody sees the pitch upside-down.
 - Goal: 1.5 s hold with a full-width "GOAL" banner in the scorer's colour, the scoreboard digit flipping, the ball resting in the net. Then the normal handover.
 - Build and play: a 1 s "BUILD" or "PLAY" label sweeping across the pitch. In Siege a Repair adds a "REPAIRED" label of the same kind; in hot-seat the handover waits until it has finished.
+- Reveal (Siege only): when the second builder taps Done in the opening build, the fog lifts into a 1.5 s "REVEAL" hold on the map camera, so both layouts show at once. It replaces the opening PLAY sweep, and its label is pinned to the top edge with no band so every structure stays visible. It blocks input and the sim like the goal hold, then the normal handover goes to the ball-in-hand player. Reduced motion: the same 1.5 s hold (it has no animation to drop). Online, each peer sees it from their own orientation; it is wall-clock only, like the goal hold. Rounds and Rearrange turns have none.
 - All interstitials are one overlay component. In round 1 only, turn overlays carry short hints ("Hold on the pitch to charge a blast").
 
 ### HUD

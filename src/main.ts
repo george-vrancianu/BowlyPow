@@ -9,7 +9,7 @@ import { hudModel } from './hud/model'
 import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
 import { createFab } from './hud/fab'
 import { createOverlay } from './hud/overlay'
-import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
+import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView, revealing } from './hud/transition'
 import type { SimEvent } from './sim/step'
 import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/gesture'
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
@@ -35,6 +35,7 @@ stage.append(canvas)
 const ONLINE_BUILD_SECONDS = 30
 let net: { me: PlayerId; peer: Peer; sync: ReturnType<typeof lockstep> } | undefined
 const mine = (p: PlayerId | null | undefined) => !net || p === net.me
+// `blindSeat` doubles as the opening-build test for the reveal (it turns false when play begins, and stays false for a Rearrange turn after #39).
 // Siege blind build: the seat whose half is the only one this screen may show. Hot-seat: whoever builds; online: my own seat, also while I wait.
 const viewer = (): PlayerId => (net ? net.me : (state.match.builder ?? transition.shown))
 const blind = () => blindSeat(state.match, viewer())
@@ -286,9 +287,9 @@ const showMatchEnd = (m: SimState['match'], winner: PlayerId, objects: SimState[
 function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
-  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
+  // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold, reveal or turn card.
   const phase = state.match.builder ? 'Build' : 'Play'
-  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
+  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase, opening: blindSeat(state.match, 1) !== undefined, events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
     if (blocking(transition)) {
       pending = {}
@@ -358,7 +359,7 @@ function frame(now: number) {
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
-  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen ? mapCam : camera, {
+  render(ctx, inNet ? { ...state, ball: { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } } : state, mapOpen || revealing(transition) ? mapCam : camera, {
     blind: blind(),
     ghost: mapOpen || !selection?.movable ? undefined : selection.spec,
     landing: mapOpen ? undefined : landing?.spec,
