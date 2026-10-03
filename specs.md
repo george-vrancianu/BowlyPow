@@ -1,4 +1,4 @@
-# BowlyPow
+# BreachBall
 
 A two-player, turn-based pitch game. Blast a ball into the opponent's goal through walls both players build. Playable in the browser on phones, tablets and desktops.
 
