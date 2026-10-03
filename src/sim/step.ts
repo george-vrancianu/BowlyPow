@@ -33,7 +33,7 @@ export type SimEvent =
   | { type: 'steal-triggered'; tower: Structure; owner: PlayerId; at: Point }
   | { type: 'repulsor-fired'; tower: number; at: Point }
   /** A defence-turn Repair restored this structure to full HP. */
-  | { type: 'repaired'; id: number }
+  | { type: 'repaired'; id: number; player: PlayerId }
 
 export type SimState = {
   tick: number

@@ -91,7 +91,7 @@ export const siege: GameMode<SiegeMatch> = {
       match: { ...m, choosing: null },
       objects: ctx.objects.map((o) => (o.owner === player ? { ...o, hp: maxHp(o) } : o)),
       // One per surviving own structure, full-HP ones included, so the sweep and flash always fire.
-      events: ctx.objects.filter((o) => o.owner === player).map((o) => ({ type: 'repaired', id: o.id })),
+      events: ctx.objects.filter((o) => o.owner === player).map((o) => ({ type: 'repaired', id: o.id, player })),
     }
   },
   // An empty defence would be an instant loss, so Done is refused until the builder owns a structure.

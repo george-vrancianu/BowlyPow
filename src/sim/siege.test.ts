@@ -140,7 +140,7 @@ describe('Siege defence turn: Repair', () => {
   it("Repair restores the scorer's surviving structures to full HP and emits one repaired event each", () => {
     const r = step(scored(), repair(1), siege)
     expect(r.state.objects.map((o) => [o.id, o.hp])).toEqual([[1, 3], [2, 3], [3, 1]])
-    expect(r.events.filter((e) => e.type === 'repaired')).toEqual([{ type: 'repaired', id: 1 }, { type: 'repaired', id: 2 }])
+    expect(r.events.filter((e) => e.type === 'repaired')).toEqual([{ type: 'repaired', id: 1, player: 1 }, { type: 'repaired', id: 2, player: 1 }])
   })
 
   it('does not bring destroyed structures back', () => {
