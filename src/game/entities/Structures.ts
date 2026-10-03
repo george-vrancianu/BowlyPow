@@ -1,6 +1,6 @@
 import { visual } from '../../config/visual'
 import type { Point } from '../../sim/pitch'
-import { splashDamage, splashPower } from '../../sim/splash'
+import { splashDamage, splashOf } from '../../sim/splash'
 import type { SimConfig, SimState } from '../../sim/step'
 import { canPlace, type Structure, type StructureSpec } from '../../sim/wall'
 import { Entity } from './Entity'
@@ -95,9 +95,9 @@ export class Structures extends Entity {
 
   /** Sets the Splash preview to the structures in range of the Splash the aim would set off from the ball; empty for a non-splash tier or before the drag. */
   previewSplash(state: Pick<SimState, 'objects' | 'ball' | 'possession'>, aim: { tier: number; power?: number } | undefined, config: SimConfig): void {
-    const splash = aim?.power === undefined ? null : splashPower(aim.tier, aim.power)
+    const splash = aim?.power === undefined ? null : splashOf(aim.tier, aim.power, config)
     const { shooter } = state.possession
-    this.preview = new Map(splash === null ? [] : splashDamage(state.objects, state.ball.pos, splash, shooter, config).map((h) => [h.wall.id, h.wall.owner === shooter]))
+    this.preview = new Map(splash === null ? [] : splashDamage(state.objects, state.ball.pos, splash, shooter).map((h) => [h.wall.id, h.wall.owner === shooter]))
   }
 
   /** Hands each child what this frame shows (build overlays, splash preview). Call before drawing. */

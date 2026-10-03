@@ -1,16 +1,17 @@
-import { rules, type Tier } from '../../config/rules'
+import { rules } from '../../config/rules'
 import { visual } from '../../config/visual'
-import { predictPath } from '../../sim/predict'
-import { splashPower, splashRadius } from '../../sim/splash'
 import type { Point } from '../../sim/pitch'
+import { predictPath } from '../../sim/predict'
+import { splashOf } from '../../sim/splash'
 import type { SimConfig, SimState } from '../../sim/step'
+import type { GestureView } from '../input/gesture'
 import { Entity } from './Entity'
 
 /** The aim in progress, as far as the Ghost needs it: `dir` and `power` once the shooter is dragging, the ghost config in effect; `cancel` while cancel-armed. */
-export type AimLine = { tier: number; dir?: Point; power?: number; ghost: Tier['ghost']; cancel?: true }
+export type AimLine = Pick<GestureView, 'tier' | 'dir' | 'power' | 'ghost' | 'cancel'>
 
 /** A tier's colour (Touch green, Power red), for its Ghost and hold ring. */
-export const tierColor = (tier: number): string => visual.aim.tierColors[rules.shot.tiers[tier]?.name] ?? visual.aim.tierColors.Touch
+export const tierColor = (tier: number): string => visual.aim.tierColors[rules.shot.tiers[tier].name]
 
 /** The first `scale` of a polyline's length. */
 function cut(points: Point[], scale: number): Point[] {
@@ -35,7 +36,7 @@ export class Aim extends Entity {
   aim?: AimLine
   private state?: SimState
   private config?: SimConfig
-  private waves: { origin: Point; radius: number; born: number }[] = []
+  private rings: { origin: Point; radius: number; born: number }[] = []
   // The last prediction, redone only when the aim or what it depends on changes, not every frame.
   private predicted?: { key: string; objects: SimState['objects']; points: Point[] }
 
@@ -44,21 +45,21 @@ export class Aim extends Entity {
     this.config = config
   }
 
-  /** A shot fired from `origin`: for a splash tier, a ring expands to the Splash radius over `visual.aim.waveMs`. */
+  /** A shot fired from `origin`: for a splash tier, a ring expands to the Splash radius over `visual.aim.splash.ms`. */
   splash(origin: Point, tier: number, power: number): void {
-    const splash = splashPower(tier, power)
-    if (this.config && splash !== null) this.waves.push({ origin, radius: splashRadius(splash, this.config), born: this.clock })
+    const splash = this.config && splashOf(tier, power, this.config)
+    if (splash) this.rings.push({ origin, radius: splash.radius, born: this.clock })
   }
 
   /** A new match: no rings, no aim. */
   reset(): void {
-    this.waves = []
+    this.rings = []
     this.aim = this.predicted = undefined
   }
 
   /** Splash rings still expanding. */
   get splashCount(): number {
-    return this.waves.length
+    return this.rings.length
   }
 
   /** The ball's predicted path from the ball, as the ghost config reaches and cut to its scale. None before the drag. */
@@ -89,7 +90,7 @@ export class Aim extends Entity {
 
   override update(dt: number): void {
     super.update(dt)
-    this.waves = this.waves.filter((w) => this.clock - w.born < visual.aim.waveMs)
+    this.rings = this.rings.filter((r) => this.clock - r.born < visual.aim.splash.ms)
   }
 
   protected override render(ctx: CanvasRenderingContext2D): void {
@@ -115,13 +116,13 @@ export class Aim extends Entity {
       ctx.lineWidth = width
       ctx.stroke()
     }
-    for (const w of this.waves) {
-      const t = (this.clock - w.born) / visual.aim.waveMs
+    for (const r of this.rings) {
+      const t = (this.clock - r.born) / visual.aim.splash.ms
       ctx.globalAlpha = 1 - t
       ctx.beginPath()
-      ctx.arc(w.origin.x, w.origin.y, w.radius * t, 0, Math.PI * 2)
-      ctx.strokeStyle = visual.aim.wave
-      ctx.lineWidth = visual.aim.waveWidth
+      ctx.arc(r.origin.x, r.origin.y, r.radius * t, 0, Math.PI * 2)
+      ctx.strokeStyle = visual.aim.splash.color
+      ctx.lineWidth = visual.aim.splash.width
       ctx.stroke()
       ctx.globalAlpha = 1
     }

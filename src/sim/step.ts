@@ -5,7 +5,7 @@ import { modeFor, modeNamed, type DefenceChoice, type ModeContext } from './mode
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
-import { splashDamage, splashPower } from './splash'
+import { splashDamage, splashOf } from './splash'
 import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
 const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId): ModeContext => ({ objects, possession, shooter })
@@ -105,8 +105,8 @@ export type SimConfig = {
   shotClock: number
   /** Seconds per build turn; 0 = no timer (hot-seat). */
   buildTime: number
-  /** What an expiring shot clock does: 'fire' shoots the held aim (burning if there is none), 'burn' always burns the shot. */
-  expiry: 'fire' | 'burn'
+  /** What an expiring shot clock does: 'shoot' shoots the held aim (burning if there is none), 'burn' always burns the shot. */
+  expiry: 'shoot' | 'burn'
 }
 
 export const defaultConfig: SimConfig = {
@@ -126,7 +126,7 @@ export const defaultConfig: SimConfig = {
   shotCap: 30,
   shotClock: 15,
   buildTime: 0,
-  expiry: 'fire',
+  expiry: 'shoot',
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
@@ -215,7 +215,7 @@ export function step(
   const expired = !building && !waiting && !possession.live && clock.left <= 1
   if (!building && !waiting && !possession.live) clock = { ...clock, left: clock.left - 1 }
   const { aiming } = input
-  const shot = input.shot ?? (expired && aiming && config.expiry === 'fire' ? { player: possession.shooter, ...aiming } : undefined)
+  const shot = input.shot ?? (expired && aiming && config.expiry === 'shoot' ? { player: possession.shooter, ...aiming } : undefined)
   if (shot) {
     const tier = rules.shot.tiers[shot.tier]
     const inRange = !!tier && shot.power >= tier.power[0] && shot.power <= tier.power[1]
@@ -226,9 +226,9 @@ export function step(
       match = mode.onShotFired(match)
       const v = shot.power * config.maxSpeed
       ball = { ...ball, vel: { x: shot.dir.x * v, y: shot.dir.y * v } }
-      const splash = splashPower(shot.tier, shot.power)
-      if (splash !== null) {
-        for (const { wall, loss, at } of splashDamage(objects, ball.pos, splash, shot.player, config)) {
+      const splash = splashOf(shot.tier, shot.power, config)
+      if (splash) {
+        for (const { wall, loss, at } of splashDamage(objects, ball.pos, splash, shot.player)) {
           for (let i = 0; i < loss; i++) {
             const r = damageWall(objects, wall.id, at)
             objects = r.objects

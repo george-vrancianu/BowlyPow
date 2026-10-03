@@ -9,11 +9,11 @@ const wall: WallSpec = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0,
 const placed = () => step(buildState(1), { placeWall: wall }, defaultConfig).state
 
 describe('Aim', () => {
-  it('shows a Power shot\'s Splash ring for waveMs', () => {
+  it('shows a Power shot\'s Splash ring for its duration', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
     a.splash({ x: 20, y: 70 }, 1, 0.75)
-    a.update((visual.aim.waveMs - 1) / 1000)
+    a.update((visual.aim.splash.ms - 1) / 1000)
     expect(a.splashCount).toBe(1)
     a.update(0.002)
     expect(a.splashCount).toBe(0)
@@ -21,7 +21,7 @@ describe('Aim', () => {
   it('shows no ring for a Touch shot', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
-    a.splash({ x: 20, y: 70 }, 0, 0.5)
+    a.splash({ x: 20, y: 70 }, 0, 0.4)
     expect(a.splashCount).toBe(0)
   })
 })
@@ -30,7 +30,7 @@ describe('Aim Ghost', () => {
   // Straight up the left of the pitch, from 19 units below the end board: the ball (radius 1) first touches it at y = 1.
   const shooting = (): SimState => ({ ...playState(), possession: { shooter: 1, shots: 3, inHand: false, live: false }, ball: { pos: { x: 10, y: 20 }, vel: { x: 0, y: 0 }, rolled: 0 } })
   const touch = { until: { contacts: 1 }, scale: 1 } as const
-  const ghostOf = (ghost: AimLine['ghost'], aim: Partial<AimLine> = { dir: { x: 0, y: -1 }, power: 0.5 }) => {
+  const ghostOf = (ghost: AimLine['ghost'], aim: Partial<AimLine> = { dir: { x: 0, y: -1 }, power: 0.45 }) => {
     const a = new Aim()
     a.sync(shooting(), defaultConfig)
     a.aim = { tier: 0, ghost, ...aim }
@@ -104,7 +104,7 @@ describe('Aim reset', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
     a.splash({ x: 20, y: 70 }, 1, 0.75)
-    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.5, ghost: { until: { contacts: 1 }, scale: 1 } }
+    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.45, ghost: { until: { contacts: 1 }, scale: 1 } }
     a.reset()
     expect([a.splashCount, a.ghost]).toEqual([0, undefined])
   })

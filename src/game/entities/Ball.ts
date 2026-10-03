@@ -1,6 +1,8 @@
 import { visual } from '../../config/visual'
 import type { Ball as BallState } from '../../sim/ball'
 import type { PlayerId, Point } from '../../sim/pitch'
+import { tierClimbed } from '../feedback'
+import type { AimView } from '../input/InputController'
 import { tierColor } from './Aim'
 import { Entity } from './Entity'
 
@@ -12,14 +14,14 @@ export class Ball extends Entity {
   /** The shooter whose ball gets the Breaker outline. */
   armed?: PlayerId
   /** The aim in progress: its phase and tier, the hold's climb to the next tier, its control radius in screen px, and how many screen px a world unit spans. */
-  aim?: { phase: 'holding' | 'aiming'; tier: number; holdProgress: number; radiusPx: number; pxPerUnit: number }
+  aim?: Pick<AimView, 'phase' | 'tier' | 'holdProgress' | 'radiusPx' | 'pxPerUnit'>
   /** Reduced motion: reaching a tier changes the hold ring's colour without the pulse. */
   reduced = false
   /** The clock when a Repulsor fired (the trail runs bright for `visual.ball.trailMs`), and the steal sink in progress. */
   private pulsedAt?: number
   private sinking?: { from: Point; to: Point; age: number }
-  // The tier last seen, and the clock when the hold reached a higher one.
-  private lastTier?: number
+  // The aim last seen, and the clock when the hold reached a higher tier.
+  private lastAim?: Ball['aim']
   private reachedAt?: number
 
   sync(state: BallState): void {
@@ -61,13 +63,12 @@ export class Ball extends Entity {
 
   /** A new match: no pulse, no steal sink, no ghost, no aim. */
   reset(): void {
-    this.pulsedAt = this.sinking = this.placement = this.armed = this.aim = this.lastTier = this.reachedAt = undefined
+    this.pulsedAt = this.sinking = this.placement = this.armed = this.aim = this.lastAim = this.reachedAt = undefined
   }
 
   override update(dt: number): void {
-    const tier = this.aim?.phase === 'holding' ? this.aim.tier : undefined
-    if (tier !== undefined && this.lastTier !== undefined && tier > this.lastTier) this.reachedAt = this.clock
-    this.lastTier = tier
+    if (tierClimbed(this.lastAim, this.aim)) this.reachedAt = this.clock
+    this.lastAim = this.aim
     super.update(dt)
     if (this.sinking) this.sinking.age += dt * 1000
   }
@@ -114,7 +115,7 @@ export class Ball extends Entity {
       ctx.stroke()
     }
     if (this.placement) {
-      ctx.globalAlpha = visual.ball.ghostAlpha
+      ctx.globalAlpha = visual.ball.placementAlpha
       ctx.beginPath()
       ctx.arc(this.placement.at.x, this.placement.at.y, this.placement.radius, 0, Math.PI * 2)
       ctx.fillStyle = this.placement.legal ? visual.ball.fill : visual.ball.illegal

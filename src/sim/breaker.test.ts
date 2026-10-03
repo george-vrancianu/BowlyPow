@@ -8,7 +8,7 @@ const c = defaultConfig
 const run = (s: SimState, input: SimInput = {}) => step(s, input, c)
 const shooter = (s: SimState) => s.possession.shooter
 const ready = (s = playState()): SimState => ({ ...s, possession: { ...s.possession, inHand: false } })
-const fire = (s: SimState, breaker: boolean, power = 0.5) => run(s, { shot: { player: shooter(s), dir: { x: 1, y: 0 }, tier: 0, power, breaker } })
+const fire = (s: SimState, breaker: boolean, power = 0.4) => run(s, { shot: { player: shooter(s), dir: { x: 1, y: 0 }, tier: 0, power, breaker } })
 /** Ball on the shooter's half, so a straight wall can sit in its path. */
 const wall = (owner: 1 | 2, gy: number): WallSpec => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 9, gy } })
 const flying = (s: SimState, vy: number): SimState => ({ ...s, breaker: true, possession: { ...s.possession, live: true }, ball: { pos: { x: 20, y: 60 }, vel: { x: 0, y: vy }, rolled: 0 } })

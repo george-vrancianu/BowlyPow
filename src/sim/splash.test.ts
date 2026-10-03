@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { rules } from '../config/rules'
-import { splashDamage, splashRadius } from './splash'
+import { splashDamage, splashOf, splashRadius } from './splash'
 import { defaultConfig as c } from './step'
 import type { Structure, Wall } from './wall'
 
 const wall = (id: number, owner: 1 | 2, gy: number): Wall => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 8, gy }, id, hp: rules.wallHp })
-const losses = (objects: Structure[], player: 1 | 2 = 1, origin = { x: 20, y: 79.5 }) => splashDamage(objects, origin, 1, player, c).map((h) => [h.wall.id, h.loss])
+const losses = (objects: Structure[], player: 1 | 2 = 1, origin = { x: 20, y: 79.5 }) => splashDamage(objects, origin, { power: 1, radius: 10 }, player).map((h) => [h.wall.id, h.loss])
 
 describe('splash radius', () => {
   it('grows linearly from 1 to 5 ball diameters', () => {
     expect(splashRadius(0, c)).toBe(2)
     expect(splashRadius(0.5, c)).toBe(6)
     expect(splashRadius(1, c)).toBe(10)
+  })
+})
+
+describe('splashOf', () => {
+  it('a full Power shot is a full Splash; a mid-range one half; a Touch shot none', () => {
+    expect(splashOf(1, 1, c)).toEqual({ power: 1, radius: 10 })
+    expect(splashOf(1, 0.75, c)).toEqual({ power: 0.5, radius: 6 })
+    expect(splashOf(0, 0.3, c)).toBeNull()
   })
 })
 

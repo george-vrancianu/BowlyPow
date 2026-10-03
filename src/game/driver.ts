@@ -34,7 +34,7 @@ export class LocalDriver implements Driver {
     return (this.state = initialState(seed, config))
   }
 
-  /** One-off inputs go to the next tick; `aiming` holds until it is sent again (null releases it). */
+  /** One-off inputs go to the next tick; `aiming` holds until it is sent again (null releases it) or a shot is fired. */
   send(input: SimInput): void {
     const { aiming, ...rest } = input
     if (aiming !== undefined) this.aiming = aiming ?? undefined
@@ -53,6 +53,8 @@ export class LocalDriver implements Driver {
       const out = step(this.state, this.aiming ? { aiming: this.aiming, ...this.pending } : this.pending, this.config)
       this.state = out.state
       this.pending = {}
+      // A fired aim is spent, whether the controller or the shot clock fired it.
+      if (out.events.some((e) => e.type === 'shot-fired')) this.aiming = undefined
       this.sink.apply(out.state, out.events)
     }
   }

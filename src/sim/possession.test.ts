@@ -50,13 +50,13 @@ describe('possession', () => {
     expect(r.events.some((e) => e.type === 'possession-changed')).toBe(false)
   })
   it('only the shooter may shoot', () => {
-    const r = step(base(at(80)), { shot: { player: 2, dir: { x: 0, y: 1 }, tier: 0, power: 0.5 } }, c)
+    const r = step(base(at(80)), { shot: { player: 2, dir: { x: 0, y: 1 }, tier: 0, power: 0.4 } }, c)
     expect(r.events).toEqual([{ type: 'refused' }])
     expect(r.state.possession.live).toBe(false)
   })
   it('refuses a shot while ball-in-hand is pending', () => {
     const s = { ...base(at(30), 2), possession: { shooter: 2 as const, shots: 3, inHand: true, live: false } }
-    expect(step(s, { shot: { player: 2, dir: { x: 0, y: 1 }, tier: 0, power: 0.5 } }, c).events).toEqual([{ type: 'refused' }])
+    expect(step(s, { shot: { player: 2, dir: { x: 0, y: 1 }, tier: 0, power: 0.4 } }, c).events).toEqual([{ type: 'refused' }])
   })
 })
 

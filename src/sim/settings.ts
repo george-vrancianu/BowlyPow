@@ -18,7 +18,7 @@ export const MODES: { mode: GameModeName; label: string }[] = [
 
 /** The "On time out" choices in toggle order; shown in every mode. */
 export const EXPIRIES: { expiry: Settings['expiry']; label: string }[] = [
-  { expiry: 'fire', label: 'Shoot' },
+  { expiry: 'shoot', label: 'Shoot' },
   { expiry: 'burn', label: 'Burn' },
 ]
 
@@ -33,7 +33,7 @@ export const slidersFor = (mode: GameModeName): SliderKey[] => {
 }
 
 /** What the settings screen starts with: Siege is the default mode. */
-export const defaultSettings: Settings = { mode: 'siege', shots: SLIDERS.shots.def, rounds: SLIDERS.rounds.def, wallPoints: SLIDERS.wallPoints.def, expiry: 'fire' }
+export const defaultSettings: Settings = { mode: 'siege', shots: SLIDERS.shots.def, rounds: SLIDERS.rounds.def, wallPoints: SLIDERS.wallPoints.def, expiry: 'shoot' }
 
 const clamp = (k: SliderKey, v: number) => Math.min(SLIDERS[k].max, Math.max(SLIDERS[k].min, Math.round(v)))
 

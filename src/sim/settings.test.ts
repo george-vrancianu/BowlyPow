@@ -4,12 +4,12 @@ import { defaultConfig, initialState } from './step'
 
 describe('settings', () => {
   it('defaults to Siege with the slider defaults', () => {
-    expect(defaultSettings).toEqual({ mode: 'siege', shots: 3, rounds: 5, wallPoints: 10, expiry: 'fire' })
+    expect(defaultSettings).toEqual({ mode: 'siege', shots: 3, rounds: 5, wallPoints: 10, expiry: 'shoot' })
     expect(configFrom(defaultSettings)).toEqual({ ...defaultConfig, mode: 'siege' })
   })
 
   it('on time out defaults to Shoot and the choice reaches the sim', () => {
-    expect(configFrom(defaultSettings).expiry).toBe('fire')
+    expect(configFrom(defaultSettings).expiry).toBe('shoot')
     expect(configFrom({ ...defaultSettings, expiry: 'burn' }).expiry).toBe('burn')
   })
 
