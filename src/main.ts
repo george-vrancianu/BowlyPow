@@ -8,6 +8,7 @@ import { createHud } from './hud/hud'
 import { hudModel } from './hud/model'
 import { buildMenu, commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type Piece, type Selection } from './hud/build'
 import { createFab } from './hud/fab'
+import { phaseButtons } from './hud/phase'
 import { createOverlay } from './hud/overlay'
 import { advance, angle, blocking, dismiss, goalBall, newTransition, overlayView } from './hud/transition'
 import type { SimEvent } from './sim/step'
@@ -353,8 +354,8 @@ function frame(now: number) {
   const size = { width: canvas.clientWidth, height: canvas.clientHeight }
   const building = b && mine(b) ? b : undefined
   // The defence turn: the scorer is offered Repair once the GOAL banner is gone (#39 adds Rearrange here).
-  const choosing = state.match.choosing && mine(state.match.choosing) && !blocking(transition) ? state.match.choosing : undefined
-  hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons: (building && [{ label: 'Done', disabled: !canFinishBuild(state, config), onClick: () => (pending = { done: building }) }]) || (choosing && [{ label: 'Repair', onClick: () => (pending = { defence: { player: choosing, choice: 'repair' } }) }]), armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
+  const buttons = phaseButtons(state, config, { mine, current: () => state, send: (i) => (pending = i), repairable: !blocking(transition) })
+  hud.update(hudModel(state, config, { active: transition.shown, viewer: viewer(), buttons, armed, tappable: mine(shooter) && canArm(state, shooter) }), size)
   fab.update(building && !mapOpen ? buildMenu(state, building, { open: menuOpen, selection, landing: !!landing }, build) : undefined, build.toggle, size, transition.shown === 2)
   waves = waves.filter((w) => waveAlive(w, now))
   const inNet = goalBall(transition)
