@@ -288,6 +288,7 @@ export class InputController {
       ball: { x: ball.x / this.canvasPx, y: ball.y / this.canvasPx },
       ballRadiusPx: this.host.config().ballRadius * this.pxPerUnit,
       canShoot: !state.possession.live,
+      size: { w: canvas.clientWidth, h: canvas.clientHeight },
     })
     if (gesture.phase === 'pan') {
       this.panOnly = true

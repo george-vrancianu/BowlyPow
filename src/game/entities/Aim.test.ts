@@ -50,6 +50,24 @@ describe('Aim direction line', () => {
   })
 })
 
+describe('Aim cancel state', () => {
+  const ball = { pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 }
+
+  it('greys the line and marks an ✕ on the ball while cancel is armed', () => {
+    const a = new Aim()
+    a.sync({ ball }, defaultConfig)
+    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.3, cancel: true }
+    expect(a.line).toBeDefined()
+    expect(a.cancel).toEqual({ at: { x: 20, y: 80 }, color: visual.aim.cancel.color })
+  })
+  it('shows no ✕ for an armed aim', () => {
+    const a = new Aim()
+    a.sync({ ball }, defaultConfig)
+    a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.3 }
+    expect(a.cancel).toBeUndefined()
+  })
+})
+
 describe('Aim reset', () => {
   it('forgets the rings and the aim of the last match', () => {
     const a = new Aim()
