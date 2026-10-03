@@ -46,7 +46,7 @@ describe('Aim Ghost', () => {
   })
   it('follows whatever ghost config is in effect', () => {
     // Off the left board first, then on to the end board.
-    const g = ghostOf({ until: { contacts: 2 }, scale: 1 }, { dir: { x: -0.6, y: -0.8 }, power: 1 })!
+    const g = ghostOf({ until: { contacts: 2 }, scale: 1 }, { tier: 1, dir: { x: -0.6, y: -0.8 }, power: 1 })!
     expect(g.some((p) => Math.abs(p.x - 1) < 1e-6)).toBe(true)
     expect(g.at(-1)!.y).toBeCloseTo(1)
   })

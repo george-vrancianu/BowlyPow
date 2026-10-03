@@ -59,7 +59,7 @@ describe('routeEvents', () => {
 
   it('a strong shot shakes the camera, rings the aim and vibrates; reduced motion keeps only the ring', () => {
     const w = setup([])
-    const shot: SimEvent = { type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 0, power: 1 }
+    const shot: SimEvent = { type: 'shot-fired', player: 1, from: at, dir: { x: 0, y: -1 }, tier: 1, power: 1 }
     w.route([shot], [])
     expect(w.aim.waveCount).toBe(1)
     expect(w.camera.shakeNow).not.toEqual({ x: 0, y: 0 })
