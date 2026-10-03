@@ -254,6 +254,8 @@ export class Game implements Sink {
     const buzz = tierBuzz(this.ball.aim, aim, reduced)
     if (buzz) navigator.vibrate?.(buzz)
     this.aim.aim = this.ball.aim = aim
+    // A cancel-armed aim fires nothing, so it previews no Splash.
+    structures.previewSplash(state, aim?.cancel ? undefined : aim, this.config)
     this.ball.reduced = reduced
     structures.mark()
     this.pitch.builder = builder ?? undefined

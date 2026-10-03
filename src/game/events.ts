@@ -11,7 +11,7 @@ import { feedbackFor } from './feedback'
 /** The entities an event batch can reach. Events stop here: entities only see these method calls. */
 export type Targets = { camera: Camera; structures: Structures; ball: Ball; aim: Aim; vibrate: (pattern: number | number[]) => void }
 
-/** Maps a tick's sim events to entity methods: `hit`, `shatter`, `pulse`, `steal`, `shake`, `wave`, `burst`. `objects` is the state after the tick. */
+/** Maps a tick's sim events to entity methods: `hit`, `shatter`, `pulse`, `steal`, `shake`, `splash`, `burst`. `objects` is the state after the tick. */
 export function routeEvents(events: SimEvent[], t: Targets, objects: Structure[], reduced: boolean): void {
   const fb = feedbackFor(events, objects, reduced)
   for (const f of fb.flashes) t.structures.hit(f.wall, f.dim)
@@ -25,6 +25,6 @@ export function routeEvents(events: SimEvent[], t: Targets, objects: Structure[]
       const { gx, gy } = ev.tower.at
       t.ball.steal(ev.at, cellToWorld({ cx: gx, cy: gy }))
       t.structures.shatter(ev.tower.id, ev.at, visual.ball.stealMs)
-    } else if (ev.type === 'shot-fired') t.aim.wave(ev.from, ev.power)
+    } else if (ev.type === 'shot-fired') t.aim.splash(ev.from, ev.tier, ev.power)
   }
 }

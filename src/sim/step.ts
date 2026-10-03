@@ -5,7 +5,8 @@ import { modeFor, modeNamed, type DefenceChoice, type ModeContext } from './mode
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
-import { canPlace, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
+import { splashDamage, splashPower } from './splash'
+import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
 const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId): ModeContext => ({ objects, possession, shooter })
 
@@ -225,6 +226,16 @@ export function step(
       match = mode.onShotFired(match)
       const v = shot.power * config.maxSpeed
       ball = { ...ball, vel: { x: shot.dir.x * v, y: shot.dir.y * v } }
+      const splash = splashPower(shot.tier, shot.power)
+      if (splash !== null) {
+        for (const { wall, loss, at } of splashDamage(objects, ball.pos, splash, shot.player, config)) {
+          for (let i = 0; i < loss; i++) {
+            const r = damageWall(objects, wall.id, at)
+            objects = r.objects
+            events.push(...r.events)
+          }
+        }
+      }
     } else events.push({ type: 'refused' })
   }
   const fired = possession.live && !state.possession.live

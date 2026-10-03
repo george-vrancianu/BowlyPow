@@ -9,14 +9,20 @@ const wall: WallSpec = { kind: 'wall', owner: 1, shape: 'straight', rotation: 0,
 const placed = () => step(buildState(1), { placeWall: wall }, defaultConfig).state
 
 describe('Aim', () => {
-  it('shows a fired shot\'s ring for waveMs', () => {
+  it('shows a Power shot\'s Splash ring for waveMs', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
-    a.wave({ x: 20, y: 70 }, 0.5)
+    a.splash({ x: 20, y: 70 }, 1, 0.75)
     a.update((visual.aim.waveMs - 1) / 1000)
-    expect(a.waveCount).toBe(1)
+    expect(a.splashCount).toBe(1)
     a.update(0.002)
-    expect(a.waveCount).toBe(0)
+    expect(a.splashCount).toBe(0)
+  })
+  it('shows no ring for a Touch shot', () => {
+    const a = new Aim()
+    a.sync(placed(), defaultConfig)
+    a.splash({ x: 20, y: 70 }, 0, 0.5)
+    expect(a.splashCount).toBe(0)
   })
 })
 
@@ -97,9 +103,9 @@ describe('Aim reset', () => {
   it('forgets the rings and the aim of the last match', () => {
     const a = new Aim()
     a.sync(placed(), defaultConfig)
-    a.wave({ x: 20, y: 70 }, 0.5)
+    a.splash({ x: 20, y: 70 }, 1, 0.75)
     a.aim = { tier: 0, dir: { x: 0, y: -1 }, power: 0.5, ghost: { until: { contacts: 1 }, scale: 1 } }
     a.reset()
-    expect([a.waveCount, a.ghost]).toEqual([0, undefined])
+    expect([a.splashCount, a.ghost]).toEqual([0, undefined])
   })
 })

@@ -4,7 +4,15 @@ import { nearestOnWall } from './near'
 import type { SimConfig } from './step'
 import type { Structure } from './wall'
 
-export const splashRadius = (power: number, c: SimConfig): number => rules.splash.radiusBase * c.ballRadius * (1 + rules.splash.radiusGrowth * power)
+/** The Splash power (0-1) a shot sets off: its power rescaled within its tier's range. Null for a tier that does not splash. */
+export function splashPower(tier: number, power: number): number | null {
+  const t = rules.shot.tiers[tier]
+  if (!t?.splash) return null
+  const [min, max] = t.power
+  return max > min ? Math.min(1, Math.max(0, (power - min) / (max - min))) : 1
+}
+
+export const splashRadius =(power: number, c: SimConfig): number => rules.splash.radiusBase * c.ballRadius * (1 + rules.splash.radiusGrowth * power)
 
 /** Every structure within the radius, with the hit points it loses (possibly 0) and its nearest point to the origin. The halfway line is not considered. */
 export function splashDamage(objects: Structure[], origin: Point, power: number, player: PlayerId, c: SimConfig): { wall: Structure; loss: number; at: Point }[] {
