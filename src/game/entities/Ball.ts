@@ -10,6 +10,8 @@ export class Ball extends Entity {
   placement?: { at: Point; legal: boolean; radius: number }
   /** The shooter whose ball gets the Breaker outline. */
   armed?: PlayerId
+  /** The aim in progress: its control radius in screen px, and how many screen px a world unit spans. */
+  aim?: { radiusPx: number; pxPerUnit: number }
   /** The clock when a Repulsor fired (the trail runs bright for `visual.ball.trailMs`), and the steal sink in progress. */
   private pulsedAt?: number
   private sinking?: { from: Point; to: Point; age: number }
@@ -36,9 +38,14 @@ export class Ball extends Entity {
     return !!this.sinking && this.sinking.age < visual.ball.stealMs
   }
 
-  /** A new match: no pulse, no steal sink, no ghost. */
+  /** The faint ring around the ball showing how far the aim can drag, in world units. */
+  get controlRing(): { at: Point; radius: number } | undefined {
+    return this.aim && { at: this.state.pos, radius: this.aim.radiusPx / this.aim.pxPerUnit }
+  }
+
+  /** A new match: no pulse, no steal sink, no ghost, no aim. */
   reset(): void {
-    this.pulsedAt = this.sinking = this.placement = this.armed = undefined
+    this.pulsedAt = this.sinking = this.placement = this.armed = this.aim = undefined
   }
 
   override update(dt: number): void {
@@ -59,6 +66,17 @@ export class Ball extends Entity {
       ctx.strokeStyle = visual.player.colors[this.armed]
       ctx.lineWidth = width
       ctx.stroke()
+    }
+    const ring = this.controlRing
+    if (ring) {
+      const { color, alpha, width } = visual.ball.control
+      ctx.globalAlpha = alpha
+      ctx.beginPath()
+      ctx.arc(ring.at.x, ring.at.y, ring.radius, 0, Math.PI * 2)
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.stroke()
+      ctx.globalAlpha = 1
     }
     if (this.placement) {
       ctx.globalAlpha = visual.ball.ghostAlpha

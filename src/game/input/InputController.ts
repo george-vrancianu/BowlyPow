@@ -1,13 +1,15 @@
 import { rules } from '../../config/rules'
 import { visual } from '../../config/visual'
-import { halfOf, type PlayerId, type Point } from '../../sim/pitch'
+import type { PlayerId, Point } from '../../sim/pitch'
 import { canArm, canPlaceBall } from '../../sim/possession'
 import type { Aiming, SimConfig, SimInput, SimState } from '../../sim/step'
 import { vertexToWorld } from '../../sim/wall'
 import { layout, type Camera } from '../entities/Camera'
-import type { Charge } from '../entities/Aim'
 import { commit, edgeScrollDy, landed, legal, onPiece, pick, rotated, spawn, type BuildActions, type Piece, type Selection } from '../view/buildMenu'
-import { chargeDir, gestureMove, gesturePower, gestureStart, type Gesture } from './gesture'
+import { aimMove, aimOf, aimPress, aimRelease, aimSecondFinger, aimViewOf, type Aim, type AimGesture, type GestureView } from './gesture'
+
+/** The aim view `Game` pushes into the Ball (control ring) and Aim (direction line): the gesture's view plus the screen px per world unit. */
+export type AimView = GestureView & { pxPerUnit: number }
 
 /** What the controller needs from the game that owns it. */
 export type InputHost = {
@@ -37,14 +39,16 @@ export class InputController {
   /** Breaker icon armed for the next shot; the shot carries it, cancelling just disarms. */
   armed = false
 
-  // TEMPORARY adapter (remove in the Touch shot ticket, #70): hold on your half off the ball to charge; release shoots the ball straight away from the press.
-  private charge?: { gesture: Gesture; origin: Point; player: PlayerId }
+  // The aim gesture, fed canvas-local CSS px: the hot-seat flip rotates the whole canvas, so its local frame is already the world's way up.
+  private aim?: { gesture: AimGesture; player: PlayerId; id: number }
+  // The last `aiming` sent, so updates go out only when the aim changes.
+  private sentAim = 'null'
   // Grab point relative to the piece's anchor, and the pointer's last canvas position (for edge scrolling).
   // `moved` once the pointer has travelled past visual.input.dragSlopPx from the press, which is when edge scrolling may start.
   private drag?: { offset: Point; px: number; py: number; id: number; from: Point; moved: boolean }
   private draggingBall = false
   private tap?: Point
-  // Pan: any drag that is not a charge or ghost drag, a charge that turned into a pan, or two fingers in any phase.
+  // Pan: any drag that is not an aim or ghost drag, or two fingers in any phase.
   private pointers = new Map<number, Point>()
   private panOnly = false
   private stop = new AbortController()
@@ -106,20 +110,28 @@ export class InputController {
     },
   }
 
-  /** The aim to feed the sim: the charge as a shot once the dwell is over, else none. */
-  aiming(now: number): Aiming | null {
-    return this.charge ? this.shotOf(this.charge, gesturePower(this.charge.gesture, now)) : null
+  /** The aim to draw, while pressing on the ball or dragging back from it. */
+  aimView(): AimView | undefined {
+    const v = this.aim && aimViewOf(this.aim.gesture)
+    return v && { ...v, pxPerUnit: this.pxPerUnit }
   }
 
-  /** A charge at `power` as a Touch shot straight away from the press; null at power 0 or with no way to go. */
-  private shotOf(charge: { origin: Point }, power: number): Aiming | null {
-    const dir = chargeDir(this.host.state().ball.pos, charge.origin)
-    return power > 0 && dir ? { dir, tier: 0, power, ...(this.armed && { breaker: true }) } : null
+  /** Screen (CSS) px per world unit in the main view. */
+  private get pxPerUnit() {
+    return layout(this.host.canvas).scale / this.canvasPx
   }
 
-  /** The charge ring to draw: during the dwell too (power 0). */
-  chargeView(now: number): Charge | undefined {
-    return this.charge?.gesture.mode === 'charge' ? { origin: this.charge.origin, player: this.charge.player, power: gesturePower(this.charge.gesture, now) } : undefined
+  private withBreaker(aim: Aim): Aiming {
+    return { ...aim, ...(this.armed && { breaker: true }) }
+  }
+
+  /** Sends `aiming` only when it differs from the last one sent. */
+  private sendAiming(aim: Aim | null): void {
+    const aiming = aim && this.withBreaker(aim)
+    const key = JSON.stringify(aiming)
+    if (key === this.sentAim) return
+    this.sentAim = key
+    this.host.send({ aiming })
   }
 
   /** After each sim tick: drop what the new state has made stale. */
@@ -127,12 +139,20 @@ export class InputController {
     if (!canArm(state, state.possession.shooter)) this.armed = false
     if (!state.possession.inHand || state.match.choosing) this.ballGhost = undefined
     if (this.landing && (landed(state, this.landing) || refused)) this.landing = undefined
+    // The shot clock fired the held aim: the gesture is spent.
+    if (this.aim && state.possession.live) this.dropAim()
+  }
+
+  private dropAim(): void {
+    this.aim = undefined
+    this.sendAiming(null)
   }
 
   /** Drops a ghost ball and any half-made gesture. */
   cancelGestures(): void {
-    this.ballGhost = this.tap = this.charge = undefined
+    this.ballGhost = this.tap = undefined
     this.draggingBall = false
+    this.dropAim()
   }
 
   /** The build turn changed hands or ended: a new piece is gone, a moved one never left its spot in the sim. */
@@ -175,17 +195,19 @@ export class InputController {
   }
 
   private move(e: PointerEvent): void {
-    const now = performance.now()
     if (this.draggingBall) this.ballGhost = this.pxToWorld(e.offsetX, e.offsetY)
     const prev = this.pointers.get(e.pointerId)
     if (prev) {
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       const dy = e.clientY - prev.y
       if (this.pointers.size > 1) this.panBy(dy / this.pointers.size)
-      else if (this.panOnly || (this.charge && gestureMove(this.charge.gesture, { x: e.clientX, y: e.clientY }, now).mode === 'pan')) this.panBy(dy)
+      else if (this.panOnly) this.panBy(dy)
     }
     if (this.drag?.id === e.pointerId) this.dragTo(e.offsetX, e.offsetY)
-    if (this.charge) this.charge.gesture = gestureMove(this.charge.gesture, { x: e.clientX, y: e.clientY }, now)
+    if (this.aim?.id === e.pointerId) {
+      this.aim.gesture = aimMove(this.aim.gesture, { x: e.offsetX, y: e.offsetY }, performance.now())
+      this.sendAiming(aimOf(this.aim.gesture))
+    }
   }
 
   private up(e: PointerEvent): void {
@@ -195,10 +217,18 @@ export class InputController {
     this.tap = undefined
     this.pointers.delete(e.pointerId)
     this.panOnly = false
-    const aim = this.charge && this.shotOf(this.charge, gesturePower(this.charge.gesture, performance.now()))
-    if (this.charge && aim) this.host.send({ shot: { player: this.charge.player, ...aim } })
-    else if (this.charge) this.armed = false
-    this.charge = undefined
+    if (this.aim?.id !== e.pointerId) return
+    const { gesture, player } = this.aim
+    const result = aimRelease(aimMove(gesture, { x: e.offsetX, y: e.offsetY }, performance.now()))
+    this.aim = undefined
+    if (result.type === 'shot') {
+      this.host.send({ shot: { player, ...this.withBreaker(result.aim) }, aiming: null })
+      this.sentAim = 'null'
+    } else {
+      // A cancelled aim disarms Breaker.
+      if (result.type === 'cancelled') this.armed = false
+      this.sendAiming(null)
+    }
   }
 
   private down(e: PointerEvent): void {
@@ -212,7 +242,9 @@ export class InputController {
     }
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (this.pointers.size > 1) {
-      this.charge = this.drag = undefined
+      // A second finger pinches/pans and abandons the aim.
+      if (this.aim) (this.aim.gesture = aimSecondFinger(this.aim.gesture)), this.sendAiming(null)
+      this.drag = undefined
       return
     }
     const state = this.host.state()
@@ -248,12 +280,20 @@ export class InputController {
       }
       return
     }
-    const at = this.pxToWorld(e.offsetX, e.offsetY)
-    const player = halfOf(at.y)
-    const { ball } = state
-    if (player === state.possession.shooter && !state.possession.live && Math.hypot(at.x - ball.pos.x, at.y - ball.pos.y) > this.host.config().ballRadius) {
-      canvas.setPointerCapture(e.pointerId)
-      this.charge = { gesture: gestureStart({ x: e.clientX, y: e.clientY }, performance.now()), origin: at, player }
-    } else this.panOnly = true
+    // Press on the ball to aim (hot-seat: whoever holds the device is the shooter); anywhere else pans.
+    const ball = camera.toCanvas(canvas, state.ball.pos)
+    const gesture = aimPress({
+      at: { x: e.offsetX, y: e.offsetY },
+      now: performance.now(),
+      ball: { x: ball.x / this.canvasPx, y: ball.y / this.canvasPx },
+      ballRadiusPx: this.host.config().ballRadius * this.pxPerUnit,
+      canShoot: !state.possession.live,
+    })
+    if (gesture.phase === 'pan') {
+      this.panOnly = true
+      return
+    }
+    canvas.setPointerCapture(e.pointerId)
+    this.aim = { gesture, player: state.possession.shooter, id: e.pointerId }
   }
 }

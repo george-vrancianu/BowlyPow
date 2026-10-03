@@ -25,12 +25,25 @@ describe('Ball', () => {
   })
 })
 
+describe('Ball control ring', () => {
+  it('shows none without an aim', () => {
+    expect(new Ball().controlRing).toBeUndefined()
+  })
+  it('rings the ball at the tier\'s control radius, converted from screen px to world units', () => {
+    const b = new Ball()
+    b.sync({ pos: { x: 20, y: 80 }, vel: { x: 0, y: 0 }, rolled: 0 })
+    b.aim = { radiusPx: 220, pxPerUnit: 10 }
+    expect(b.controlRing).toEqual({ at: { x: 20, y: 80 }, radius: 22 })
+  })
+})
+
 describe('Ball reset', () => {
-  it('forgets a pulse and a steal sink in progress', () => {
+  it('forgets a pulse, a steal sink and an aim in progress', () => {
     const b = new Ball()
     b.pulse()
     b.steal({ x: 0, y: 0 }, { x: 5, y: 5 })
+    b.aim = { radiusPx: 220, pxPerUnit: 10 }
     b.reset()
-    expect([b.bright, b.stealing]).toEqual([false, false])
+    expect([b.bright, b.stealing, b.controlRing]).toEqual([false, false, undefined])
   })
 })
