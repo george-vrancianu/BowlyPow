@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { coinFlip, firstBuilder } from './match'
 import { opponent } from './possession'
-import { defaultConfig, initialState, step, type SimConfig, type SimState } from './step'
+import type { WallSpec } from './wall'
+import { canFinishBuild, defaultConfig, initialState, step, type SimConfig, type SimState } from './step'
 
 const siege: SimConfig = { ...defaultConfig, mode: 'siege' }
 const playing = (seed = 1): SimState => {
@@ -10,17 +11,54 @@ const playing = (seed = 1): SimState => {
 }
 const shot = (s: SimState, shooter: 1 | 2, y: number, vy: number): SimState => ({ ...s, ball: { ...s.ball, pos: { x: 20, y }, vel: { x: 0, y: vy } }, possession: { ...s.possession, shooter, inHand: false, live: true } })
 
+const piece = (owner: 1 | 2): WallSpec => ({ kind: 'wall', owner, shape: 'straight', rotation: 0, at: { gx: 10, gy: owner === 1 ? 40 : 10 } })
+
 describe('Siege', () => {
   it('opens with one build per player in the Rounds order, then never builds again', () => {
     let s = initialState(1, siege)
     const first = firstBuilder(1, 1)
     expect(s.match).toMatchObject({ mode: 'siege', builder: first })
     expect(s.possession).toMatchObject({ shooter: coinFlip(1, 1), inHand: true })
-    s = step(s, { done: first }, siege).state
+    s = step(step(s, { placeWall: piece(first) }, siege).state, { done: first }, siege).state
     expect(s.match.builder).toBe(opponent(first))
     expect(s.points[opponent(first)]).toBe(siege.wallPoints)
-    s = step(s, { done: opponent(first) }, siege).state
+    s = step(step(s, { placeWall: piece(opponent(first)) }, siege).state, { done: opponent(first) }, siege).state
     expect(s.match.builder).toBeNull()
+  })
+
+  it('Done with no own structure is refused and the build turn continues', () => {
+    const first = firstBuilder(1, 1)
+    const r = step(initialState(1, siege), { done: first }, siege)
+    expect(r.events).toEqual([{ type: 'refused' }])
+    expect(r.state.match.builder).toBe(first)
+  })
+
+  it('Done is refused again after the only piece is demolished', () => {
+    const first = firstBuilder(1, 1)
+    let s = step(initialState(1, siege), { placeWall: piece(first) }, siege).state
+    const id = s.objects[0].id
+    s = step(s, { demolish: { player: first, wall: id } }, siege).state
+    expect(s.objects).toEqual([])
+    const r = step(s, { done: first }, siege)
+    expect(r.events).toEqual([{ type: 'refused' }])
+    expect(r.state.match.builder).toBe(first)
+  })
+
+  it('the Done button is enabled only once the builder owns a structure; Rounds always enables it', () => {
+    const first = firstBuilder(1, 1)
+    const empty = initialState(1, siege)
+    expect(canFinishBuild(empty, siege)).toBe(false)
+    const placed = step(empty, { placeWall: piece(first) }, siege).state
+    expect(canFinishBuild(placed, siege)).toBe(true)
+    expect(canFinishBuild(step(placed, { demolish: { player: first, wall: placed.objects[0].id } }, siege).state, siege)).toBe(false)
+    expect(canFinishBuild(initialState(1), defaultConfig)).toBe(true)
+  })
+
+  it('a structure of the opponent does not let the builder finish', () => {
+    const first = firstBuilder(1, 1)
+    let s = step(initialState(1, siege), { placeWall: piece(first) }, siege).state
+    s = step(step(s, { done: first }, siege).state, { done: opponent(first) }, siege).state
+    expect(s.match.builder).toBe(opponent(first))
   })
 
   it('a goal scores nothing and hands the conceder ball-in-hand at the center with a fresh counter', () => {

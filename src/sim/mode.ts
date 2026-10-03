@@ -69,7 +69,8 @@ export const siege: GameMode<SiegeMatch> = {
   onShotFired: (m) => m,
   onShotConsumed: () => null,
   onGoal: (m, scorer, _ctx, c) => ({ match: m, possession: startingPossession(opponent(scorer), c), ball: { ...center }, events: [] }),
-  onBuildDone: (m, builder) => ({ match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] }),
+  // An empty defence would be an instant loss, so Done is refused until the builder owns a structure.
+  onBuildDone: (m, builder, ctx) => (ctx.objects.some((o) => o.owner === builder) ? { match: { ...m, builder: builder === firstBuilder(m.seed, 1) ? opponent(builder) : null }, events: [] } : null),
   onBuildStart: (_m, _ctx, c) => ({ points: c.wallPoints, built: [] }),
   winner: () => null,
 }

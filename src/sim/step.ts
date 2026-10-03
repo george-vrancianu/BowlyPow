@@ -7,6 +7,12 @@ import { blastDamage, blastPush, canBlastFrom } from './blast'
 import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
 import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
+/** Whether Done would be accepted for the current builder (the HUD disables the button when not). */
+export function canFinishBuild(s: SimState, config: SimConfig): boolean {
+  const b = s.match.builder
+  return !!b && modeFor(s.match).onBuildDone(s.match, b, { objects: s.objects, possession: s.possession }, config) !== null
+}
+
 export type SimEvent =
   | { type: 'wall-cracked'; id: number; hp: number; at: Point }
   /** Carries the removed wall (hp 0) so the renderer can shatter it. */
