@@ -113,6 +113,12 @@ export class Camera extends Entity {
     return { x: (px - pane.x) / sx, y: this.y + (py - (pane.y + pane.h / 2)) / sy }
   }
 
+  /** World units to canvas pixel position through this camera: the inverse of `toWorld`. */
+  toCanvas(canvas: Size, { x, y }: Point): Point {
+    const { sx, sy, pane } = this.view(canvas)
+    return { x: pane.x + x * sx, y: pane.y + pane.h / 2 + (y - this.y) * sy }
+  }
+
   /** Runs `paint` in world units through this camera, clipped to its pane and offset by `shake`. */
   through(ctx: CanvasRenderingContext2D, shake: Point, paint: () => void): void {
     const { sx, sy, pane } = this.view(ctx.canvas)

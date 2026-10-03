@@ -92,28 +92,22 @@ export const visual = {
     ghostAlpha: 0.5,
     /** The Breaker outline. */
     armed: { radius: 1.5, swing: 0.25, periodMs: 120, width: 0.3 },
+    /** The faint control-radius ring while aiming. */
+    control: { color: white, alpha: 0.25, width: 0.15 },
   },
   aim: {
-    dwellMs: 1000,
-    rampMs: 1500,
-    /** Charge ring colour runs from `chargeFrom` to `chargeTo` (RGB) with power. */
-    chargeFrom: [90, 90, 90],
-    chargeTo: [255, 40, 40],
-    lineWidth: 0.15,
-    /** The ring that blinks during the dwell. */
-    dwell: { radius: 1.2, periodMs: 120, alpha: 0.5, swing: 0.5 },
-    fillAlpha: 0.15,
-    /** Radar rings sweeping outward from a charge. */
-    radar: { periodMs: 800, phases: [0, 0.5] },
-    arrow: cream,
-    /** The push preview: length per unit push, head length and spread (radians), alpha. */
-    arrowShape: { scale: 0.15, head: 0.8, spread: 0.5, alpha: 0.6 },
+    /** A press this close to the ball's centre (or within its on-screen radius, if larger) starts aiming, in screen px. */
+    ballHitPx: 28,
+    /** Pointer travel from the press, in screen px, before a drag counts: releasing within it cancels, and full power range starts at its edge. */
+    slopPx: 8,
+    /** The direction line: world units of length per unit of launch speed (power * maxSpeed). */
+    line: { color: '#4ade80', width: 0.3, scale: 0.4 },
     waveMs: 250,
     wave: cream,
     waveWidth: 0.3,
     vibration: { shotBase: 10, shotPerPower: 40, goal: [60, 40, 60] },
   },
-  input: { slopPx: 12, tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
+  input: { tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
   transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000, revealMs: 1500 },
   hud: { font: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', ink, dark, panel: '#141a2a', track: '#3b4256', urgent: '#ff4d4d', urgentSeconds: 5, urgentPulse: 0.15, scrim: 'rgba(11,15,26,0.85)', scrimLight: 'rgba(11,15,26,0.7)', pressed: '#2a3350', pressedBorder: white, scoreFlipMs: 400, shadow: '#0008', gap: 8 },
 } as const

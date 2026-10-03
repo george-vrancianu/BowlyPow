@@ -1,8 +1,16 @@
 # BreachBall
 
-A two-player pitch game: build structures, then blast a ball into the opponent's goal. A game mode decides how a match is won.
+A two-player pitch game: build structures, then shoot a ball into the opponent's goal. A game mode decides how a match is won.
 
 ## Language
+
+**Shot**:
+How the shooter moves the ball, pool-style: press on the ball, drag back, release. The ball goes in the opposite direction to the drag, with power from the drag length. Releasing without having dragged does nothing. It replaced the radial blast (ADR-0003).
+_Avoid_: Blast, kick, charge
+
+**Ghost**:
+The ball's predicted path, drawn from the ball while aiming a Shot, showing where it will go.
+_Avoid_: Preview, arrow, trajectory
 
 **Rounds**:
 The game mode where a match is a series of rounds, each with its own build phase, decided by score after the configured number of rounds (a tie goes to sudden death).
