@@ -225,7 +225,7 @@ export class Game implements Sink {
     this.driver.update(dt)
     this.announce([])
     this.seeBlind()
-    // A ghost ball or half-made gesture does not survive a blocking hold into the next player's turn.
+    // A ball-in-hand placement or half-made gesture does not survive a blocking hold into the next player's turn.
     if (this.blocked()) this.input.cancelGestures()
     const { state, transition, camera } = this
     const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
@@ -239,7 +239,7 @@ export class Game implements Sink {
     this.raf = requestAnimationFrame(this.frame)
   }
 
-  /** Hands the entities what this frame shows: the build overlays, the aim, the ball's ghost. */
+  /** Hands the entities what this frame shows: the build overlays, the aim, the ball-in-hand placement. */
   private present(): void {
     const { state, input, structures, mapOpen } = this
     const { builder } = state.match
@@ -263,7 +263,7 @@ export class Game implements Sink {
     // During the goal hold the ball rests in the net (the sim has already reset it).
     const inNet = goalBall(this.transition)
     this.ball.sync(inNet ? { ...state.ball, pos: inNet, vel: { x: 0, y: 0 } } : state.ball)
-    this.ball.placement = input.ballGhost && { at: input.ballGhost, legal: canPlaceBall(shooter, input.ballGhost, state.objects, this.config), radius: this.config.ballRadius }
+    this.ball.placement = input.placement && { at: input.placement, legal: canPlaceBall(shooter, input.placement, state.objects, this.config), radius: this.config.ballRadius }
     this.ball.armed = input.armed || state.breaker ? shooter : undefined
   }
 

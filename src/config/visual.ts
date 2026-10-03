@@ -91,7 +91,8 @@ export const visual = {
     /** The dot that rolls with the distance travelled. */
     dot: { offset: 0.55, radius: 0.2 },
     stealMs: 300,
-    ghostAlpha: 0.5,
+    /** The ball-in-hand placement disc. */
+    placementAlpha: 0.5,
     /** The Breaker outline. */
     armed: { radius: 1.5, swing: 0.25, periodMs: 120, width: 0.3 },
     /** The faint control-radius ring while aiming. */

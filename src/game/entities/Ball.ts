@@ -115,7 +115,7 @@ export class Ball extends Entity {
       ctx.stroke()
     }
     if (this.placement) {
-      ctx.globalAlpha = visual.ball.ghostAlpha
+      ctx.globalAlpha = visual.ball.placementAlpha
       ctx.beginPath()
       ctx.arc(this.placement.at.x, this.placement.at.y, this.placement.radius, 0, Math.PI * 2)
       ctx.fillStyle = this.placement.legal ? visual.ball.fill : visual.ball.illegal

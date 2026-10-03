@@ -105,8 +105,8 @@ export type SimConfig = {
   shotClock: number
   /** Seconds per build turn; 0 = no timer (hot-seat). */
   buildTime: number
-  /** What an expiring shot clock does: 'fire' shoots the held aim (burning if there is none), 'burn' always burns the shot. */
-  expiry: 'fire' | 'burn'
+  /** What an expiring shot clock does: 'shoot' shoots the held aim (burning if there is none), 'burn' always burns the shot. */
+  expiry: 'shoot' | 'burn'
 }
 
 export const defaultConfig: SimConfig = {
@@ -126,7 +126,7 @@ export const defaultConfig: SimConfig = {
   shotCap: 30,
   shotClock: 15,
   buildTime: 0,
-  expiry: 'fire',
+  expiry: 'shoot',
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
@@ -215,7 +215,7 @@ export function step(
   const expired = !building && !waiting && !possession.live && clock.left <= 1
   if (!building && !waiting && !possession.live) clock = { ...clock, left: clock.left - 1 }
   const { aiming } = input
-  const shot = input.shot ?? (expired && aiming && config.expiry === 'fire' ? { player: possession.shooter, ...aiming } : undefined)
+  const shot = input.shot ?? (expired && aiming && config.expiry === 'shoot' ? { player: possession.shooter, ...aiming } : undefined)
   if (shot) {
     const tier = rules.shot.tiers[shot.tier]
     const inRange = !!tier && shot.power >= tier.power[0] && shot.power <= tier.power[1]

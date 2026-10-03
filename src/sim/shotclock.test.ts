@@ -30,7 +30,7 @@ describe('shot clock', () => {
   })
   it('fires the held aim', () => {
     const aiming = { dir: { x: 0, y: -1 }, tier: 1, power: 0.6 }
-    const r = run(base(), TICKS, { aiming }, { ...c, expiry: 'fire' })
+    const r = run(base(), TICKS, { aiming }, { ...c, expiry: 'shoot' })
     expect(r.events).toContainEqual({ type: 'shot-fired', player: 1, from: { x: 20, y: 80 }, ...aiming })
     expect(r.state.possession.live).toBe(true)
     expect(r.state.clock.expiries).toBe(0)
@@ -43,7 +43,7 @@ describe('shot clock', () => {
     expect(r.state.clock.expiries).toBe(1)
   })
   it('burns the shot when the aim was cleared', () => {
-    const r = run(base(), TICKS, { aiming: null }, { ...c, expiry: 'fire' })
+    const r = run(base(), TICKS, { aiming: null }, { ...c, expiry: 'shoot' })
     expect(r.events.some((e) => e.type === 'shot-fired')).toBe(false)
     expect(r.state.possession).toEqual({ shooter: 1, shots: 2, inHand: false, live: false })
   })

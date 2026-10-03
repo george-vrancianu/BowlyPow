@@ -36,8 +36,8 @@ export class InputController {
   /** A confirmed selection stays drawn until the sim has it (online it runs a few ticks later) or refuses it. */
   landing?: Selection
   menuOpen = false
-  /** Ball-in-hand: the ghost ball. */
-  ballGhost?: Point
+  /** Ball-in-hand: where the shooter has put the ball, before Confirm. */
+  placement?: Point
   /** Breaker icon armed for the next shot; the shot carries it, cancelling just disarms. */
   armed = false
 
@@ -82,7 +82,7 @@ export class InputController {
 
   confirmBall = () => {
     const { shooter } = this.host.state().possession
-    if (!this.host.blocked() && !this.host.state().match.choosing && this.ballGhost && canPlaceBall(shooter, this.ballGhost, this.host.state().objects, this.host.config())) this.host.send({ placeBall: { player: shooter, at: this.ballGhost } })
+    if (!this.host.blocked() && !this.host.state().match.choosing && this.placement && canPlaceBall(shooter, this.placement, this.host.state().objects, this.host.config())) this.host.send({ placeBall: { player: shooter, at: this.placement } })
   }
 
   /** Tap on the Breaker icon. */
@@ -144,7 +144,7 @@ export class InputController {
   /** After each sim tick: drop what the new state has made stale. */
   settle(state: SimState, refused: boolean): void {
     if (!canArm(state, state.possession.shooter)) this.armed = false
-    if (!state.possession.inHand || state.match.choosing) this.ballGhost = undefined
+    if (!state.possession.inHand || state.match.choosing) this.placement = undefined
     if (this.landing && (landed(state, this.landing) || refused)) this.landing = undefined
     // The shot clock fired the held aim: the gesture is spent.
     if (this.aim && state.possession.live) this.dropAim()
@@ -155,9 +155,9 @@ export class InputController {
     this.sendAiming(null)
   }
 
-  /** Drops a ghost ball and any half-made gesture. */
+  /** Drops a ball-in-hand placement and any half-made gesture. */
   cancelGestures(): void {
-    this.ballGhost = this.tap = undefined
+    this.placement = this.tap = undefined
     this.draggingBall = false
     this.dropAim()
   }
@@ -196,13 +196,13 @@ export class InputController {
     const key = e.key.toLowerCase()
     if (e.code === 'Space') (e.preventDefault(), this.host.camera.recenter())
     if (key === 'm') this.host.toggleMap()
-    else if (key === 'escape') this.host.mapOpen() ? this.host.toggleMap(false) : ((this.selection = this.ballGhost = undefined), (this.menuOpen = false))
+    else if (key === 'escape') this.host.mapOpen() ? this.host.toggleMap(false) : ((this.selection = this.placement = undefined), (this.menuOpen = false))
     else if (key === 'r') this.build.rotate()
     else if (key === 'enter') this.host.state().match.builder ? this.build.confirm() : this.confirmBall()
   }
 
   private move(e: PointerEvent): void {
-    if (this.draggingBall) this.ballGhost = this.pxToWorld(e.offsetX, e.offsetY)
+    if (this.draggingBall) this.placement = this.pxToWorld(e.offsetX, e.offsetY)
     const prev = this.pointers.get(e.pointerId)
     if (prev) {
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
@@ -220,7 +220,7 @@ export class InputController {
   private up(e: PointerEvent): void {
     this.draggingBall = false
     if (this.drag?.id === e.pointerId) this.drag = undefined
-    if (this.tap && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) <= visual.input.tapSlopPx) this.ballGhost = this.pxToWorld(e.offsetX, e.offsetY)
+    if (this.tap && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) <= visual.input.tapSlopPx) this.placement = this.pxToWorld(e.offsetX, e.offsetY)
     this.tap = undefined
     this.pointers.delete(e.pointerId)
     this.panOnly = false
@@ -275,10 +275,10 @@ export class InputController {
       this.panOnly = true
       return
     }
-    // Ball-in-hand: tap a point to place the ghost ball, drag it to move (dragging elsewhere pans), Confirm fixes it.
+    // Ball-in-hand: tap a point to set the placement, drag it to move (dragging elsewhere pans), Confirm fixes it.
     if (state.possession.inHand) {
       const at = this.pxToWorld(e.offsetX, e.offsetY)
-      if (this.ballGhost && Math.hypot(at.x - this.ballGhost.x, at.y - this.ballGhost.y) <= 2 * this.host.config().ballRadius) {
+      if (this.placement && Math.hypot(at.x - this.placement.x, at.y - this.placement.y) <= 2 * this.host.config().ballRadius) {
         this.draggingBall = true
         canvas.setPointerCapture(e.pointerId)
       } else {
