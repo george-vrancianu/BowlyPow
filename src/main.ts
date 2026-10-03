@@ -252,12 +252,26 @@ let acc = 0
 let last = performance.now()
 let lastFrame = last
 
+const roundOf = (m: SimState['match']): number | undefined => {
+  switch (m.mode) {
+    case 'rounds':
+      return m.round
+  }
+}
+
+const showMatchEnd = (m: SimState['match'], winner: PlayerId) => {
+  switch (m.mode) {
+    case 'rounds':
+      return screens.matchEnd(winner, m.score, !!net)
+  }
+}
+
 function frame(now: number) {
   acc += Math.min((now - last) / 1000, 0.25)
   last = now
   // The sim never waits on animations; the shell just stops stepping behind a flip, goal hold or turn card.
   const phase = state.match.builder ? 'Build' : 'Play'
-  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: state.match.mode === 'rounds' ? state.match.round : 0, inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
+  const announce = (events: SimEvent[]) => (transition = advance(transition, { handover: !net, active: net ? net.me : whoActs(state), round: roundOf(state.match), inHand: state.possession.inHand, phase, events, now, reduced: reducedMotion() }))
   for (; acc >= TICK; acc -= TICK) {
     if (blocking(transition)) {
       pending = {}
@@ -311,7 +325,7 @@ function frame(now: number) {
   if (drag?.moved && state.match.builder) edgeScroll(state.match.builder, Math.min((now - lastFrame) / 1000, 0.25))
   if (!camera.held) follow(camera, state.ball.pos.y, Math.min((now - lastFrame) / 1000, 0.25), layout(canvas).visibleHeight)
   lastFrame = now
-  if (state.match.winner && !matchShown) (matchShown = true, state.match.mode === 'rounds' && screens.matchEnd(state.match.winner, state.match.score, !!net))
+  if (state.match.winner && !matchShown) (matchShown = true, showMatchEnd(state.match, state.match.winner))
   confirm.hidden = !state.possession.inHand || !!state.match.builder || !mine(state.possession.shooter)
   const dpr = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * dpr

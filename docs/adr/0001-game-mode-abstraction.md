@@ -6,11 +6,11 @@ Siege is a second way to decide a match, so match-level transitions (start, goal
 
 - **A mode string with branches inside step.** Rejected: every new mode adds if-branches through the step function.
 - **Separate step functions sharing physics helpers.** Rejected: possession, shot clock and build turn logic would be duplicated or threaded through helpers, and lockstep determinism would have two paths to keep in sync.
-- **Mode object with pure hooks (chosen).** One step function; a mode implements `start`, `onShotFired`, `onShotConsumed`, `onGoal`, `onBuildDone` and `winner`.
+- **Mode object with pure hooks (chosen).** One step function; a mode implements `start`, `onShotFired`, `onShotConsumed`, `onGoal`, `onBuildDone`, `onBuildStart` and `winner`. Every hook except `start` and `onShotFired` also gets a read-only context (`objects`, `possession`) so a mode can judge the board without branches in step. `onBuildDone` may refuse (null) and emit events; `onBuildStart` says what a new build turn looks like (wall points, which structures are movable). Step calls `winner` after every transition and ends the match itself.
 
 ## Consequences
 
 - Rounds behaviour is unchanged; its logic lives in `src/sim/mode.ts`.
 - Reading per-mode match fields (round, score) requires narrowing on `match.mode`.
-- A new mode adds a union member and a hooks object, not branches in step.
+- A new mode adds a union member and a hooks object, not branches in step. Step dispatches on `state.match.mode`; only `initialState` reads `config.mode`.
 - The hooks must stay pure so the sim remains deterministic for lockstep.
