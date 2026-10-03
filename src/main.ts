@@ -15,7 +15,7 @@ import { gestureMove, gesturePower, gestureStart, type Gesture } from './input/g
 import { follow, layout, MAP_Y, pan, recenter, viewOutline, type Camera } from './render/camera'
 import { fragmentAlive, render, screenToWorld, shatter, waveAlive, type Fragment, type Wave } from './render/render'
 import { blastRadius, canBlastFrom } from './sim/blast'
-import { CELL_SIZE, HALF_HEIGHT, halfOf, PITCH_HEIGHT, type Point } from './sim/pitch'
+import { CELL_SIZE, HALF_HEIGHT, halfOf, type Point } from './sim/pitch'
 import { canArm, canPlaceBall, whoActs } from './sim/possession'
 import type { PlayerId } from './sim/pitch'
 import { defaultConfig, initialState, step, type SimInput, type SimState } from './sim/step'
