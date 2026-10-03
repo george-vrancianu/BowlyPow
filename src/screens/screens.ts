@@ -33,7 +33,7 @@ export function createScreens(root: HTMLElement, actions: ScreenActions) {
   }
 
   const title = () =>
-    show(el('div', 'font-size:12vw;font-weight:800;letter-spacing:0.05em;', 'BowlyPow'), buttonRow([{ label: 'Play', onClick: settingsScreen }, { label: 'Online', onClick: actions.onOnline }]))
+    show(el('div', 'font-size:12vw;font-weight:800;letter-spacing:0.05em;', 'BreachBall'), buttonRow([{ label: 'Play', onClick: settingsScreen }, { label: 'Online', onClick: actions.onOnline }]))
 
   const hide = () => (overlay.style.display = 'none')
   const menu = { label: 'Menu', onClick: () => (title(), actions.onMenu()) }
