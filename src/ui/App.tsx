@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { LocalDriver } from '../game/driver'
 import { Game, type HudView } from '../game/Game'
+import { showConnectScreen } from '../net/connectScreen'
 import { defaultSettings, type Settings } from '../game/view/settings'
 import { Shell } from './hud/Shell'
 import { Overlay } from './overlays/Overlay'
-import { MatchEndScreen, SettingsScreen, TitleScreen } from './screens/Screens'
+import { HelpScreen, MatchEndScreen, SettingsScreen, TitleScreen } from './screens/Screens'
 
-type Screen = 'title' | 'settings' | 'end' | undefined
+type Screen = 'title' | 'settings' | 'help' | 'end' | undefined
 
 /** Owns the canvas, the Game and the HUD view. Game pushes the view up; the layers drive it back through `actions`. */
 export function App() {
@@ -57,7 +58,9 @@ export function App() {
           </>
         )}
       </div>
-      {screen === 'title' && <TitleScreen onPlay={() => setScreen('settings')} />}
+      {/* Online opens the Host/Join overlay as-is; a connection does nothing yet, online play is the next wave (specs.md). */}
+      {screen === 'title' && <TitleScreen onPlay={() => setScreen('settings')} onOnline={() => showConnectScreen(() => {})} onSettings={() => setScreen('settings')} onHelp={() => setScreen('help')} />}
+      {screen === 'help' && <HelpScreen onBack={() => setScreen('title')} />}
       {screen === 'settings' && <SettingsScreen settings={settings} onChange={setSettings} onStart={() => (actions().start(settings), setScreen(undefined))} />}
       {screen === 'end' && view?.winner && <MatchEndScreen winner={view.winner} result={view.result} onRematch={() => (actions().rematch(), setScreen(undefined))} onMenu={() => setScreen('title')} />}
     </>

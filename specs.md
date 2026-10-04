@@ -193,6 +193,8 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - Minimal flat rendering: solid fills, thin dark outlines on walls and ball, no sprites. Glow is reserved for the hold ring, Repulsor fire and goals.
 - Dark night pitch with a lighter board around it. Player 1 cyan, Player 2 orange, ball white, off-white UI text. Player 2 walls carry a diagonal hatch so ownership survives colour-blindness. Your own half has a very faint tint of your colour so you always know which half you are looking at while panning.
 - Everything a player owns (walls, towers, goal line, HUD digit) carries their colour. Towers differ from walls by glyph, not colour.
+- Type: Bungee for the HUD's digits, the title and Play (fallback Impact); Chakra Petch 700 for all other UI text, uppercase with tabular numerals, 500 for notes (fallback Trebuchet MS). Both load from Google Fonts; offline the fallbacks show.
+- The arcade palette lives in `visual.tokens`: bg `#070a14`, pitch dots `#1c2540`, lines `#3b4f7a`, ui muted `#8d94ab`, ghost border `#4a5068`, ghost glyph `#c3c8d6`, dim outline `#2a3147`. The screens use it now; the HUD and pitch move to it in later slices.
 - Juice level: moderate. Hit flashes, particles, Splash rings and screen shake, all renderer-only. No slow motion, no hit-stop.
 
 ### Pitch markings
@@ -244,7 +246,9 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 
 ### Screens
 
-- Title screen (name, Play), settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, the "On time out: Shoot / Burn" toggle, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Each is its own layer, outside the rotating stage. No tutorial screen in v1.
+- Title screen: `BREACH` / `BALL` stacked in Bungee (cyan over orange) over a centre circle with a wall of each colour and the ball on the halfway line, the tagline `BUILD · SHOOT · BREACH`, on the dot grid; then the Play pill (a hot-seat match, through the settings screen), the Online pill (the Host/Join overlay; a connection does nothing until the online wave), and two ghost circles, settings and help. Player 1's goal mouth peeks up from the bottom edge.
+- Help screen: a static how-to-play page (goal, build, shoot, breach, Refund, modes) with Back, reachable from the Title screen; the Side menu will reuse it. Its copy is a first draft.
+- Settings screen (mode picker with the chosen mode shown as pressed, then the sliders that mode uses, the "On time out: Shoot / Burn" toggle, Start), match end screen (winner in their colour, final score, or surviving structure count in Siege, Rematch, Menu). Each is its own layer, outside the rotating stage. No tutorial screen in v1 beyond Help.
 
 ### Feedback and accessibility
 

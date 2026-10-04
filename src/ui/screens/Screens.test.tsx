@@ -2,15 +2,32 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { defaultSettings } from '../../game/view/settings'
-import { MatchEndScreen, SettingsScreen, TitleScreen } from './Screens'
+import { HelpScreen, MatchEndScreen, SettingsScreen, TitleScreen } from './Screens'
 
 afterEach(cleanup)
 
-it('title offers Play', () => {
-  const play = vi.fn()
-  render(<TitleScreen onPlay={play} />)
-  fireEvent.click(screen.getByText('Play'))
-  expect(play).toHaveBeenCalled()
+it('Title screen: Play, Online, settings and help each report their own tap', () => {
+  const [play, online, settings, help] = [vi.fn(), vi.fn(), vi.fn(), vi.fn()]
+  render(<TitleScreen onPlay={play} onOnline={online} onSettings={settings} onHelp={help} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Online' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+  expect([play, online, settings, help].map((f) => f.mock.calls.length)).toEqual([1, 1, 1, 1])
+})
+
+it('Title screen shows the wordmark and the tagline', () => {
+  render(<TitleScreen onPlay={() => {}} onOnline={() => {}} onSettings={() => {}} onHelp={() => {}} />)
+  expect(screen.getByRole('img', { name: 'BreachBall' })).toBeTruthy()
+  expect(screen.getByText('Build · Shoot · Breach')).toBeTruthy()
+})
+
+it('help explains the game and goes back', () => {
+  const back = vi.fn()
+  render(<HelpScreen onBack={back} />)
+  expect(screen.getByRole('heading', { name: 'How to play' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+  expect(back).toHaveBeenCalled()
 })
 
 it('settings: the mode picker and sliders report changes, and Start fires', () => {

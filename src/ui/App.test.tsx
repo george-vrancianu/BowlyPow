@@ -21,11 +21,17 @@ vi.mock('../game/Game', () => ({
   },
 }))
 
+const connect = vi.hoisted(() => vi.fn())
+vi.mock('../net/connectScreen', () => ({ showConnectScreen: connect }))
+
 import { App } from './App'
 
 const view = (over: Partial<HudView> = {}): HudView => ({ ...freshView(), ...over })
 
-beforeEach(() => (games.length = 0))
+beforeEach(() => {
+  games.length = 0
+  connect.mockClear()
+})
 afterEach(cleanup)
 
 it('mounting under StrictMode leaves one running Game, and unmounting stops it', () => {
@@ -89,4 +95,15 @@ it('draws the overlay under the shell, so the controls stay tappable during a ca
   expect(card.compareDocumentPosition(map) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   fireEvent.click(map)
   expect(games[0]!.actions.map).toHaveBeenCalled()
+})
+
+it('the Title screen opens the connect overlay, settings, and help and back', () => {
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Online' }))
+  expect(connect).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+  expect(screen.getByRole('heading', { name: 'How to play' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+  expect(screen.getByText('Start')).toBeTruthy()
 })

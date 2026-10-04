@@ -17,7 +17,7 @@ function Digit({ value, color }: { value: string | null; color: string }) {
     if (last.current && value && last.current !== value) ref.current?.animate?.([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0)' }], visual.hud.scoreFlipMs)
     last.current = value
   }, [value])
-  return <div ref={ref} style={{ display: value === null ? 'none' : undefined, fontSize: 40, lineHeight: 1, color }}>{value}</div>
+  return <div ref={ref} style={{ display: value === null ? 'none' : undefined, fontFamily: visual.hud.display, fontSize: 40, lineHeight: 1, color }}>{value}</div>
 }
 
 function Clock({ clock }: { clock: HudModel['clock'] }) {
