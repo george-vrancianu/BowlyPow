@@ -15,9 +15,10 @@ function Screen({ className, style, children }: Look) {
   )
 }
 
-const { tokens, title } = visual
+const { tokens, titleScreen } = visual
 const P1 = visual.player.colors[1]
 const P2 = visual.player.colors[2]
+const WORDMARK_FONT = `72px ${visual.hud.display}`
 
 /** The wordmark over the centre circle, with a wall of each colour and the ball on the halfway line. Drawn in a 390-wide frame; the halfway line runs past it to the screen edges. */
 function Hero() {
@@ -29,8 +30,8 @@ function Hero() {
       <circle cx={195} cy={330} r={110} fill="none" stroke={tokens.lines} strokeWidth={2} strokeDasharray="4 6" />
       <circle cx={195} cy={330} r={14} fill={visual.ball.fill} />
       {wall(115, 437, P1)}
-      <text x={195} y={155} textAnchor="middle" fill={P1} style={{ font: `72px ${visual.hud.display}` }}>BREACH</text>
-      <text x={223} y={222} textAnchor="middle" fill={P2} style={{ font: `72px ${visual.hud.display}` }}>BALL</text>
+      <text x={195} y={155} textAnchor="middle" fill={P1} style={{ font: WORDMARK_FONT }}>BREACH</text>
+      <text x={223} y={222} textAnchor="middle" fill={P2} style={{ font: WORDMARK_FONT }}>BALL</text>
       {wall(275, 217, P2)}
       <text x={195} y={262} textAnchor="middle" fill={tokens.muted} style={{ ...FONT, fontSize: 12, letterSpacing: '0.3em' }}>Build · Shoot · Breach</text>
     </svg>
@@ -55,7 +56,9 @@ function GoalMouth() {
 }
 
 const pill = (height: number): CSSProperties => ({ width: '100%', height, borderRadius: height / 2, cursor: 'pointer' })
-const ghost: CSSProperties = { ...FONT, width: title.ghostPx, height: title.ghostPx, borderRadius: '50%', border: `2px solid ${tokens.ghostBorder}`, background: 'transparent', color: tokens.ghostGlyph, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }
+/** The outlined pill under Play, and Help's Back. */
+const secondaryPill: CSSProperties = { ...FONT, ...pill(titleScreen.onlinePx), border: `2px solid ${visual.hud.ink}`, background: visual.hud.panel, color: visual.hud.ink, fontSize: 13, letterSpacing: '0.1em' }
+const ghost: CSSProperties = { ...FONT, width: titleScreen.ghostPx, height: titleScreen.ghostPx, borderRadius: '50%', border: `2px solid ${tokens.ghostBorder}`, background: 'transparent', color: tokens.ghostGlyph, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }
 
 /** Three slider tracks with their knobs. */
 const SlidersGlyph = () => (
@@ -71,13 +74,13 @@ const SlidersGlyph = () => (
 
 /** The Title screen: the wordmark over the dot grid, then Play (a hot-seat match), Online, and the settings and help circles. */
 export function TitleScreen({ onPlay, onOnline, onSettings, onHelp, ...look }: { onPlay(): void; onOnline(): void; onSettings(): void; onHelp(): void } & Look) {
-  const grid = { backgroundImage: `radial-gradient(circle, ${tokens.pitchDots} ${title.dotPx}px, transparent ${title.dotPx + 0.5}px)`, backgroundSize: `${title.gridPx}px ${title.gridPx}px` }
+  const grid = { backgroundImage: `radial-gradient(circle, ${tokens.pitchDots} ${titleScreen.dotPx}px, transparent ${titleScreen.dotPx + 0.5}px)`, backgroundSize: `${titleScreen.gridPx}px ${titleScreen.gridPx}px` }
   return (
     <Screen {...look} style={{ ...grid, justifyContent: 'flex-start', gap: 16, ...look.style }}>
       <Hero />
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: `min(80vw, ${title.pillMaxPx}px)` }}>
-        <button onClick={onPlay} style={{ ...pill(title.playPx), border: 'none', background: P1, color: tokens.bg, font: `24px ${visual.hud.display}`, textTransform: 'uppercase', boxShadow: title.halo }}>Play</button>
-        <button onClick={onOnline} style={{ ...FONT, ...pill(title.onlinePx), border: `2px solid ${visual.hud.ink}`, background: visual.hud.panel, color: visual.hud.ink, fontSize: 13, letterSpacing: '0.1em' }}>Online</button>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: `min(80vw, ${titleScreen.pillMaxPx}px)` }}>
+        <button onClick={onPlay} style={{ ...pill(titleScreen.playPx), border: 'none', background: P1, color: tokens.bg, font: `24px ${visual.hud.display}`, textTransform: 'uppercase', boxShadow: titleScreen.halo }}>Play</button>
+        <button onClick={onOnline} style={secondaryPill}>Online</button>
         <div style={{ display: 'flex', gap: 24 }}>
           <button aria-label="Settings" onClick={onSettings} style={ghost}><SlidersGlyph /></button>
           <button aria-label="Help" onClick={onHelp} style={ghost}>?</button>
@@ -90,26 +93,26 @@ export function TitleScreen({ onPlay, onOnline, onSettings, onHelp, ...look }: {
 }
 
 /** 🧪 A static how-to-play page, reachable from the Title screen (and later the Side menu). The copy is a first draft. */
-const HELP: [string, string][] = [
-  ['The goal', 'Two players share one phone. Each defends the goal behind their half and shoots at the other.'],
-  ['Build', 'In a build turn, spend Credits on walls and towers on your own half (Siege spends wall points). In Rounds, unspent Credits carry over.'],
-  ['Shoot', 'Press on the ball, drag back and release. Drag at once for a precise Touch shot, or hold still for a second first for a Power shot. Each shot uses a Move point; stop the ball on the other half, or run out, and the ball passes over.'],
-  ['Breach', 'Walls crack and break when hit. Break through and put the ball in the goal.'],
-  ['Refund', 'Rounds only. Tap a Move point you will not need to trade it for Credits, or hold one to keep just one. Refunding the last one hands the ball over.'],
-  ['Modes', 'Rounds: most goals after the last round wins. Siege: one build, then a goal earns a Repair or a Rearrange; wipe out every structure to win.'],
+const HELP: { head: string; body: string }[] = [
+  { head: 'The goal', body: 'Two players share one phone. Each defends the goal behind their half and shoots at the other.' },
+  { head: 'Build', body: 'In a build turn, spend Credits on walls and towers on your own half (Siege spends wall points). In Rounds, unspent Credits carry over.' },
+  { head: 'Shoot', body: 'Press on the ball, drag back and release. Drag at once for a precise Touch shot, or hold still for a second first for a Power shot. Each shot uses a Move point; stop the ball on the other half, or run out, and the ball passes over.' },
+  { head: 'Breach', body: 'Walls crack and break when hit. Break through and put the ball in the goal.' },
+  { head: 'Refund', body: 'Rounds only. Tap a Move point you will not need to trade it for Credits, or hold one to keep just one. Refunding the last one hands the ball over.' },
+  { head: 'Modes', body: 'Rounds: most goals after the last round wins. Siege: one build, then a goal earns a Repair or a Rearrange; wipe out every structure to win.' },
 ]
 
 export function HelpScreen({ onBack, ...look }: { onBack(): void } & Look) {
   return (
     <Screen {...look} style={{ justifyContent: 'flex-start', overflowY: 'auto', padding: '32px 24px', boxSizing: 'border-box', gap: 16, ...look.style }}>
-      <h1 style={{ margin: 0, font: `32px ${visual.hud.display}`, color: P1 }}>How to play</h1>
-      {HELP.map(([head, body]) => (
+      <h1 style={{ ...FONT, margin: 0, fontSize: 32, color: P1 }}>How to play</h1>
+      {HELP.map(({ head, body }) => (
         <section key={head} style={{ width: 'min(100%, 420px)' }}>
           <h2 style={{ margin: '0 0 4px', fontSize: 14, letterSpacing: '0.08em' }}>{head}</h2>
           <p style={{ margin: 0, fontWeight: 500, textTransform: 'none', color: tokens.muted, lineHeight: 1.4 }}>{body}</p>
         </section>
       ))}
-      <button onClick={onBack} style={{ ...FONT, ...pill(title.onlinePx), width: `min(80vw, ${title.pillMaxPx}px)`, flex: 'none', border: `2px solid ${visual.hud.ink}`, background: visual.hud.panel, color: visual.hud.ink, fontSize: 13, letterSpacing: '0.1em' }}>Back</button>
+      <button onClick={onBack} style={{ ...secondaryPill, width: `min(80vw, ${titleScreen.pillMaxPx}px)`, flex: 'none' }}>Back</button>
       {look.children}
     </Screen>
   )

@@ -97,7 +97,7 @@ it('draws the overlay under the shell, so the controls stay tappable during a ca
   expect(games[0]!.actions.map).toHaveBeenCalled()
 })
 
-it('the title opens the connect overlay, settings, and help and back', () => {
+it('the Title screen opens the connect overlay, settings, and help and back', () => {
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'Online' }))
   expect(connect).toHaveBeenCalledTimes(1)

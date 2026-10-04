@@ -194,7 +194,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - Dark night pitch with a lighter board around it. Player 1 cyan, Player 2 orange, ball white, off-white UI text. Player 2 walls carry a diagonal hatch so ownership survives colour-blindness. Your own half has a very faint tint of your colour so you always know which half you are looking at while panning.
 - Everything a player owns (walls, towers, goal line, HUD digit) carries their colour. Towers differ from walls by glyph, not colour.
 - Type: Bungee for the HUD's digits, the title and Play (fallback Impact); Chakra Petch 700 for all other UI text, uppercase with tabular numerals, 500 for notes (fallback Trebuchet MS). Both load from Google Fonts; offline the fallbacks show.
-- The arcade palette lives in `visual.tokens`: bg `#070a14`, pitch dots `#1c2540`, lines `#3b4f7a`, ui muted `#8d94ab`, ghost border `#4a5068`, dim outline `#2a3147`. The screens use it now; the HUD and pitch move to it in later slices.
+- The arcade palette lives in `visual.tokens`: bg `#070a14`, pitch dots `#1c2540`, lines `#3b4f7a`, ui muted `#8d94ab`, ghost border `#4a5068`, ghost glyph `#c3c8d6`, dim outline `#2a3147`. The screens use it now; the HUD and pitch move to it in later slices.
 - Juice level: moderate. Hit flashes, particles, Splash rings and screen shake, all renderer-only. No slow motion, no hit-stop.
 
 ### Pitch markings

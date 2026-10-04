@@ -6,7 +6,7 @@ import { HelpScreen, MatchEndScreen, SettingsScreen, TitleScreen } from './Scree
 
 afterEach(cleanup)
 
-it('title: Play, Online, settings and help each report their own tap', () => {
+it('Title screen: Play, Online, settings and help each report their own tap', () => {
   const [play, online, settings, help] = [vi.fn(), vi.fn(), vi.fn(), vi.fn()]
   render(<TitleScreen onPlay={play} onOnline={online} onSettings={settings} onHelp={help} />)
   fireEvent.click(screen.getByRole('button', { name: 'Play' }))
@@ -16,7 +16,7 @@ it('title: Play, Online, settings and help each report their own tap', () => {
   expect([play, online, settings, help].map((f) => f.mock.calls.length)).toEqual([1, 1, 1, 1])
 })
 
-it('title shows the wordmark and the tagline', () => {
+it('Title screen shows the wordmark and the tagline', () => {
   render(<TitleScreen onPlay={() => {}} onOnline={() => {}} onSettings={() => {}} onHelp={() => {}} />)
   expect(screen.getByRole('img', { name: 'BreachBall' })).toBeTruthy()
   expect(screen.getByText('Build · Shoot · Breach')).toBeTruthy()
