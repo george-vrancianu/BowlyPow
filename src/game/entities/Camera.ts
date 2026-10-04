@@ -47,8 +47,14 @@ export function layout({ width, height }: Size, reserve: Reserve = NONE) {
   return { scale, visibleHeight, pane: { x: (width - w) / 2, y, w, h } }
 }
 
-/** The camera centre that holds the ball `visual.camera.anchor` of the way down the screen of the player at the bottom; the stage is turned for seat 2. */
-export const anchorY = (ballY: number, seat: PlayerId, visibleHeight: number): number => ballY + (seat === 1 ? -1 : 1) * (visual.camera.anchor - 0.5) * visibleHeight
+/** The world y direction that points down the screen of `seat` at the bottom: +1 for seat 1, -1 for seat 2 (the stage is turned for it). */
+export const screenDown = (seat: PlayerId): 1 | -1 => (seat === 1 ? 1 : -1)
+
+/** The HUD band of `px` canvas px, kept clear at the bottom of `seat`'s screen (the top of the canvas when the stage is turned). */
+export const hudReserve = (seat: PlayerId, px: number): Reserve => (screenDown(seat) > 0 ? { top: 0, bottom: px } : { top: px, bottom: 0 })
+
+/** The camera centre that holds the ball `visual.camera.anchor` of the way down the screen of `seat` at the bottom. */
+export const anchorY = (ballY: number, seat: PlayerId, visibleHeight: number): number => ballY - screenDown(seat) * (visual.camera.anchor - 0.5) * visibleHeight
 
 /** World y range of the opponent's half left out for a blind viewer sitting at `seat`: boards and net included, up to the halfway line. */
 export const fogOf = (seat: PlayerId): { top: number; bottom: number } => (seat === 1 ? { top: rules.mapTop, bottom: rules.halfHeight } : { top: rules.halfHeight, bottom: rules.mapTop + rules.mapHeight })

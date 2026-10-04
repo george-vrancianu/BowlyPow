@@ -10,7 +10,7 @@ import { structuresOf } from '../sim/wall'
 import type { Driver, DriverFactory, Sink } from './driver'
 import { Aim } from './entities/Aim'
 import { Ball } from './entities/Ball'
-import { anchorY, Camera, viewOutline } from './entities/Camera'
+import { anchorY, Camera, hudReserve, viewOutline } from './entities/Camera'
 import { EdgeFade } from './entities/EdgeFade'
 import { Fog } from './entities/Fog'
 import { Pitch } from './entities/Pitch'
@@ -217,8 +217,7 @@ export class Game implements Sink {
 
   /** Keeps the HUD band clear on the side the HUD sits (the stage is turned for seat 2) and takes the height the canvas shows. */
   private fitCamera(): void {
-    const band = visual.camera.hudReservePx * (window.devicePixelRatio || 1)
-    this.camera.reserve = this.transition.shown === 2 ? { top: band, bottom: 0 } : { top: 0, bottom: band }
+    this.camera.reserve = hudReserve(this.transition.shown, visual.camera.hudReservePx * (window.devicePixelRatio || 1))
     this.camera.fit(this.canvas)
   }
 

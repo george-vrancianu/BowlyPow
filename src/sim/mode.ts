@@ -12,6 +12,8 @@ export type ModeContext = {
   possession: Possession
   /** Who took the shot being resolved (possession may already have passed to the opponent). */
   shooter: PlayerId
+  /** Credits each player holds before the hook's result is applied. */
+  credits: Readonly<Record<PlayerId, number>>
 }
 
 /** What a match-level hook returns. `possession` and `ball` are set only when the hook resets play (a new round). */
@@ -50,8 +52,8 @@ export type GameMode<M extends Match = Match> = {
   mayRefund(m: M): boolean
   /** Whether the match is in its blind opening build phase (a build turn that is not a Rearrange); fog and the reveal key on it. */
   opening(m: M): boolean
-  /** A build turn just opened for `m.builder`, who holds `held` Credits. */
-  onBuildStart(m: M, ctx: ModeContext, c: SimConfig, held: number): BuildTurn
+  /** A build turn just opened for `m.builder`: the Credits they hold for it (they hold `ctx.credits` now) and the ids they may move. */
+  onBuildStart(m: M, ctx: ModeContext, c: SimConfig): BuildTurn
   /** Who has won, if anyone; derived from state. */
   winner(m: M, ctx: ModeContext, c: SimConfig): PlayerId | null
 }
@@ -87,7 +89,7 @@ export const rounds: GameMode<RoundsMatch> = {
   mayRefund: () => true,
   opening: () => false,
   // Credits bank: each build turn adds the round's grant to what is left.
-  onBuildStart: (_m, _ctx, c, held) => ({ credits: held + c.credits, built: [] }),
+  onBuildStart: (m, ctx, c) => ({ credits: (m.builder ? ctx.credits[m.builder] : 0) + c.credits, built: [] }),
   // The last round is over and the score is not tied; a tie means sudden death.
   winner: (m, _ctx, c) => (m.round > c.rounds && m.score[1] !== m.score[2] ? (m.score[1] > m.score[2] ? 1 : 2) : null),
 }

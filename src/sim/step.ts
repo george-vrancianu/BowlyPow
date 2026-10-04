@@ -8,12 +8,12 @@ import { canPlaceBall, handOver, opponent, resolveRest, type Possession } from '
 import { splashDamage, splashOf } from './splash'
 import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
-const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId): ModeContext => ({ objects, possession, shooter })
+const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId, credits: Record<PlayerId, number>): ModeContext => ({ objects, possession, shooter, credits })
 
 /** Whether Done would be accepted for the current builder (the HUD disables the button when not). */
 export function canFinishBuild(s: SimState, config: SimConfig): boolean {
   const b = s.match.builder
-  return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession, s.possession.shooter), config) !== null
+  return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession, s.possession.shooter, s.credits), config) !== null
 }
 
 /** Whether `p` may refund Move points now: the shooter in play, ball placed, before a shot, in a mode with Credits (ADR-0004). */
@@ -145,7 +145,8 @@ export function initialState(seed = 1, config: SimConfig = defaultConfig): SimSt
   const start = mode.start(seed, config)
   const b = start.match.builder
   // The first builder's turn opens here, so it gets its grant as every later build turn does in step; the other player holds nothing yet.
-  const credits = { 1: 0, 2: 0, ...(b && { [b]: mode.onBuildStart(start.match, ctxOf([], start.possession, start.possession.shooter), config, 0).credits }) }
+  const none = { 1: 0, 2: 0 }
+  const credits = { ...none, ...(b && { [b]: mode.onBuildStart(start.match, ctxOf([], start.possession, start.possession.shooter, none), config).credits }) }
   return { tick: 0, objects: [], players: initialPlayers(), credits, nextId: 1, built: [], ball: { pos: { x: rules.pitchWidth / 2, y: rules.halfHeight }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: start.possession, match: start.match, clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
 }
 
@@ -231,7 +232,7 @@ export function step(
   const choiceExpired = waiting && config.buildTime > 0 && state.clock.left <= 1
   const defence = input.defence ?? (choiceExpired && match.choosing ? { player: match.choosing, choice: mode.choiceTimeout(match) } : undefined)
   if (defence) {
-    const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, shooter), config) : null
+    const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, shooter, credits), config) : null
     if (r) {
       chose = true
       match = r.match
@@ -297,10 +298,10 @@ export function step(
   const breaker = state.breaker || (fired && !!shot?.breaker)
   const done = input.done ?? (buildExpired ? match.builder : null)
   if (done) {
-    let r = done === match.builder ? mode.onBuildDone(match, done, ctxOf(objects, possession, shooter), config) : null
+    let r = done === match.builder ? mode.onBuildDone(match, done, ctxOf(objects, possession, shooter, credits), config) : null
     // A timed-out build the mode refuses gets the mode's fallback piece, then finishes: the timer must bound the turn.
-    const fallback = !r && !input.done && done === match.builder ? mode.onBuildTimeout(match, done, ctxOf(objects, possession, shooter), config) : null
-    if (fallback && place(fallback)) r = mode.onBuildDone(match, done, ctxOf(objects, possession, shooter), config)
+    const fallback = !r && !input.done && done === match.builder ? mode.onBuildTimeout(match, done, ctxOf(objects, possession, shooter, credits), config) : null
+    if (fallback && place(fallback)) r = mode.onBuildDone(match, done, ctxOf(objects, possession, shooter, credits), config)
     if (r) {
       match = r.match
       events.push(...r.events)
@@ -326,7 +327,7 @@ export function step(
     possession = r.possession
     events.push(...r.events)
   }
-  const ctx = ctxOf(rolled.objects, possession, shooter)
+  const ctx = ctxOf(rolled.objects, possession, shooter, credits)
   const turn = conceder ? mode.onGoal(match, opponent(conceder), ctx, config) : consumed ? mode.onShotConsumed(match, ctx, config) : null
   const ended = !!turn
   if (turn) {
@@ -336,7 +337,7 @@ export function step(
     events.push(...turn.events)
   }
   if (conceder || consumed) {
-    const winner = mode.winner(match, ctxOf(rolled.objects, possession, shooter), config)
+    const winner = mode.winner(match, ctxOf(rolled.objects, possession, shooter, credits), config)
     if (winner && !match.winner) {
       match = { ...match, winner, builder: null, choosing: null }
       events.push({ type: 'match-ended', winner })
@@ -344,7 +345,7 @@ export function step(
   }
   if (match.builder !== state.match.builder) built = []
   if (match.builder && match.builder !== state.match.builder) {
-    const t = mode.onBuildStart(match, ctxOf(rolled.objects, possession, shooter), config, credits[match.builder])
+    const t = mode.onBuildStart(match, ctxOf(rolled.objects, possession, shooter, credits), config)
     built = t.built
     credits = { ...credits, [match.builder]: t.credits }
     // A turn opened by a defence choice continues the window the choice was made in.
