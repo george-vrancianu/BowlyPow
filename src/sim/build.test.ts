@@ -40,6 +40,15 @@ describe('build order', () => {
     const second = run(round2, { done: opponent(loser) })
     expect(second.credits[loser]).toBe(18)
   })
+  it('spending 6 of 10 in round 1 leaves 14 at the start of round 2', () => {
+    const at = (gx: number): WallSpec => ({ ...wall(loser), at: { ...wall(loser).at, gx } })
+    const played = run(initialState(), { placeWall: at(4) }, { placeWall: at(10) }, { placeWall: at(16) }, { done: loser }, { done: opponent(loser) })
+    expect(played.credits[loser]).toBe(4)
+    const goal = { ...played, ball: { pos: { x: 20, y: 0.5 }, vel: { x: 0, y: -60 }, rolled: 0 }, possession: { shooter: 1 as const, shots: 3, inHand: false, live: true } }
+    const round2 = run(run(goal, {}), { done: opponent(loser) })
+    expect(round2.match.builder).toBe(loser)
+    expect(round2.credits[loser]).toBe(14)
+  })
   it('a player holds no Credits before their first build turn', () => {
     expect(initialState().credits[opponent(loser)]).toBe(0)
   })

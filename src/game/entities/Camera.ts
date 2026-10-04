@@ -33,8 +33,8 @@ export function viewOutline(canvas: Size, map: CameraView, cam: CameraView): Pan
 }
 
 /**
- * The pane fills the width above the HUD band, showing between 64 and 80 world units of height: screens too wide for 64 get side bands,
- * screens taller than 80 a band on the far side (away from the HUD, which `reserve` keeps clear).
+ * The pane fills the width above the HUD band, showing between `minVisibleHeight` and `maxVisibleHeight` world units of height: screens too wide
+ * for the minimum get side bands, screens taller than the maximum a band on the far side (away from the HUD, which `reserve` keeps clear).
  */
 export function layout({ width, height }: Size, reserve: Reserve = NONE) {
   const { minVisibleHeight, maxVisibleHeight } = visual.camera
@@ -48,13 +48,13 @@ export function layout({ width, height }: Size, reserve: Reserve = NONE) {
 }
 
 /** The camera centre that holds the ball `visual.camera.anchor` of the way down the screen of the player at the bottom; the stage is turned for seat 2. */
-export const anchorY = (ballY: number, seat: PlayerId, visible: number): number => ballY + (seat === 1 ? -1 : 1) * (visual.camera.anchor - 0.5) * visible
+export const anchorY = (ballY: number, seat: PlayerId, visibleHeight: number): number => ballY + (seat === 1 ? -1 : 1) * (visual.camera.anchor - 0.5) * visibleHeight
 
 /** World y range of the opponent's half left out for a blind viewer sitting at `seat`: boards and net included, up to the halfway line. */
 export const fogOf = (seat: PlayerId): { top: number; bottom: number } => (seat === 1 ? { top: rules.mapTop, bottom: rules.halfHeight } : { top: rules.halfHeight, bottom: rules.mapTop + rules.mapHeight })
 
 /**
- * Keeps the view on the boards; for a `blind` seat, on its half plus the halfway line. The view (64) is taller than a half (54 + board), so it rests on the far board and the strip it still shows above the halfway line is what the fog covers.
+ * Keeps the view on the boards; for a `blind` seat, on its half plus the halfway line. The view (at least `minVisibleHeight`, 64) is taller than a half (54 + board), so it rests on the far board and the strip it still shows above the halfway line is what the fog covers.
  */
 export function clampY(y: number, visible: number, blind?: PlayerId): number {
   const top = blind === 1 ? rules.halfHeight : -rules.board
@@ -80,7 +80,7 @@ export class Camera extends Entity {
   /** Canvas px kept clear for the HUD band; the game sets it each frame for the side the HUD sits on. */
   reserve: Reserve = NONE
   /** World height the main view shows, from the last `fit`. */
-  visible: number = visual.camera.minVisibleHeight
+  visibleHeight: number = visual.camera.minVisibleHeight
   /** The seat whose half is the only one this view may show (a blind opening build); pans and follows are clamped to it. */
   blind?: PlayerId
   private shaking = { amp: 0, born: -Infinity }
@@ -91,7 +91,7 @@ export class Camera extends Entity {
 
   /** Manual pan: moves the view and holds it off the ball until recenter() (sim events call it too). */
   pan(dy: number): void {
-    this.y = clampY(this.y + dy, this.visible, this.blind)
+    this.y = clampY(this.y + dy, this.visibleHeight, this.blind)
     this.held = true
   }
 
@@ -108,12 +108,12 @@ export class Camera extends Entity {
 
   /** Eases toward `target` over about 150 ms, clamped to the boards. */
   follow(target: number, dt: number): void {
-    this.y = clampY(this.y + (target - this.y) * (1 - Math.exp(-dt / visual.camera.smoothingS)), this.visible, this.blind)
+    this.y = clampY(this.y + (target - this.y) * (1 - Math.exp(-dt / visual.camera.smoothingS)), this.visibleHeight, this.blind)
   }
 
   /** Takes the height this canvas shows, so pans and follows clamp to it. */
   fit(canvas: Size): void {
-    this.visible = this.map ? rules.mapHeight : layout(canvas, this.reserve).visibleHeight
+    this.visibleHeight = this.map ? rules.mapHeight : layout(canvas, this.reserve).visibleHeight
   }
 
   shake(amp: number): void {

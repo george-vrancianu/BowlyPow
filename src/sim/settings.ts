@@ -8,7 +8,7 @@ export const SLIDERS: Record<SliderKey, { label: string; min: number; max: numbe
   shots: { label: 'Shots per possession', min: 1, max: 10, def: 3 },
   rounds: { label: 'Rounds', min: 1, max: 15, def: 5 },
   credits: { label: 'Credits per round', min: 1, max: 30, def: 10 },
-  refundRate: { label: 'Credits per refund', min: 1, max: 10, def: 2 },
+  refundRate: { label: 'Refund rate', min: 1, max: 10, def: 2 },
 }
 
 /** Modes in picker order. */

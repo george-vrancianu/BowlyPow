@@ -37,6 +37,23 @@ describe('Shell', () => {
       expect(p.onRefund).toHaveBeenCalledWith(2)
     })
 
+    it('a held dot shows pressed until released', () => {
+      render(<Shell {...props()} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[1]!)
+      expect(dots().map((d) => d.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false'])
+      fireEvent.pointerUp(dots()[1]!)
+      expect(dots().every((d) => d.getAttribute('aria-pressed') === 'false')).toBe(true)
+    })
+
+    it('a long-press on the last Move point reports a refund of none', () => {
+      vi.useFakeTimers()
+      const p = props()
+      render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 1 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      vi.advanceTimersByTime(600)
+      expect(p.onRefund).toHaveBeenCalledWith(0)
+    })
+
     it('are not buttons when the Move points may not be refunded', () => {
       render(<Shell {...props()} hud={hud({ refundable: false, shotsLeft: 3 })} />)
       expect(dots()).toHaveLength(0)

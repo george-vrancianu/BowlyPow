@@ -26,13 +26,16 @@ export function canPlaceBall(player: PlayerId, at: Point, objects: Structure[], 
   )
 }
 
+/** A fresh possession for `shooter` with a full set of Move points, and the event announcing it. */
+export const handOver = (shooter: PlayerId, inHand: boolean, c: SimConfig): { possession: Possession; events: SimEvent[] } => ({
+  possession: { shooter, shots: c.shots, inHand, live: false },
+  events: [{ type: 'possession-changed', shooter, inHand }],
+})
+
 /** Called once the ball has come to rest after a shot: only its resting half matters. */
 export function resolveRest(p: Possession, ballY: number, c: SimConfig): { possession: Possession; events: SimEvent[] } {
   const half = halfOf(ballY)
-  const fresh = (shooter: PlayerId, inHand: boolean) => ({
-    possession: { shooter, shots: c.shots, inHand, live: false },
-    events: [{ type: 'possession-changed', shooter, inHand } as SimEvent],
-  })
+  const fresh = (shooter: PlayerId, inHand: boolean) => handOver(shooter, inHand, c)
   if (half === opponent(p.shooter)) return fresh(half, false)
   return p.shots > 1 ? { possession: { ...p, shots: p.shots - 1, live: false }, events: [] } : fresh(opponent(p.shooter), true)
 }

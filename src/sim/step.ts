@@ -4,7 +4,7 @@ import type { GameModeName, Match } from './match'
 import { modeFor, modeNamed, type DefenceChoice, type ModeContext } from './mode'
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
-import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
+import { canPlaceBall, handOver, opponent, resolveRest, type Possession } from './possession'
 import { splashDamage, splashOf } from './splash'
 import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
@@ -35,6 +35,8 @@ export type SimEvent =
   /** `from` is the ball's position at launch. */
   | { type: 'shot-fired'; player: PlayerId; from: Point; dir: Point; power: number; tier: number; breaker?: boolean }
   | { type: 'possession-changed'; shooter: PlayerId; inHand: boolean }
+  /** The shooter traded `count` Move points for Credits. */
+  | { type: 'refunded'; player: PlayerId; count: number }
   | { type: 'goal'; scorer: PlayerId; at: Point }
   /** `scorer` null = the shot cap ended the round. */
   | { type: 'round-ended'; round: number; scorer: PlayerId | null }
@@ -209,13 +211,19 @@ export function step(
   }
   const { refund } = input
   // Before a shot only: a refund is a bet that the Move points left are enough (ADR-0004).
-  const refundable = refund && canRefund({ match, possession }, refund.player) && refund.count >= 1 && refund.count <= possession.shots
+  // A whole count only: lockstep peers must never see fractional Move points or Credits.
+  const refundable = refund && canRefund({ match, possession }, refund.player) && Number.isInteger(refund.count) && refund.count >= 1 && refund.count <= possession.shots
   if (refund && !refundable) events.push({ type: 'refused' })
   if (refund && refundable) {
     const left = possession.shots - refund.count
+    events.push({ type: 'refunded', player: refund.player, count: refund.count })
     // Refunding the last one ends the possession as running out of shots does.
-    possession = left > 0 ? { ...possession, shots: left } : { shooter: opponent(refund.player), shots: config.shots, inHand: true, live: false }
-    if (!left) events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
+    if (left > 0) possession = { ...possession, shots: left }
+    else {
+      const h = handOver(opponent(refund.player), true, config)
+      possession = h.possession
+      events.push(...h.events)
+    }
     credits = { ...credits, [refund.player]: credits[refund.player] + refund.count * config.refundRate }
   }
   let chose = false
@@ -271,8 +279,9 @@ export function step(
       consumed = true
       match = mode.onShotFired(match)
       if (clock.expiries >= 1) {
-        possession = { shooter: opponent(shooter), shots: config.shots, inHand: true, live: false }
-        events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
+        const h = handOver(opponent(shooter), true, config)
+        possession = h.possession
+        events.push(...h.events)
       } else {
         if (possession.inHand) {
           ball = { ...ball, pos: { x: rules.pitchWidth / 2, y: rules.halfCentre[shooter] }, vel: { x: 0, y: 0 } }
@@ -303,8 +312,9 @@ export function step(
   const stolen = rolled.events.find((e) => e.type === 'steal-triggered')
   if (stolen) {
     consumed = true
-    possession = { shooter: stolen.owner, shots: config.shots, inHand: true, live: false }
-    events.push({ type: 'possession-changed', shooter: stolen.owner, inHand: true })
+    const h = handOver(stolen.owner, true, config)
+    possession = h.possession
+    events.push(...h.events)
   }
   // A Repulsor rearms when the ball rests.
   if (!landed.vel.x && !landed.vel.y && rolled.objects.some((o) => o.kind === 'tower' && o.spent)) rolled.objects = rolled.objects.map((o) => (o.kind === 'tower' && o.spent ? { ...o, spent: false } : o))

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { visual } from '../../config/visual'
 import type { BuildMenu as BuildMenuView } from '../../game/view/buildMenu'
 import type { HudModel } from '../../game/view/hudModel'
@@ -29,28 +29,37 @@ function Clock({ clock }: { clock: HudModel['clock'] }) {
   )
 }
 
-/** Move points: filled for each one left. When `refundable`, the filled ones are buttons: a tap refunds one, a long-press all but one. */
+/** Move points: filled for each one left. When `refundable`, the filled ones are buttons: a tap refunds one, a long-press all but one (none when one is left, which `onRefund(0)` reports). A held dot shows pressed. */
 function MoveDots({ left, max, refundable, onRefund }: { left: number; max: number; refundable: boolean; onRefund(count: number): void }) {
+  const { dotPx, ringPx, gap } = visual.hud.refund
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const held = useRef(false)
-  const down = () => {
-    held.current = false
+  const longPressed = useRef(false)
+  const [pressed, setPressed] = useState<number>()
+  const down = (i: number) => {
+    longPressed.current = false
+    setPressed(i)
     timer.current = setTimeout(() => {
-      held.current = true
-      if (left > 1) onRefund(left - 1)
+      longPressed.current = true
+      setPressed(undefined)
+      onRefund(left - 1)
     }, visual.hud.longPressMs)
   }
   const up = () => {
     clearTimeout(timer.current)
-    if (!held.current) onRefund(1)
-    held.current = true
+    setPressed(undefined)
+    if (!longPressed.current) onRefund(1)
+    longPressed.current = true
   }
-  const dot = (filled: boolean): CSSProperties => ({ width: 12, height: 12, padding: 0, borderRadius: '50%', border: `2px solid ${visual.hud.ink}`, background: filled ? visual.hud.ink : 'none' })
+  const cancel = () => {
+    clearTimeout(timer.current)
+    setPressed(undefined)
+  }
+  const dot = (filled: boolean): CSSProperties => ({ width: dotPx, height: dotPx, padding: 0, borderRadius: '50%', border: `${ringPx}px solid ${visual.hud.ink}`, background: filled ? visual.hud.ink : 'none' })
   return (
-    <div style={{ display: 'flex', gap: 4, pointerEvents: 'auto' }}>
+    <div style={{ display: 'flex', gap, pointerEvents: 'auto' }}>
       {Array.from({ length: max }, (_, i) =>
         refundable && i < left ? (
-          <button key={i} aria-label="Refund a Move point" onPointerDown={down} onPointerUp={up} onPointerLeave={() => clearTimeout(timer.current)} style={{ ...dot(true), cursor: 'pointer', touchAction: 'none' }} />
+          <button key={i} aria-label="Refund a Move point" aria-pressed={pressed === i} onPointerDown={() => down(i)} onPointerUp={up} onPointerLeave={cancel} style={{ ...dot(true), ...(pressed === i && { background: visual.hud.pressed, borderColor: visual.hud.pressedBorder }), cursor: 'pointer', touchAction: 'none' }} />
         ) : (
           <span key={i} style={dot(i < left)} />
         ),

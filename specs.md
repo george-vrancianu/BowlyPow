@@ -74,7 +74,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 
 The match structure below is Rounds.
 
-- Pre-match settings screen with four sliders: shots per possession (default 3), rounds (default 5), Credits per round (default 10; Siege labels the same slider "Wall points"), and Credits per refund (default 2; not in Siege).
+- Pre-match settings screen with four sliders: shots per possession (default 3), rounds (default 5), Credits per round (default 10; Siege labels the same slider "Wall points"), and Refund rate, the Credits a refunded Move point is worth (default 2; not in Siege).
 - A match is a fixed number of rounds. Most goals after all rounds wins. If tied, sudden-death rounds with no shot cap until someone scores.
 - Each round is a build phase followed by a play phase.
 - A round ends on a goal or after 30 total shots (scoreless).
@@ -125,7 +125,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - If the ball rests on the opponent's half, possession switches and the opponent's counter resets.
 - If the ball rests on the shooter's half, the counter decrements. At 0 the opponent gets ball-in-hand on the opponent's half with a fresh counter.
 - A ball whose center rests exactly on the halfway line stays with the shooter and burns a shot.
-- Refund (Rounds, `docs/adr/0004-credits-single-resource.md`): the shooter may trade unspent shots (Move points) for Credits at the "Credits per refund" setting (default 2), with the ball placed and no shot in flight, outside a build turn or a defence choice. Tapping a filled shot dot in the HUD refunds one; a long-press (0.5 s) refunds all but one. Refunding the last one hands the opponent ball-in-hand with a fresh counter, as running out of shots does. Refunds are not shots: they never count toward the round's shot cap and work in sudden death. The sim input is `refund: { player, count }`; anything else is refused. Siege has no refunds.
+- Refund (Rounds, `docs/adr/0004-credits-single-resource.md`): the shooter may trade unspent shots (Move points) for Credits at the "Refund rate" setting (default 2), with the ball placed and no shot in flight, outside a build turn or a defence choice. Tapping a filled shot dot in the HUD refunds one; a long-press (0.5 s) refunds all but one. A held dot shows pressed, a refund buzzes briefly, and a long-press on the last one refunds nothing and buzzes denied (no haptics under reduced motion). Only the device playing the shooter's seat sends a refund. Refunding the last one hands the opponent ball-in-hand with a fresh counter, as running out of shots does. Refunds are not shots: they never count toward the round's shot cap and work in sudden death. The sim input is `refund: { player, count }` with a whole `count`, and emits `refunded`; anything else is refused. Siege has no refunds.
 
 ### Ball-in-hand
 
@@ -163,7 +163,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 ## Power-ups (milestone 2)
 
 - Each player starts the match with 3 of each power-up. No economy. Counts are visible to both players.
-- Towers follow all wall rules: own half only, outside the no-build zone, counted in the reachability check, persistent across rounds, placed in the build phase through the same drag-rotate-confirm flow. They cost 0 wall points; the power-up is the cost.
+- Towers follow all wall rules: own half only, outside the no-build zone, counted in the reachability check, persistent across rounds, placed in the build phase through the same drag-rotate-confirm flow. They cost 0 Credits; the power-up is the cost.
 
 ### Breaker shot (play phase)
 

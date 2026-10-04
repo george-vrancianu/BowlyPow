@@ -10,6 +10,9 @@ describe('vibration', () => {
     expect(vibration({ type: 'goal', scorer: 1, at: { x: 0, y: 0 } })).toHaveLength(3)
     expect(vibration({ type: 'refused' })).toBeUndefined()
   })
+  it('a short buzz on a refund', () => {
+    expect(vibration({ type: 'refunded', player: 1, count: 2 })).toBeGreaterThan(0)
+  })
 })
 
 describe('feedbackFor', () => {

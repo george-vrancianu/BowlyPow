@@ -31,7 +31,7 @@ export const structuresOf = (objects: readonly Structure[], p: PlayerId): Struct
 export const maxHp = (s: StructureSpec): number => (s.kind === 'tower' ? POWER_HP[s.power] : rules.wallHp)
 
 export const wallCost = (shape: WallShape): number => rules.wallCost[shape]
-/** Wall points a placement spends; towers cost inventory instead. */
+/** Credits a placement spends; towers cost inventory instead. */
 export const structureCost = (s: StructureSpec): number => (s.kind === 'wall' ? wallCost(s.shape) : rules.towerCost)
 
 function arms({ shape, rotation }: WallSpec): [number, number][] {

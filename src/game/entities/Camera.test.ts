@@ -54,6 +54,28 @@ describe('anchor', () => {
   })
 })
 
+describe('anchored follow on a 400 x 900 phone (78 units shown)', () => {
+  /** Where the ball sits down the screen of the bottom seat (0 top, 1 bottom) once the camera has settled on it. */
+  const settled = (ballY: number) => {
+    const cam = new Camera(54)
+    cam.reserve = { top: 0, bottom: 120 }
+    cam.fit({ width: 400, height: 900 })
+    cam.follow(anchorY(ballY, 1, cam.visibleHeight), 10)
+    return { cam, at: (ballY - (cam.y - cam.visibleHeight / 2)) / cam.visibleHeight }
+  }
+  it('at the centre spot the ball is 70% down', () => {
+    expect(settled(54).at).toBeCloseTo(0.7)
+  })
+  it('on the own quarter line the ball is still 70% down', () => {
+    expect(settled(81).at).toBeCloseTo(0.7)
+  })
+  it('near the own goal the clamp wins: the view rests on the near board and the ball drops below 70%', () => {
+    const { cam, at } = settled(104)
+    expect(cam.y + cam.visibleHeight / 2).toBe(rules.pitchHeight + rules.board)
+    expect(at).toBeCloseTo(73 / 78)
+  })
+})
+
 describe('fit', () => {
   it('pans and follows are clamped to the height the canvas shows', () => {
     const cam = new Camera(54)

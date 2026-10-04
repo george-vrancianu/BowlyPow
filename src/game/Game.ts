@@ -51,7 +51,7 @@ export type GameActions = {
   mapStretch(): void
   recenter(): void
   powerUp(p: PowerUp): void
-  /** The shooter refunds `count` Move points for Credits; the sim refuses it when not allowed. */
+  /** The shooter refunds `count` Move points for Credits; the sim refuses it when not allowed. A count under 1 only buzzes denied. */
   refund(count: number): void
   confirmBall(): void
   /** Tap on the turn card. */
@@ -60,7 +60,7 @@ export type GameActions = {
 }
 
 /** Hot-seat: every seat is local, so no one is ever waited on. The online wave swaps this one predicate. */
-const mine = () => true
+const mine = (_p?: PlayerId | null) => true
 
 /** The end screen's result line, per mode. */
 const resultOf = (m: SimState['match'], winner: PlayerId, objects: SimState['objects']): string => {
@@ -147,7 +147,13 @@ export class Game implements Sink {
       },
       recenter: () => this.camera.recenter(),
       powerUp: (p) => p === 'breaker' && this.input.toggleArm(),
-      refund: (count) => this.driver.send({ refund: { player: this.state.possession.shooter, count } }),
+      refund: (count) => {
+        // Only the device that plays the shooter's seat refunds for it, as only it may aim.
+        const { shooter } = this.state.possession
+        if (!mine(shooter)) return
+        if (count >= 1) this.driver.send({ refund: { player: shooter, count } })
+        else if (!reducedMotion()) navigator.vibrate?.([...visual.hud.refund.denied])
+      },
       confirmBall: this.input.confirmBall,
       dismiss: () => (this.transition = dismiss(this.transition, performance.now())),
       build: this.input.build,
@@ -240,7 +246,7 @@ export class Game implements Sink {
     const { state, transition, camera } = this
     this.fitCamera()
     const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
-    const target = anchorY(state.ball.pos.y, transition.shown, camera.visible)
+    const target = anchorY(state.ball.pos.y, transition.shown, camera.visibleHeight)
     if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = target), camera.recenter()
     this.input.edgeScroll(dt)
     this.input.tickAim()
