@@ -68,3 +68,19 @@ it('match end names the winner and offers rematch and menu', () => {
   fireEvent.click(screen.getByText('Menu'))
   expect([rematch, menu].map((f) => f.mock.calls.length)).toEqual([1, 1])
 })
+
+it('Title screen keeps the hero still under reduced motion and runs the Attract loop otherwise', () => {
+  const raf = vi.spyOn(window, 'requestAnimationFrame')
+  const title = () => <TitleScreen onPlay={() => {}} onOnline={() => {}} onSettings={() => {}} onHelp={() => {}} />
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  const still = render(title())
+  expect(screen.getByRole('img', { name: 'BreachBall' })).toBeTruthy()
+  expect(raf).not.toHaveBeenCalled()
+  still.unmount()
+  vi.stubGlobal('matchMedia', () => ({ matches: false }))
+  render(title())
+  expect(screen.getByRole('img', { name: 'BreachBall' })).toBeTruthy()
+  expect(raf).toHaveBeenCalled()
+  vi.unstubAllGlobals()
+  raf.mockRestore()
+})

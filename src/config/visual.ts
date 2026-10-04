@@ -138,4 +138,19 @@ export const visual = {
     refund: { dotPx: 12, ringPx: 2, gap: 4, vibration: 20, denied: [15, 40, 15] }, shadow: '#0008', gap: 8 },
   /** The Title screen: the dot grid's cell and dot (px), the Play and Online pills' heights, the ghost circles' size, and the widest the pills grow. */
   titleScreen: { gridPx: 26, dotPx: 1.3, playPx: 64, onlinePx: 56, ghostPx: 48, pillMaxPx: 300, halo: `0 0 0 4px ${bg}, 0 0 0 6px ${tokens.pitchDots}` },
+  /** The Attract loop on the Title screen, in the hero's SVG units (the ring is r150): the pieces' sizes, how many circle at once and how fast, the shot's timing, the ricochet cheat and the effects' lengths. */
+  attract: {
+    ring: 150, ballR: 14, wall: { w: 110, h: 13 }, towerPx: 28,
+    /** Live pieces are kept between min and max: a refill below min, a drip every dripSec while below max, each at least gapDeg apart. Kinds by cumulative share: wall, then Repulsor, the rest Steal. */
+    min: 2, max: 4, dripSec: 4, gapDeg: 40, kinds: { wall: 0.6, repulsor: 0.8 },
+    /** One lap in lapSec, with ±jitter per piece. */
+    lapSec: 15, jitter: 0.2,
+    /** The ball shoots after a random rest in shotSec, crosses the ring radius in flightSec, and eases home in returnSec; the first shot after firstSec. */
+    shotSec: [2.5, 4.5], flightSec: 0.4, returnSec: 0.5, firstSec: 1.5,
+    /** A ricochet may bend up to bendDeg toward another piece, for at most `bounces` walls per shot; a ball that leaves the ring without a target returns from exitPad beyond it. */
+    bendDeg: 35, bounces: 3, exitPad: 40, hitDeg: 20,
+    /** Entrance scale-in, wall shatter, Repulsor burst and Steal swallow, in seconds. */
+    spawnSec: 0.3, shatterSec: 0.4, burstSec: 0.4, swallowSec: 0.3, fragments: 4, flyPx: 40,
+    trailPx: 36,
+  },
 } as const

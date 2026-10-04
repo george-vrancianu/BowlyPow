@@ -68,6 +68,10 @@ _Avoid_: Mask, blackout
 The menu shown when no match is running, where a match is started or joined: start a hot-seat match, go online, settings, help. Quitting a match returns here.
 _Avoid_: Title, main menu, main screen, home, start screen
 
+**Attract loop**:
+The demo the Title screen's hero plays while nobody presses Play: pieces circle the centre ring and the ball shoots at them. A toy with its own rules, not the match physics; it only hints at what the pieces do.
+_Avoid_: Demo, screensaver, background animation, idle animation
+
 **Side menu**:
 The in-match menu, opened by a swipe in from the viewer's left edge or its ☰ button: Resume, Help, the match's settings (read-only), the flip toggle, Restart (hot-seat only) and Quit to the Title screen. It pauses the clocks in hot-seat, never online.
 _Avoid_: Pause menu, main menu, drawer

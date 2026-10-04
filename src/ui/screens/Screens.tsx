@@ -3,6 +3,7 @@ import { visual } from '../../config/visual'
 import type { PlayerId } from '../../game/Game'
 import { expiryPicker, modePicker, sliderRows, type Settings } from '../../game/view/settings'
 import { ButtonRow, FONT } from '../ButtonRow'
+import { AttractHero } from './Attract'
 
 type Look = { className?: string; style?: CSSProperties; children?: ReactNode }
 
@@ -17,27 +18,6 @@ function Screen({ className, style, children }: Look) {
 
 const { tokens, titleScreen } = visual
 const P1 = visual.player.colors[1]
-const P2 = visual.player.colors[2]
-const WORDMARK_FONT = `72px ${visual.hud.display}`
-
-/** The wordmark over the centre circle, with a wall of each colour and the ball on the halfway line. Drawn in a 390-wide frame; the halfway line runs past it to the screen edges. */
-function Hero() {
-  const wall = (x: number, y: number, fill: string) => <rect x={-55} y={-6.5} width={110} height={13} rx={2} fill={fill} transform={`translate(${x} ${y}) rotate(-21)`} />
-  return (
-    <svg role="img" aria-label="BreachBall" viewBox="0 80 390 420" overflow="visible" style={{ flex: '1 1 0', minHeight: 0, width: '100%' }}>
-      <line x1={-2000} x2={2390} y1={330} y2={330} stroke={tokens.lines} strokeWidth={3} />
-      <circle cx={195} cy={330} r={150} fill="none" stroke={tokens.lines} strokeWidth={3} />
-      <circle cx={195} cy={330} r={110} fill="none" stroke={tokens.lines} strokeWidth={2} strokeDasharray="4 6" />
-      <circle cx={195} cy={330} r={14} fill={visual.ball.fill} />
-      {wall(115, 437, P1)}
-      <text x={195} y={155} textAnchor="middle" fill={P1} style={{ font: WORDMARK_FONT }}>BREACH</text>
-      <text x={223} y={222} textAnchor="middle" fill={P2} style={{ font: WORDMARK_FONT }}>BALL</text>
-      {wall(275, 217, P2)}
-      <text x={195} y={262} textAnchor="middle" fill={tokens.muted} style={{ ...FONT, fontSize: 12, letterSpacing: '0.3em' }}>Build · Shoot · Breach</text>
-    </svg>
-  )
-}
-
 /** Player 1's goal mouth peeking up from the bottom edge: chevrons and net lines in the player colour, posts at the sides. */
 function GoalMouth() {
   return (
@@ -72,12 +52,12 @@ const SlidersGlyph = () => (
   </svg>
 )
 
-/** The Title screen: the wordmark over the dot grid, then Play (a hot-seat match), Online, and the settings and help circles. */
+/** The Title screen: the Attract loop over the dot grid, then Play (a hot-seat match), Online, and the settings and help circles. */
 export function TitleScreen({ onPlay, onOnline, onSettings, onHelp, ...look }: { onPlay(): void; onOnline(): void; onSettings(): void; onHelp(): void } & Look) {
   const grid = { backgroundImage: `radial-gradient(circle, ${tokens.pitchDots} ${titleScreen.dotPx}px, transparent ${titleScreen.dotPx + 0.5}px)`, backgroundSize: `${titleScreen.gridPx}px ${titleScreen.gridPx}px` }
   return (
     <Screen {...look} style={{ ...grid, justifyContent: 'flex-start', gap: 16, ...look.style }}>
-      <Hero />
+      <AttractHero />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: `min(80vw, ${titleScreen.pillMaxPx}px)` }}>
         <button onClick={onPlay} style={{ ...pill(titleScreen.playPx), border: 'none', background: P1, color: tokens.bg, font: `24px ${visual.hud.display}`, textTransform: 'uppercase', boxShadow: titleScreen.halo }}>Play</button>
         <button onClick={onOnline} style={secondaryPill}>Online</button>
