@@ -4,6 +4,7 @@ import type { PlayerId } from '../../sim/pitch'
 import { STARTING_INVENTORY, type PowerUp } from '../../sim/player'
 import { opponent } from '../../sim/possession'
 import { canRefund, type SimConfig, type SimState } from '../../sim/step'
+import { UNITS } from '../../sim/settings'
 import { structuresOf, type Structure } from '../../sim/wall'
 
 /**
@@ -61,18 +62,6 @@ function digitsOf(m: Match, objects: readonly Structure[]): Record<PlayerId, str
   }
 }
 
-/** What the builder's balance is called, per mode: Rounds banks Credits (ADR-0004), Siege keeps wall points. */
-function unitOf(m: Match): string {
-  switch (m.mode) {
-    case 'rounds':
-      return 'credits'
-    case 'siege':
-      return 'pts'
-    default:
-      return m satisfies never
-  }
-}
-
 export function hudModel(s: SimState, c: SimConfig, v: HudInputs): HudModel {
   const b = s.match.builder
   const digit = digitsOf(s.match, s.objects)
@@ -91,7 +80,7 @@ export function hudModel(s: SimState, c: SimConfig, v: HudInputs): HudModel {
     shotsMax: c.shots,
     refundable: canRefund(s, v.active),
     // Waiting on a blind opponent's build, the spent points would show what they placed.
-    phase: buildPhase(s.match) === 'Rearrange' ? 'Rearrange' : b ? (b === hidden ? 'Build' : `Build · ${s.credits[b]} ${unitOf(s.match)}`) : 'Play',
+    phase: buildPhase(s.match) === 'Rearrange' ? 'Rearrange' : b ? (b === hidden ? 'Build' : `Build · ${s.credits[b]} ${UNITS[s.match.mode]}`) : 'Play',
     buttons: v.buttons,
     breaker: { armed: v.armed, tappable: v.tappable },
   }

@@ -210,6 +210,7 @@ export function step(
       possession = { ...possession, inHand: false }
     } else events.push({ type: 'refused' })
   }
+  let { clock } = state
   const { refund } = input
   // Before a shot only: a refund is a bet that the Move points left are enough (ADR-0004).
   // A whole count only: lockstep peers must never see fractional Move points or Credits.
@@ -224,6 +225,7 @@ export function step(
       const h = handOver(opponent(refund.player), true, config)
       possession = h.possession
       events.push(...h.events)
+      clock = { left: config.shotClock * config.tickHz, expiries: 0 }
     }
     credits = { ...credits, [refund.player]: credits[refund.player] + refund.count * config.refundRate }
   }
@@ -242,7 +244,6 @@ export function step(
       events.push(...r.events)
     } else events.push({ type: 'refused' })
   }
-  let { clock } = state
   const buildExpired = building && config.buildTime > 0 && clock.left <= 1
   if ((building || waiting) && config.buildTime > 0) clock = { ...clock, left: Math.max(0, clock.left - 1) }
   const expired = !building && !waiting && !possession.live && clock.left <= 1

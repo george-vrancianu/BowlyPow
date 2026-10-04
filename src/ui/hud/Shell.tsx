@@ -44,6 +44,7 @@ function MoveDots({ left, max, refundable, onRefund }: { left: number; max: numb
       onRefund(left - 1)
     }, visual.hud.longPressMs)
   }
+  useEffect(() => () => clearTimeout(timer.current), [left, refundable])
   const up = () => {
     clearTimeout(timer.current)
     setPressed(undefined)
@@ -52,6 +53,7 @@ function MoveDots({ left, max, refundable, onRefund }: { left: number; max: numb
   }
   const cancel = () => {
     clearTimeout(timer.current)
+    longPressed.current = true
     setPressed(undefined)
   }
   const dot = (filled: boolean): CSSProperties => ({ width: dotPx, height: dotPx, padding: 0, borderRadius: '50%', border: `${ringPx}px solid ${visual.hud.ink}`, background: filled ? visual.hud.ink : 'none' })

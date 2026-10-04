@@ -64,21 +64,9 @@ _Avoid_: Unveil, showdown
 The renderer's cover over the opponent's half (up to the halfway line, boards and nets included) during a blind build, in the main view and the map.
 _Avoid_: Mask, blackout
 
-**Title**:
-The screen shown when no match is running, where a match is started or joined. Quitting a match returns here.
-_Avoid_: Main screen, home
-
-**Side menu**:
-The in-match menu, opened by swiping in from the viewer's left edge or tapping its button: Resume, Help, the match's settings (read-only), Restart (hot-seat only), Quit to the Title. In hot-seat it pauses the clocks; online it never pauses.
-_Avoid_: Pause menu, main menu, drawer
-
-**Health**:
-How many structures a player still has on the pitch, towers included, shown as that player's half of the health strip.
-_Avoid_: HP (that is a single structure's), lives
-
 **Title screen**:
-The menu shown when no match is running: start a hot-seat match, go online, settings, help. Quitting a match returns here.
-_Avoid_: Main menu, home, start screen
+The menu shown when no match is running, where a match is started or joined: start a hot-seat match, go online, settings, help. Quitting a match returns here.
+_Avoid_: Title, main menu, main screen, home, start screen
 
 **Side menu**:
 The in-match menu, opened by a swipe in from the viewer's left edge or its ☰ button: Resume, Help, the match's settings (read-only), the flip toggle, Restart (hot-seat only) and Quit to title. It pauses the clocks in hot-seat, never online.

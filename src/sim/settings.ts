@@ -4,10 +4,10 @@ import { defaultConfig, type SimConfig } from './step'
 export type Settings = { mode: GameModeName; shots: number; rounds: number; credits: number; refundRate: number; expiry: SimConfig['expiry'] }
 type SliderKey = Exclude<keyof Settings, 'mode' | 'expiry'>
 
-export const SLIDERS: Record<SliderKey, { label: string; min: number; max: number; def: number }> = {
+export const SLIDERS: Record<SliderKey, { label: string; siegeLabel?: string; min: number; max: number; def: number }> = {
   shots: { label: 'Shots per possession', min: 1, max: 10, def: 3 },
   rounds: { label: 'Rounds', min: 1, max: 15, def: 5 },
-  credits: { label: 'Credits per round', min: 1, max: 30, def: 10 },
+  credits: { label: 'Credits per round', siegeLabel: 'Wall points', min: 1, max: 30, def: 10 },
   refundRate: { label: 'Refund rate', min: 1, max: 10, def: 2 },
 }
 
@@ -16,6 +16,9 @@ export const MODES: { mode: GameModeName; label: string }[] = [
   { mode: 'siege', label: 'Siege' },
   { mode: 'rounds', label: 'Rounds' },
 ]
+
+/** What a builder's balance is called in each mode: Rounds banks Credits (ADR-0004), Siege keeps wall points. */
+export const UNITS: Record<GameModeName, string> = { rounds: 'credits', siege: 'pts' }
 
 /** The "On time out" choices in toggle order; shown in every mode. */
 export const EXPIRIES: { expiry: Settings['expiry']; label: string }[] = [
@@ -39,7 +42,7 @@ export const sliderLabel = (mode: GameModeName, key: SliderKey): string => {
     case 'rounds':
       return SLIDERS[key].label
     case 'siege':
-      return key === 'credits' ? 'Wall points' : SLIDERS[key].label
+      return SLIDERS[key].siegeLabel ?? SLIDERS[key].label
   }
 }
 

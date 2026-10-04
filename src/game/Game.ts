@@ -110,6 +110,7 @@ export class Game implements Sink {
   private now = performance.now()
   private last = this.now
   private raf = 0
+  private dpr = 1
   private dead = false
   private lastView = ''
 
@@ -215,9 +216,17 @@ export class Game implements Sink {
     this.push()
   }
 
+  /** Sizes the canvas backing store to the screen, before anything reads it this frame. */
+  private resize(): void {
+    const { canvas } = this
+    this.dpr = window.devicePixelRatio || 1
+    canvas.width = canvas.clientWidth * this.dpr
+    canvas.height = canvas.clientHeight * this.dpr
+  }
+
   /** Keeps the HUD band clear on the side the HUD sits (the stage is turned for seat 2) and takes the height the canvas shows. */
   private fitCamera(): void {
-    this.camera.reserve = hudReserve(this.transition.shown, visual.camera.hudReservePx * (window.devicePixelRatio || 1))
+    this.camera.reserve = hudReserve(this.transition.shown, visual.camera.hudReservePx * this.dpr)
     this.camera.fit(this.canvas)
   }
 
@@ -235,6 +244,7 @@ export class Game implements Sink {
     // The sim never waits on animations; the driver just stops stepping behind a flip, goal hold or turn card.
     const dt = Math.min((now - this.last) / 1000, visual.frame.maxDtS)
     this.last = this.now = now
+    this.resize()
     // Clocks advance before the sim ticks, so an effect the tick starts is drawn at age 0.
     this.camera.update(dt)
     this.driver.update(dt)
@@ -286,9 +296,6 @@ export class Game implements Sink {
 
   private draw(): void {
     const { canvas, ctx, camera, mapCam } = this
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = canvas.clientWidth * dpr
-    canvas.height = canvas.clientHeight * dpr
     if (this.viewCam() === mapCam) mapCam.draw(ctx, camera.children, camera.shakeNow)
     else camera.draw(ctx)
     this.fog.draw(ctx)
@@ -296,7 +303,7 @@ export class Game implements Sink {
     if (this.mapOpen) {
       const o = viewOutline(canvas, mapCam, camera)
       ctx.strokeStyle = visual.camera.mapOutline
-      ctx.lineWidth = visual.camera.mapOutlinePx * dpr
+      ctx.lineWidth = visual.camera.mapOutlinePx * this.dpr
       ctx.strokeRect(o.x, o.y, o.w, o.h)
     }
   }

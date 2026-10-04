@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HudModel } from '../../game/view/hudModel'
+import { visual } from '../../config/visual'
 import { Shell } from './Shell'
 
 afterEach(cleanup)
@@ -31,10 +32,31 @@ describe('Shell', () => {
       const p = props()
       render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
       fireEvent.pointerDown(dots()[0]!)
-      vi.advanceTimersByTime(600)
+      vi.advanceTimersByTime(visual.hud.longPressMs + 1)
       fireEvent.pointerUp(dots()[0]!)
       expect(p.onRefund).toHaveBeenCalledTimes(1)
       expect(p.onRefund).toHaveBeenCalledWith(2)
+    })
+
+    it('releasing just before the long-press refunds one', () => {
+      vi.useFakeTimers()
+      const p = props()
+      render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      vi.advanceTimersByTime(visual.hud.longPressMs - 1)
+      fireEvent.pointerUp(dots()[0]!)
+      expect(p.onRefund).toHaveBeenCalledTimes(1)
+      expect(p.onRefund).toHaveBeenCalledWith(1)
+    })
+
+    it('a long-press does not fire after the Move points change mid-hold', () => {
+      vi.useFakeTimers()
+      const p = props()
+      const { rerender } = render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      rerender(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 2 })} />)
+      vi.advanceTimersByTime(visual.hud.longPressMs + 1)
+      expect(p.onRefund).not.toHaveBeenCalled()
     })
 
     it('a held dot shows pressed until released', () => {
@@ -50,7 +72,7 @@ describe('Shell', () => {
       const p = props()
       render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 1 })} />)
       fireEvent.pointerDown(dots()[0]!)
-      vi.advanceTimersByTime(600)
+      vi.advanceTimersByTime(visual.hud.longPressMs + 1)
       expect(p.onRefund).toHaveBeenCalledWith(0)
     })
 
