@@ -69,7 +69,7 @@ The menu shown when no match is running, where a match is started or joined: sta
 _Avoid_: Title, main menu, main screen, home, start screen
 
 **Side menu**:
-The in-match menu, opened by a swipe in from the viewer's left edge or its ☰ button: Resume, Help, the match's settings (read-only), the flip toggle, Restart (hot-seat only) and Quit to title. It pauses the clocks in hot-seat, never online.
+The in-match menu, opened by a swipe in from the viewer's left edge or its ☰ button: Resume, Help, the match's settings (read-only), the flip toggle, Restart (hot-seat only) and Quit to the Title screen. It pauses the clocks in hot-seat, never online.
 _Avoid_: Pause menu, main menu, drawer
 
 **Move point**:

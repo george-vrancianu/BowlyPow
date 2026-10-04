@@ -44,7 +44,14 @@ function MoveDots({ left, max, refundable, onRefund }: { left: number; max: numb
       onRefund(left - 1)
     }, visual.hud.longPressMs)
   }
-  useEffect(() => () => clearTimeout(timer.current), [left, refundable])
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current)
+      longPressed.current = true
+      setPressed(undefined)
+    },
+    [left, refundable],
+  )
   const up = () => {
     clearTimeout(timer.current)
     setPressed(undefined)
@@ -61,7 +68,7 @@ function MoveDots({ left, max, refundable, onRefund }: { left: number; max: numb
     <div style={{ display: 'flex', gap, pointerEvents: 'auto' }}>
       {Array.from({ length: max }, (_, i) =>
         refundable && i < left ? (
-          <button key={i} aria-label="Refund a Move point" aria-pressed={pressed === i} onPointerDown={() => down(i)} onPointerUp={up} onPointerLeave={cancel} style={{ ...dot(true), ...(pressed === i && { background: visual.hud.pressed, borderColor: visual.hud.pressedBorder }), cursor: 'pointer', touchAction: 'none' }} />
+          <button key={i} aria-label="Refund a Move point" aria-pressed={pressed === i} onPointerDown={() => down(i)} onPointerUp={up} onPointerLeave={cancel} onPointerCancel={cancel} style={{ ...dot(true), ...(pressed === i && { background: visual.hud.pressed, borderColor: visual.hud.pressedBorder }), cursor: 'pointer', touchAction: 'none' }} />
         ) : (
           <span key={i} style={dot(i < left)} />
         ),

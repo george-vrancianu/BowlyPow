@@ -59,6 +59,16 @@ describe('Shell', () => {
       expect(p.onRefund).not.toHaveBeenCalled()
     })
 
+    it('releasing after the Move points change mid-hold refunds nothing and leaves no dot pressed', () => {
+      const p = props()
+      const { rerender } = render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      rerender(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 2 })} />)
+      fireEvent.pointerUp(dots()[0]!)
+      expect(p.onRefund).not.toHaveBeenCalled()
+      expect(dots().some((d) => d.getAttribute('aria-pressed') === 'true')).toBe(false)
+    })
+
     it('a held dot shows pressed until released', () => {
       render(<Shell {...props()} hud={hud({ refundable: true, shotsLeft: 3 })} />)
       fireEvent.pointerDown(dots()[1]!)
