@@ -42,7 +42,7 @@ export const rotated = (sel: Selection): Selection => (sel.spec.kind === 'wall' 
 /** Legal where it stands (ignoring itself when moved) and, for a new piece, affordable. */
 export function legal(s: SimState, sel: Selection): boolean {
   const others = s.objects.filter((o) => o.id !== sel.id)
-  return canPlace(others, sel.spec) && (sel.id !== undefined || s.points[sel.spec.owner] >= structureCost(sel.spec))
+  return canPlace(others, sel.spec) && (sel.id !== undefined || s.credits[sel.spec.owner] >= structureCost(sel.spec))
 }
 
 /** How far to pan while a piece is held near the top or bottom `edgeBand` of the view: toward any of the builder's half that is off screen, never past it. */
@@ -81,12 +81,12 @@ export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selectio
   const edit = canEdit(s)
   if (!sel && !edit) return undefined
   if (!sel) {
-    const points = s.points[b]
+    const credits = s.credits[b]
     return {
       kind: 'menu',
       open: v.open,
       items: [
-        ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, disabled: points < wallCost(shape), onClick: () => a.spawn(shape) })),
+        ...(['straight', 'L'] as const).map((shape) => ({ label: `${shape === 'L' ? 'L' : 'Straight'} ${wallCost(shape)}`, disabled: credits < wallCost(shape), onClick: () => a.spawn(shape) })),
         ...(Object.keys(POWER_LABEL) as TowerPower[]).map((power) => ({ label: `${POWER_LABEL[power]} ×${s.players[b].inventory[power]}`, disabled: s.players[b].inventory[power] < 1, onClick: () => a.spawn(power) })),
       ],
     }
@@ -94,7 +94,7 @@ export function buildMenu(s: SimState, b: PlayerId, v: { open: boolean; selectio
   return {
     kind: 'selected',
     buttons: [
-      ...(sel.id !== undefined && edit ? [{ label: '🗑', disabled: !sel.movable && s.points[b] < rules.demolishCost, onClick: a.remove }] : []),
+      ...(sel.id !== undefined && edit ? [{ label: '🗑', disabled: !sel.movable && s.credits[b] < rules.demolishCost, onClick: a.remove }] : []),
       ...(sel.movable && sel.spec.kind === 'wall' ? [{ label: '↻', onClick: a.rotate }] : []),
       { label: '✕', onClick: a.cancel },
       ...(sel.movable ? [{ label: '✓', disabled: !!v.landing || !legal(s, sel), onClick: a.confirm }] : []),

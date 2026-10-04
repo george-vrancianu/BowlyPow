@@ -9,6 +9,7 @@ export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)'
 export function vibration(ev: SimEvent): number | number[] | undefined {
   if (ev.type === 'shot-fired') return Math.round(visual.aim.vibration.shotBase + visual.aim.vibration.shotPerPower * ev.power)
   if (ev.type === 'goal') return [...visual.aim.vibration.goal]
+  if (ev.type === 'refunded') return visual.hud.refund.vibration
 }
 
 type Hold = Pick<GestureView, 'phase' | 'tier'>

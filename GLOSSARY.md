@@ -63,3 +63,51 @@ _Avoid_: Unveil, showdown
 **Fog**:
 The renderer's cover over the opponent's half (up to the halfway line, boards and nets included) during a blind build, in the main view and the map.
 _Avoid_: Mask, blackout
+
+**Title screen**:
+The menu shown when no match is running, where a match is started or joined: start a hot-seat match, go online, settings, help. Quitting a match returns here.
+_Avoid_: Title, main menu, main screen, home, start screen
+
+**Side menu**:
+The in-match menu, opened by a swipe in from the viewer's left edge or its ☰ button: Resume, Help, the match's settings (read-only), the flip toggle, Restart (hot-seat only) and Quit to the Title screen. It pauses the clocks in hot-seat, never online.
+_Avoid_: Pause menu, main menu, drawer
+
+**Move point**:
+One shot of a possession: each possession starts with the configured number (default 3), and every shot spends one. Unspent Move points can be refunded for Credits.
+_Avoid_: Shot (for the counter), move, action point
+
+**Defence bar**:
+The segmented bar at the far edge showing how many structures each player still has standing, one segment per structure. It counts structures, not their hit points.
+_Avoid_: Health, health strip, HP bar
+
+**Subterfuge**:
+The third family of actions, beside Offence and Defence: actions that cripple the opponent's next round rather than improving your own shot or structures.
+_Avoid_: Sabotage, debuff, special
+
+**Credits**:
+The single resource every Offence, Defence and Subterfuge item is bought with, each item at its own price. A player gets a grant each round and keeps unspent Credits for the rest of the match.
+_Avoid_: Wall points, build points, power-up points, resources, energy
+
+**Refund**:
+Trading an unspent Move point for Credits during your own possession, before a shot. It is a bet that the remaining shots are enough: refunding the last Move point hands the opponent ball-in-hand, as running out of shots does.
+_Avoid_: Convert, cash in, sell
+
+**Offence**:
+The family of items that power up your own shot, bought with Credits during your possession. The Breaker is the first.
+_Avoid_: Attack, power-ups (as the family name)
+
+**Defence**:
+The family of items you build on your half (walls, towers), bought with Credits during your build turn.
+_Avoid_: Build menu, structures (as the family name)
+
+**Breaker**:
+The Offence item that makes the armed shot destroy the first structure it touches, either player's, then carry on.
+_Avoid_: Breach Ball, piercing shot
+
+**Resource bar**:
+The full-width bar under the Defence bar showing each player's share of the Credits both hold, filling from each player's side. Beside the Defence bar it shows what a player can still deploy against what they have standing.
+_Avoid_: Mana bar, economy bar, credit meter
+
+**Jam**:
+The first Subterfuge item: the opponent's next possession starts with one Move point fewer.
+_Avoid_: Freeze, stun

@@ -3,6 +3,7 @@ import { defaultConfig, initialState, step, type SimState } from '../../sim/step
 import { firstBuilder } from '../../sim/match'
 import { opponent } from '../../sim/possession'
 import type { TowerSpec, WallSpec } from '../../sim/wall'
+import { playState } from '../../sim/testkit'
 import { hudModel } from './hudModel'
 
 const view = { active: 1 as const, viewer: 1 as const, armed: false, tappable: false }
@@ -17,6 +18,27 @@ describe('hudModel', () => {
     const c = { ...defaultConfig, mode: 'siege' as const }
     const m = hudModel(initialState(1, c), c, view)
     expect(m.round).toBeNull()
+  })
+  describe('Move point dots', () => {
+    const placed = (): SimState => {
+      const s = playState()
+      return { ...s, possession: { ...s.possession, inHand: false } }
+    }
+    it('are refundable for the shooter with the ball placed and no shot in flight', () => {
+      const s = placed()
+      const shooter = s.possession.shooter
+      expect(hudModel(s, defaultConfig, { ...view, active: shooter }).refundable).toBe(true)
+    })
+    it('are not refundable for the other seat, in ball-in-hand, mid-shot or in Siege', () => {
+      const s = placed()
+      const shooter = s.possession.shooter
+      const siege = { ...defaultConfig, mode: 'siege' as const }
+      expect(hudModel(s, defaultConfig, { ...view, active: opponent(shooter) }).refundable).toBe(false)
+      expect(hudModel({ ...s, possession: { ...s.possession, inHand: true } }, defaultConfig, { ...view, active: shooter }).refundable).toBe(false)
+      expect(hudModel({ ...s, possession: { ...s.possession, live: true } }, defaultConfig, { ...view, active: shooter }).refundable).toBe(false)
+      const sieged = { ...s, match: { mode: 'siege' as const, seed: 1, winner: null, builder: null, choosing: null, opening: false } }
+      expect(hudModel(sieged, siege, { ...view, active: shooter }).refundable).toBe(false)
+    })
   })
   describe('blind opening build', () => {
     const c = { ...defaultConfig, mode: 'siege' as const }
@@ -62,14 +84,14 @@ describe('hudModel', () => {
       expect(hudModel(s, c, { ...view, viewer: second }).phase).toMatch(/^Build · \d+ pts$/)
       expect(hudModel(s, c, { ...view, viewer: first }).phase).toBe('Build')
     })
-    it('Rounds build phases keep the score, the badges and the points', () => {
+    it('Rounds build phases keep the score, the badges and the Credits', () => {
       let s = initialState(1)
       const b = s.match.builder!
       s = step(s, { placeWall: { kind: 'tower', owner: b, power: 'steal', at: { gx: 4, gy: b === 1 ? 40 : 10 } } }, defaultConfig).state
       const m = hudModel(s, defaultConfig, { ...view, viewer: opponent(b) })
       expect([m.players[1].digit, m.players[2].digit]).toEqual(['0', '0'])
       expect(m.players[b].inventory.steal).toBe(2)
-      expect(m.phase).toMatch(/^Build · \d+ pts$/)
+      expect(m.phase).toBe('Build · 10 credits')
     })
   })
   it('Siege exposes each owner\'s structure count, towers included', () => {

@@ -1,4 +1,4 @@
-import { defaultSettings, EXPIRIES, MODES, SLIDERS, slidersFor, type Settings } from '../../sim/settings'
+import { defaultSettings, EXPIRIES, MODES, SLIDERS, sliderLabel, slidersFor, type Settings } from '../../sim/settings'
 import type { ButtonSpec } from './hudModel'
 
 export { defaultSettings, type Settings }
@@ -13,4 +13,4 @@ export type SliderKey = Exclude<keyof Settings, 'mode' | 'expiry'>
 export type SliderRow = { key: SliderKey; label: string; min: number; max: number; value: number }
 
 /** The sliders the chosen mode uses, with their current values. */
-export const sliderRows = (s: Settings): SliderRow[] => slidersFor(s.mode).map((key) => ({ key, label: SLIDERS[key].label, min: SLIDERS[key].min, max: SLIDERS[key].max, value: s[key] }))
+export const sliderRows = (s: Settings): SliderRow[] => slidersFor(s.mode).map((key) => ({ key, label: sliderLabel(s.mode, key), min: SLIDERS[key].min, max: SLIDERS[key].max, value: s[key] }))

@@ -4,17 +4,21 @@ import type { GameModeName, Match } from './match'
 import { modeFor, modeNamed, type DefenceChoice, type ModeContext } from './mode'
 import { initialPlayers, type Player, type PowerUp } from './player'
 import { rollBall, type Ball } from './ball'
-import { canPlaceBall, opponent, resolveRest, type Possession } from './possession'
+import { canPlaceBall, handOver, opponent, resolveRest, type Possession } from './possession'
 import { splashDamage, splashOf } from './splash'
 import { canPlace, damageWall, maxHp, structureCost, type Rotation, type Structure, type StructureSpec, type Vertex } from './wall'
 
-const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId): ModeContext => ({ objects, possession, shooter })
+const ctxOf = (objects: readonly Structure[], possession: Possession, shooter: PlayerId, credits: Record<PlayerId, number>): ModeContext => ({ objects, possession, shooter, credits })
 
 /** Whether Done would be accepted for the current builder (the HUD disables the button when not). */
 export function canFinishBuild(s: SimState, config: SimConfig): boolean {
   const b = s.match.builder
-  return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession, s.possession.shooter), config) !== null
+  return !!b && modeFor(s.match).onBuildDone(s.match, b, ctxOf(s.objects, s.possession, s.possession.shooter, s.credits), config) !== null
 }
+
+/** Whether `p` may refund Move points now: the shooter in play, ball placed, before a shot, in a mode with Credits (ADR-0004). */
+export const canRefund = (s: Pick<SimState, 'match' | 'possession'>, p: PlayerId): boolean =>
+  modeFor(s.match).mayRefund(s.match) && !s.match.builder && !s.match.choosing && s.possession.shooter === p && !s.possession.inHand && !s.possession.live && s.possession.shots > 0
 
 /** Whether the current build turn may place and demolish (false in a Rearrange turn, which only moves pieces). */
 export const canEdit = (s: SimState): boolean => modeFor(s.match).mayEdit(s.match)
@@ -31,6 +35,8 @@ export type SimEvent =
   /** `from` is the ball's position at launch. */
   | { type: 'shot-fired'; player: PlayerId; from: Point; dir: Point; power: number; tier: number; breaker?: boolean }
   | { type: 'possession-changed'; shooter: PlayerId; inHand: boolean }
+  /** The shooter traded `count` Move points for Credits. */
+  | { type: 'refunded'; player: PlayerId; count: number }
   | { type: 'goal'; scorer: PlayerId; at: Point }
   /** `scorer` null = the shot cap ended the round. */
   | { type: 'round-ended'; round: number; scorer: PlayerId | null }
@@ -46,8 +52,8 @@ export type SimState = {
   tick: number
   objects: Structure[]
   players: Record<PlayerId, Player>
-  /** Wall points; demolishing spends them. */
-  points: Record<PlayerId, number>
+  /** Credits each player holds (Siege: wall points); building and demolishing spend them. */
+  credits: Record<PlayerId, number>
   nextId: number
   /** Ids placed in the current build turn: they can still be moved, and demolishing them refunds them. */
   built: number[]
@@ -78,6 +84,8 @@ export type SimInput = {
   defence?: { player: PlayerId; choice: DefenceChoice }
   /** Confirm ball-in-hand: the shooter's ball goes to `at`. */
   placeBall?: { player: PlayerId; at: Point }
+  /** The shooter trades `count` unspent Move points for Credits. */
+  refund?: { player: PlayerId; count: number }
 }
 
 export type SimConfig = {
@@ -92,13 +100,15 @@ export type SimConfig = {
   damageFraction: number
   /** Speed kept by a ball that destroys a wall mid-shot. */
   destroyedSpeedFactor: number
-  /** Shots per possession. */
+  /** Shots per possession (Move points). */
   shots: number
+  /** Credits a refunded Move point is worth. */
+  refundRate: number
   /** Which game mode decides the match. */
   mode: GameModeName
   rounds: number
-  /** Wall points per build phase. */
-  wallPoints: number
+  /** Rounds: Credits granted at each build turn. Siege: wall points for the opening build. */
+  credits: number
   /** Shots in a round before it ends scoreless (not in sudden death). */
   shotCap: number
   /** Seconds per shot. */
@@ -119,10 +129,11 @@ export const defaultConfig: SimConfig = {
   damageFraction: 0.5,
   destroyedSpeedFactor: 0.5,
   shots: 3,
+  refundRate: 2,
   // Rounds here on purpose: the sim default stays the original mode so tests and tools that never name a mode keep Rounds behaviour. The settings screen defaults to Siege (`defaultSettings`), and `configFrom` always sets the mode.
   mode: 'rounds',
   rounds: 5,
-  wallPoints: 10,
+  credits: 10,
   shotCap: 30,
   shotClock: 15,
   buildTime: 0,
@@ -130,8 +141,13 @@ export const defaultConfig: SimConfig = {
 }
 
 export function initialState(seed = 1, config: SimConfig = defaultConfig): SimState {
-  const start = modeNamed(config.mode).start(seed, config)
-  return { tick: 0, objects: [], players: initialPlayers(), points: { 1: config.wallPoints, 2: config.wallPoints }, nextId: 1, built: [], ball: { pos: { x: rules.pitchWidth / 2, y: rules.halfHeight }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: start.possession, match: start.match, clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
+  const mode = modeNamed(config.mode)
+  const start = mode.start(seed, config)
+  const b = start.match.builder
+  // The first builder's turn opens here, so it gets its grant as every later build turn does in step; the other player holds nothing yet.
+  const none = { 1: 0, 2: 0 }
+  const credits = { ...none, ...(b && { [b]: mode.onBuildStart(start.match, ctxOf([], start.possession, start.possession.shooter, none), config).credits }) }
+  return { tick: 0, objects: [], players: initialPlayers(), credits, nextId: 1, built: [], ball: { pos: { x: rules.pitchWidth / 2, y: rules.halfHeight }, vel: { x: 0, y: 0 }, rolled: 0 }, possession: start.possession, match: start.match, clock: { left: (config.buildTime || config.shotClock) * config.tickHz, expiries: 0 }, breaker: false }
 }
 
 const spend = (players: SimState['players'], id: PlayerId, power: PowerUp, n = 1): SimState['players'] => ({ ...players, [id]: { ...players[id], inventory: { ...players[id].inventory, [power]: players[id].inventory[power] - n } } })
@@ -143,7 +159,7 @@ export function step(
   config: SimConfig,
 ): { state: SimState; events: SimEvent[] } {
   if (state.match.winner) return { state, events: [] }
-  let { objects, points, nextId, players, built } = state
+  let { objects, credits, nextId, players, built } = state
   let { match } = state
   const mode = modeFor(match)
   /** Who took the shot being resolved: possession may pass to the opponent before the hooks run. */
@@ -159,11 +175,11 @@ export function step(
   const place = (spec: StructureSpec): boolean => {
     const cost = structureCost(spec)
     const stocked = spec.kind === 'wall' || players[spec.owner].inventory[spec.power] > 0
-    if (spec.owner !== match.builder || !stocked || points[spec.owner] < cost || !canPlace(objects, spec)) return false
+    if (spec.owner !== match.builder || !stocked || credits[spec.owner] < cost || !canPlace(objects, spec)) return false
     if (spec.kind === 'tower') players = spend(players, spec.owner, spec.power)
     built = [...built, nextId]
     objects = [...objects, { ...spec, id: nextId++, hp: maxHp(spec) }]
-    points = { ...points, [spec.owner]: points[spec.owner] - cost }
+    credits = { ...credits, [spec.owner]: credits[spec.owner] - cost }
     return true
   }
   if (placeWall && !(edit && place(placeWall))) events.push({ type: 'refused' })
@@ -177,10 +193,10 @@ export function step(
   if (demolish) {
     const it = objects.find((w) => w.id === demolish.wall)
     const fresh = built.includes(demolish.wall)
-    if (edit && it && demolish.player === match.builder && it.owner === demolish.player && (fresh || points[demolish.player] >= rules.demolishCost)) {
+    if (edit && it && demolish.player === match.builder && it.owner === demolish.player && (fresh || credits[demolish.player] >= rules.demolishCost)) {
       objects = objects.filter((w) => w.id !== demolish.wall)
       // This turn's items come back in full; older ones cost `rules.demolishCost`.
-      points = { ...points, [demolish.player]: points[demolish.player] + (fresh ? structureCost(it) : -rules.demolishCost) }
+      credits = { ...credits, [demolish.player]: credits[demolish.player] + (fresh ? structureCost(it) : -rules.demolishCost) }
       if (fresh && it.kind === 'tower') players = spend(players, it.owner, it.power, -1)
       built = built.filter((id) => id !== demolish.wall)
     } else events.push({ type: 'refused' })
@@ -194,12 +210,31 @@ export function step(
       possession = { ...possession, inHand: false }
     } else events.push({ type: 'refused' })
   }
+  let { clock } = state
+  const { refund } = input
+  // Before a shot only: a refund is a bet that the Move points left are enough (ADR-0004).
+  // A whole count only: lockstep peers must never see fractional Move points or Credits.
+  const refundable = refund && canRefund({ match, possession }, refund.player) && Number.isInteger(refund.count) && refund.count >= 1 && refund.count <= possession.shots
+  if (refund && !refundable) events.push({ type: 'refused' })
+  if (refund && refundable) {
+    const left = possession.shots - refund.count
+    events.push({ type: 'refunded', player: refund.player, count: refund.count })
+    // Refunding the last one ends the possession as running out of shots does.
+    if (left > 0) possession = { ...possession, shots: left }
+    else {
+      const h = handOver(opponent(refund.player), true, config)
+      possession = h.possession
+      events.push(...h.events)
+      clock = { left: config.shotClock * config.tickHz, expiries: 0 }
+    }
+    credits = { ...credits, [refund.player]: credits[refund.player] + refund.count * config.refundRate }
+  }
   let chose = false
   // The build window covers a pending defence choice too; when it runs out the mode picks for the chooser.
   const choiceExpired = waiting && config.buildTime > 0 && state.clock.left <= 1
   const defence = input.defence ?? (choiceExpired && match.choosing ? { player: match.choosing, choice: mode.choiceTimeout(match) } : undefined)
   if (defence) {
-    const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, shooter), config) : null
+    const r = match.choosing === defence.player ? mode.onDefenceChoice(match, defence.player, defence.choice, ctxOf(objects, possession, shooter, credits), config) : null
     if (r) {
       chose = true
       match = r.match
@@ -209,7 +244,6 @@ export function step(
       events.push(...r.events)
     } else events.push({ type: 'refused' })
   }
-  let { clock } = state
   const buildExpired = building && config.buildTime > 0 && clock.left <= 1
   if ((building || waiting) && config.buildTime > 0) clock = { ...clock, left: Math.max(0, clock.left - 1) }
   const expired = !building && !waiting && !possession.live && clock.left <= 1
@@ -247,8 +281,9 @@ export function step(
       consumed = true
       match = mode.onShotFired(match)
       if (clock.expiries >= 1) {
-        possession = { shooter: opponent(shooter), shots: config.shots, inHand: true, live: false }
-        events.push({ type: 'possession-changed', shooter: possession.shooter, inHand: true })
+        const h = handOver(opponent(shooter), true, config)
+        possession = h.possession
+        events.push(...h.events)
       } else {
         if (possession.inHand) {
           ball = { ...ball, pos: { x: rules.pitchWidth / 2, y: rules.halfCentre[shooter] }, vel: { x: 0, y: 0 } }
@@ -264,10 +299,10 @@ export function step(
   const breaker = state.breaker || (fired && !!shot?.breaker)
   const done = input.done ?? (buildExpired ? match.builder : null)
   if (done) {
-    let r = done === match.builder ? mode.onBuildDone(match, done, ctxOf(objects, possession, shooter), config) : null
+    let r = done === match.builder ? mode.onBuildDone(match, done, ctxOf(objects, possession, shooter, credits), config) : null
     // A timed-out build the mode refuses gets the mode's fallback piece, then finishes: the timer must bound the turn.
-    const fallback = !r && !input.done && done === match.builder ? mode.onBuildTimeout(match, done, ctxOf(objects, possession, shooter), config) : null
-    if (fallback && place(fallback)) r = mode.onBuildDone(match, done, ctxOf(objects, possession, shooter), config)
+    const fallback = !r && !input.done && done === match.builder ? mode.onBuildTimeout(match, done, ctxOf(objects, possession, shooter, credits), config) : null
+    if (fallback && place(fallback)) r = mode.onBuildDone(match, done, ctxOf(objects, possession, shooter, credits), config)
     if (r) {
       match = r.match
       events.push(...r.events)
@@ -279,8 +314,9 @@ export function step(
   const stolen = rolled.events.find((e) => e.type === 'steal-triggered')
   if (stolen) {
     consumed = true
-    possession = { shooter: stolen.owner, shots: config.shots, inHand: true, live: false }
-    events.push({ type: 'possession-changed', shooter: stolen.owner, inHand: true })
+    const h = handOver(stolen.owner, true, config)
+    possession = h.possession
+    events.push(...h.events)
   }
   // A Repulsor rearms when the ball rests.
   if (!landed.vel.x && !landed.vel.y && rolled.objects.some((o) => o.kind === 'tower' && o.spent)) rolled.objects = rolled.objects.map((o) => (o.kind === 'tower' && o.spent ? { ...o, spent: false } : o))
@@ -292,7 +328,7 @@ export function step(
     possession = r.possession
     events.push(...r.events)
   }
-  const ctx = ctxOf(rolled.objects, possession, shooter)
+  const ctx = ctxOf(rolled.objects, possession, shooter, credits)
   const turn = conceder ? mode.onGoal(match, opponent(conceder), ctx, config) : consumed ? mode.onShotConsumed(match, ctx, config) : null
   const ended = !!turn
   if (turn) {
@@ -302,7 +338,7 @@ export function step(
     events.push(...turn.events)
   }
   if (conceder || consumed) {
-    const winner = mode.winner(match, ctxOf(rolled.objects, possession, shooter), config)
+    const winner = mode.winner(match, ctxOf(rolled.objects, possession, shooter, credits), config)
     if (winner && !match.winner) {
       match = { ...match, winner, builder: null, choosing: null }
       events.push({ type: 'match-ended', winner })
@@ -310,9 +346,9 @@ export function step(
   }
   if (match.builder !== state.match.builder) built = []
   if (match.builder && match.builder !== state.match.builder) {
-    const t = mode.onBuildStart(match, ctxOf(rolled.objects, possession, shooter), config)
+    const t = mode.onBuildStart(match, ctxOf(rolled.objects, possession, shooter, credits), config)
     built = t.built
-    points = { ...points, [match.builder]: t.points }
+    credits = { ...credits, [match.builder]: t.credits }
     // A turn opened by a defence choice continues the window the choice was made in.
     if (config.buildTime && !chose) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
   }
@@ -321,5 +357,5 @@ export function step(
   if (expired || fired || ended || (chose && !match.builder) || (state.possession.live && !possession.live) || possession.shooter !== state.possession.shooter) clock = { ...clock, left: config.shotClock * config.tickHz }
   // A goal opens the choice: its window is the build window, set after the resets above.
   if (match.choosing && !state.match.choosing && config.buildTime) clock = { left: config.buildTime * config.tickHz, expiries: 0 }
-  return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, points, nextId, built, ball: landed }, events }
+  return { state: { ...state, possession, match, clock, tick: state.tick + 1, players, breaker: rolled.breaker && possession.live, objects: rolled.objects, credits, nextId, built, ball: landed }, events }
 }

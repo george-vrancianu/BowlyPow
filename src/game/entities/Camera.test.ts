@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Camera, clampY, fogOf, layout, viewOf, viewOutline } from './Camera'
+import { anchorY, Camera, clampY, fogOf, layout, viewOf, viewOutline } from './Camera'
 import { rules } from '../../config/rules'
 
 describe('manual pan', () => {
@@ -18,21 +18,71 @@ describe('manual pan', () => {
 })
 
 describe('layout', () => {
-  it('phone portrait: 40 units across, height capped at 64, letterboxed when taller', () => {
-    const l = layout({ width: 400, height: 1200 })
+  it('phone portrait: the pane fills the width, and the height above the HUD band shows more pitch', () => {
+    const l = layout({ width: 400, height: 900 }, { top: 0, bottom: 120 })
     expect(l.scale).toBe(10)
-    expect(l.visibleHeight).toBe(64)
-    expect(l.pane).toEqual({ x: 0, y: 280, w: 400, h: 640 })
+    expect(l.visibleHeight).toBe(78)
+    expect(l.pane).toEqual({ x: 0, y: 0, w: 400, h: 780 })
   })
-  it('3:4 tablet portrait gets side bands, still 40 x 64 units', () => {
+  it('the HUD band is reserved on the side it sits (top when the stage is turned)', () => {
+    expect(layout({ width: 400, height: 900 }, { top: 120, bottom: 0 }).pane).toEqual({ x: 0, y: 120, w: 400, h: 780 })
+  })
+  it('a very tall phone is capped at 80 units, the spare height on the far side', () => {
+    const l = layout({ width: 400, height: 1200 }, { top: 0, bottom: 100 })
+    expect(l.visibleHeight).toBe(80)
+    expect(l.pane).toEqual({ x: 0, y: 300, w: 400, h: 800 })
+  })
+  it('3:4 tablet portrait gets side bands, 40 x 64 units', () => {
     const l = layout({ width: 600, height: 800 })
     expect(l.scale).toBe(12.5)
+    expect(l.visibleHeight).toBe(64)
     expect(l.pane).toEqual({ x: 50, y: 0, w: 500, h: 800 })
   })
-  it('wide screen gets a 10:16 pane with side bands', () => {
+  it('wide screen keeps side bands rather than show fewer than 64 units', () => {
     const l = layout({ width: 1600, height: 800 })
     expect(l.scale).toBe(12.5)
     expect(l.pane).toEqual({ x: 550, y: 0, w: 500, h: 800 })
+  })
+})
+
+describe('anchor', () => {
+  it('holds the ball 70% down the screen for the bottom seat, so more pitch shows ahead of it', () => {
+    expect(anchorY(80, 1, 80)).toBe(64)
+  })
+  it('for the top seat the stage is turned, so the view sits on the other side of the ball', () => {
+    expect(anchorY(30, 2, 80)).toBe(46)
+  })
+})
+
+describe('anchored follow on a 400 x 900 phone (78 units shown)', () => {
+  /** Where the ball sits down the screen of the bottom seat (0 top, 1 bottom) once the camera has settled on it. */
+  const settled = (ballY: number) => {
+    const cam = new Camera(54)
+    cam.reserve = { top: 0, bottom: 120 }
+    cam.fit({ width: 400, height: 900 })
+    cam.follow(anchorY(ballY, 1, cam.visibleHeight), 10)
+    return { cam, at: (ballY - (cam.y - cam.visibleHeight / 2)) / cam.visibleHeight }
+  }
+  it('at the centre spot the ball is 70% down', () => {
+    expect(settled(54).at).toBeCloseTo(0.7)
+  })
+  it('on the own quarter line the ball is still 70% down', () => {
+    expect(settled(81).at).toBeCloseTo(0.7)
+  })
+  it('near the own goal the clamp wins: the view rests on the near board and the ball drops below 70%', () => {
+    const { cam, at } = settled(104)
+    expect(cam.y + cam.visibleHeight / 2).toBe(rules.pitchHeight + rules.board)
+    expect(at).toBeCloseTo(73 / 78)
+  })
+})
+
+describe('fit', () => {
+  it('pans and follows are clamped to the height the canvas shows', () => {
+    const cam = new Camera(54)
+    cam.reserve = { top: 0, bottom: 120 }
+    cam.fit({ width: 400, height: 900 })
+    cam.pan(1000)
+    expect(cam.y).toBe(109 - 39)
   })
 })
 
@@ -88,22 +138,23 @@ describe('map camera', () => {
     expect(v.pane).toEqual({ x: 0, y: 0, w: 400, h: 1200 })
     expect(v.sy).toBeCloseTo(1200 / v.visibleHeight)
   })
-  it('outlines the game view: full width, 64 units tall, positioned by camera y', () => {
+  it('outlines the game view: full width, as tall as the view shows (80 units here), positioned by camera y', () => {
     const map = { y: rules.mapY, map: { stretch: false } }
     const o = viewOutline(canvas, map, { y: rules.mapY })
     expect(o.w).toBe(400)
-    expect(o.h).toBe(640)
+    expect(o.h).toBe(800)
     expect(o.y + o.h / 2).toBeCloseTo(600)
     expect(viewOutline(canvas, map, { y: rules.mapY + 10 }).y - o.y).toBeCloseTo(100)
   })
   it('converts canvas pixels back to world units', () => {
     const cam = new Camera(54)
-    expect(cam.toWorld(canvas, 200, 600)).toEqual({ x: 20, y: 54 })
+    // A 400 x 1200 canvas shows 80 units in a pane on its bottom 800 px, centred at y 800.
+    expect(cam.toWorld(canvas, 200, 800)).toEqual({ x: 20, y: 54 })
   })
   it('converts world units to canvas pixels', () => {
     const cam = new Camera(54)
-    expect(cam.toCanvas(canvas, { x: 20, y: 54 })).toEqual({ x: 200, y: 600 })
-    expect(cam.toCanvas(canvas, { x: 30, y: 64 })).toEqual({ x: 300, y: 700 })
+    expect(cam.toCanvas(canvas, { x: 20, y: 54 })).toEqual({ x: 200, y: 800 })
+    expect(cam.toCanvas(canvas, { x: 30, y: 64 })).toEqual({ x: 300, y: 900 })
   })
 })
 

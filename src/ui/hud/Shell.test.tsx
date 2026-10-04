@@ -2,17 +2,96 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HudModel } from '../../game/view/hudModel'
+import { visual } from '../../config/visual'
 import { Shell } from './Shell'
 
 afterEach(cleanup)
 
 const hud = (over: Partial<HudModel> = {}): HudModel => ({
   players: { 1: { digit: '3', inventory: { breaker: 1, repulsor: 0, steal: 2 } }, 2: { digit: '?', inventory: { breaker: 4, repulsor: 4, steal: 4 } } },
-  active: 1, round: null, rounds: 3, clock: { seconds: 12, fraction: 0.5 }, shotsLeft: 2, shotsMax: 3, phase: 'Play', breaker: { armed: false, tappable: true }, ...over,
+  active: 1, round: null, rounds: 3, clock: { seconds: 12, fraction: 0.5 }, shotsLeft: 2, shotsMax: 3, refundable: false, phase: 'Play', breaker: { armed: false, tappable: true }, ...over,
 })
-const props = () => ({ hud: hud(), confirm: false, mapOpen: false, flipped: false, onMap: vi.fn(), onRecenter: vi.fn(), onPowerUp: vi.fn(), onConfirm: vi.fn(), onMapStretch: vi.fn(), onMapClose: vi.fn(), onBuildToggle: vi.fn() })
+const props = () => ({ hud: hud(), confirm: false, mapOpen: false, flipped: false, onMap: vi.fn(), onRecenter: vi.fn(), onPowerUp: vi.fn(), onConfirm: vi.fn(), onMapStretch: vi.fn(), onMapClose: vi.fn(), onBuildToggle: vi.fn(), onRefund: vi.fn() })
 
 describe('Shell', () => {
+  describe('Move point dots', () => {
+    afterEach(() => vi.useRealTimers())
+    const dots = () => screen.queryAllByRole('button', { name: 'Refund a Move point' })
+
+    it('a tap on a filled dot refunds one Move point', () => {
+      const p = props()
+      render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      expect(dots()).toHaveLength(3)
+      fireEvent.pointerDown(dots()[0]!)
+      fireEvent.pointerUp(dots()[0]!)
+      expect(p.onRefund).toHaveBeenCalledWith(1)
+    })
+
+    it('a long-press refunds all but one', () => {
+      vi.useFakeTimers()
+      const p = props()
+      render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      vi.advanceTimersByTime(visual.hud.longPressMs + 1)
+      fireEvent.pointerUp(dots()[0]!)
+      expect(p.onRefund).toHaveBeenCalledTimes(1)
+      expect(p.onRefund).toHaveBeenCalledWith(2)
+    })
+
+    it('releasing just before the long-press refunds one', () => {
+      vi.useFakeTimers()
+      const p = props()
+      render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      vi.advanceTimersByTime(visual.hud.longPressMs - 1)
+      fireEvent.pointerUp(dots()[0]!)
+      expect(p.onRefund).toHaveBeenCalledTimes(1)
+      expect(p.onRefund).toHaveBeenCalledWith(1)
+    })
+
+    it('a long-press does not fire after the Move points change mid-hold', () => {
+      vi.useFakeTimers()
+      const p = props()
+      const { rerender } = render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      rerender(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 2 })} />)
+      vi.advanceTimersByTime(visual.hud.longPressMs + 1)
+      expect(p.onRefund).not.toHaveBeenCalled()
+    })
+
+    it('releasing after the Move points change mid-hold refunds nothing and leaves no dot pressed', () => {
+      const p = props()
+      const { rerender } = render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      rerender(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 2 })} />)
+      fireEvent.pointerUp(dots()[0]!)
+      expect(p.onRefund).not.toHaveBeenCalled()
+      expect(dots().some((d) => d.getAttribute('aria-pressed') === 'true')).toBe(false)
+    })
+
+    it('a held dot shows pressed until released', () => {
+      render(<Shell {...props()} hud={hud({ refundable: true, shotsLeft: 3 })} />)
+      fireEvent.pointerDown(dots()[1]!)
+      expect(dots().map((d) => d.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false'])
+      fireEvent.pointerUp(dots()[1]!)
+      expect(dots().every((d) => d.getAttribute('aria-pressed') === 'false')).toBe(true)
+    })
+
+    it('a long-press on the last Move point reports a refund of none', () => {
+      vi.useFakeTimers()
+      const p = props()
+      render(<Shell {...p} hud={hud({ refundable: true, shotsLeft: 1 })} />)
+      fireEvent.pointerDown(dots()[0]!)
+      vi.advanceTimersByTime(visual.hud.longPressMs + 1)
+      expect(p.onRefund).toHaveBeenCalledWith(0)
+    })
+
+    it('are not buttons when the Move points may not be refunded', () => {
+      render(<Shell {...props()} hud={hud({ refundable: false, shotsLeft: 3 })} />)
+      expect(dots()).toHaveLength(0)
+    })
+  })
+
   it('shows both structure counts, including a hidden opponent as ?', () => {
     render(<Shell {...props()} />)
     expect(screen.getByText('3')).toBeTruthy()

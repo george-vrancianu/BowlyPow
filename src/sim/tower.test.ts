@@ -41,7 +41,7 @@ describe('tower placement', () => {
   it('places through step with rules.towerHp and no point cost, refuses illegal ones', () => {
     const r = run(buildState(1), { placeWall: tower(5, 40) })
     expect(r.state.objects).toMatchObject([{ kind: 'tower', id: 1, hp: rules.towerHp }])
-    expect(r.state.points).toEqual(playState().points)
+    expect(r.state.credits).toEqual(playState().credits)
     expect(run(buildState(1), { placeWall: tower(5, 10) }).events).toEqual([{ type: 'refused' }])
   })
 })

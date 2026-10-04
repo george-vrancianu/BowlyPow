@@ -44,9 +44,9 @@ Expect to tune friction and max speed by feel in the first hour of play. A full-
 
 ## Camera
 
-- The view is always the full 40-unit pitch width. Visible height is whatever the screen gives, capped at 64 units, so a player sees their own half plus a 10-unit strip of the enemy's. Nobody ever sees more than that at once.
-- Screens taller than 10:16 get letterbox bands top and bottom. Screens wider than 10:16 get a 10:16 pane letterboxed left and right.
-- The camera targets the ball, clamped so it never shows beyond the boards. While the ball moves it follows with about 150 ms of smoothing lag. At rest it settles on the ball.
+- The view is always the full 40-unit pitch width, filling the screen's width above the HUD band (120 CSS px kept clear on the side the HUD sits, so the top of the canvas when the stage is turned for player 2). Visible height is whatever is left, between 64 and 80 units (59-74% of the pitch).
+- Screens too wide to show 64 units across the full width get a pane letterboxed left and right. Screens tall enough to show more than 80 units get a band on the far side, away from the HUD, so the near goal stays next to the controls.
+- The camera follows the ball vertically, holding it 70% of the way down the screen of the player at the bottom so more of the pitch shows ahead of the shot than behind it, clamped so it never shows beyond the boards (near the own goal the view rests on the end). While the ball moves it follows with about 150 ms of smoothing lag. At rest it settles on that anchor.
 - Free panning at all times, in every phase: drag anywhere but on the ball (see Shooting), or drag with two fingers. Mouse drag and mouse wheel on desktop. A manual pan holds until the next sim event (shot fired, wall placed, possession change), then the camera returns to the ball. A recenter button in the HUD does the same on demand. Panning never pauses the shot clock.
 - Map: a HUD button opens a full-screen live view of the whole pitch, drawn by the same renderer through a second camera, with the current view outlined. Tap any point to close the map and center the camera there. Close button or map button closes without moving. A fit/stretch toggle in the corner is remembered for the session. The clock keeps running. Available in every phase, including the opponent's turn and while the ball moves. It always draws the whole pitch; during Siege's blind opening build the opponent's half is fogged in it (see Siege), so the map never shows more than the main view may.
 - A soft gradient at the view edge shows when more pitch lies beyond it.
@@ -74,7 +74,7 @@ Match-level rules belong to a game mode (see `docs/adr/0001-game-mode-abstractio
 
 The match structure below is Rounds.
 
-- Pre-match settings screen with three sliders: shots per possession (default 3), rounds (default 5), wall points per build phase (default 10).
+- Pre-match settings screen with four sliders: shots per possession (default 3), rounds (default 5), Credits per round (default 10; Siege labels the same slider "Wall points"), and Refund rate, the Credits a refunded Move point is worth (default 2; not in Siege).
 - A match is a fixed number of rounds. Most goals after all rounds wins. If tied, sudden-death rounds with no shot cap until someone scores.
 - Each round is a build phase followed by a play phase.
 - A round ends on a goal or after 30 total shots (scoreless).
@@ -83,7 +83,8 @@ The match structure below is Rounds.
 ## Build phase
 
 - Rounds: open information, both players see everything. Players build one after the other. Round 1 order is the coin-flip loser first, then order alternates each round. Siege has one blind opening build with the same first order, and Rearrange turns after a goal (see Game modes).
-- Each player gets the configured wall points (default 10). Unspent points are lost, no carry-over.
+- Rounds: building spends **Credits** (`docs/adr/0004-credits-single-resource.md`). Each build turn grants the builder the configured Credits per round (default 10) on top of what they hold, so unspent Credits carry over for the whole match. A player holds nothing before their first build turn. The HUD phase label shows the builder's balance (`Build · 14 credits`).
+- Siege: the opening build grants the configured wall points (default 10); its Rearrange turns have none.
 - A "Done" button ends your build. No timer in hot-seat (add one for P2P). In Rounds, tapping Done with nothing placed skips the phase; Siege refuses it (see Game modes).
 - Walls persist for the whole match.
 - Placement: tap a shape in the palette, a half-transparent build piece appears on your half, drag it to position it (dragging elsewhere pans), tap Rotate, tap Confirm. The piece turns red where placement is illegal.
@@ -124,6 +125,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 - If the ball rests on the opponent's half, possession switches and the opponent's counter resets.
 - If the ball rests on the shooter's half, the counter decrements. At 0 the opponent gets ball-in-hand on the opponent's half with a fresh counter.
 - A ball whose center rests exactly on the halfway line stays with the shooter and burns a shot.
+- Refund (Rounds, `docs/adr/0004-credits-single-resource.md`): the shooter may trade unspent shots (Move points) for Credits at the "Refund rate" setting (default 2), with the ball placed and no shot in flight, outside a build turn or a defence choice. Tapping a filled shot dot in the HUD refunds one; a long-press (0.5 s) refunds all but one. A held dot shows pressed, a refund buzzes briefly, and a long-press on the last one refunds nothing and buzzes denied (no haptics under reduced motion). Only the device playing the shooter's seat sends a refund. Refunding the last one hands the opponent ball-in-hand with a fresh counter, as running out of shots does (the shot clock restarts too, so a refund on the tick the clock runs out burns no shot, and a shot in the same input is refused). Refunds are not shots: they never count toward the round's shot cap and work in sudden death. The sim input is `refund: { player, count }` with a whole `count`, and emits `refunded`; anything else is refused. Siege has no refunds.
 
 ### Ball-in-hand
 
@@ -161,7 +163,7 @@ A placement is rejected if, after it, a ball-sized disc could no longer travel f
 ## Power-ups (milestone 2)
 
 - Each player starts the match with 3 of each power-up. No economy. Counts are visible to both players.
-- Towers follow all wall rules: own half only, outside the no-build zone, counted in the reachability check, persistent across rounds, placed in the build phase through the same drag-rotate-confirm flow. They cost 0 wall points; the power-up is the cost.
+- Towers follow all wall rules: own half only, outside the no-build zone, counted in the reachability check, persistent across rounds, placed in the build phase through the same drag-rotate-confirm flow. They cost 0 Credits; the power-up is the cost.
 
 ### Breaker shot (play phase)
 

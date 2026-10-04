@@ -13,7 +13,13 @@ export const visual = {
   frame: { maxDtS: 0.25 },
   player: { colors: { 1: '#22d3ee', 2: '#fb923c' } },
   camera: {
-    maxVisibleHeight: 64,
+    /** World units the view shows: never fewer than `minVisibleHeight` (wider screens get side bands), never more than `maxVisibleHeight` (taller ones get a band on the far side). */
+    minVisibleHeight: 64,
+    maxVisibleHeight: 80,
+    /** How far down the screen the camera holds the ball, so more of the pitch shows ahead of it. */
+    anchor: 0.7,
+    /** CSS px kept clear of the pitch for the HUD band, on the side the HUD sits. */
+    hudReservePx: 120,
     smoothingS: 0.15,
     bg: dark,
     mapOutline: white,
@@ -120,5 +126,7 @@ export const visual = {
   },
   input: { tapSlopPx: 12, dragSlopPx: 6, edgeScrollSpeed: 30, edgeBand: 0.1, touchTargetPx: 22 },
   transition: { flipMs: 400, goalMs: 1500, sweepMs: 1000, dismissMs: 1000, revealMs: 1500 },
-  hud: { font: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', ink, dark, panel: '#141a2a', track: '#3b4256', urgent: '#ff4d4d', urgentSeconds: 5, urgentPulse: 0.15, scrim: 'rgba(11,15,26,0.85)', scrimLight: 'rgba(11,15,26,0.7)', pressed: '#2a3350', pressedBorder: white, scoreFlipMs: 400, shadow: '#0008', gap: 8 },
+  hud: { font: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', ink, dark, panel: '#141a2a', track: '#3b4256', urgent: '#ff4d4d', urgentSeconds: 5, urgentPulse: 0.15, scrim: 'rgba(11,15,26,0.85)', scrimLight: 'rgba(11,15,26,0.7)', pressed: '#2a3350', pressedBorder: white, scoreFlipMs: 400, /** Hold on a Move point dot this long to refund all but one. */ longPressMs: 500,
+    /** Move point dots: size and ring in px; a refund buzzes `vibration` ms, a refund that cannot happen buzzes `denied`. */
+    refund: { dotPx: 12, ringPx: 2, gap: 4, vibration: 20, denied: [15, 40, 15] }, shadow: '#0008', gap: 8 },
 } as const

@@ -10,7 +10,7 @@ import { structuresOf } from '../sim/wall'
 import type { Driver, DriverFactory, Sink } from './driver'
 import { Aim } from './entities/Aim'
 import { Ball } from './entities/Ball'
-import { Camera, viewOutline } from './entities/Camera'
+import { anchorY, Camera, hudReserve, viewOutline } from './entities/Camera'
 import { EdgeFade } from './entities/EdgeFade'
 import { Fog } from './entities/Fog'
 import { Pitch } from './entities/Pitch'
@@ -51,6 +51,8 @@ export type GameActions = {
   mapStretch(): void
   recenter(): void
   powerUp(p: PowerUp): void
+  /** The shooter refunds `count` Move points for Credits; the sim refuses it when not allowed. A count under 1 only buzzes denied. */
+  refund(count: number): void
   confirmBall(): void
   /** Tap on the turn card. */
   dismiss(): void
@@ -58,7 +60,7 @@ export type GameActions = {
 }
 
 /** Hot-seat: every seat is local, so no one is ever waited on. The online wave swaps this one predicate. */
-const mine = () => true
+const mine = (_p?: PlayerId | null) => true
 
 /** The end screen's result line, per mode. */
 const resultOf = (m: SimState['match'], winner: PlayerId, objects: SimState['objects']): string => {
@@ -108,6 +110,7 @@ export class Game implements Sink {
   private now = performance.now()
   private last = this.now
   private raf = 0
+  private dpr = 1
   private dead = false
   private lastView = ''
 
@@ -145,6 +148,13 @@ export class Game implements Sink {
       },
       recenter: () => this.camera.recenter(),
       powerUp: (p) => p === 'breaker' && this.input.toggleArm(),
+      refund: (count) => {
+        // Only the device that plays the shooter's seat refunds for it, as only it may aim.
+        const { shooter } = this.state.possession
+        if (!mine(shooter)) return
+        if (count >= 1) this.driver.send({ refund: { player: shooter, count } })
+        else if (!reducedMotion()) navigator.vibrate?.([...visual.hud.refund.denied])
+      },
       confirmBall: this.input.confirmBall,
       dismiss: () => (this.transition = dismiss(this.transition, performance.now())),
       build: this.input.build,
@@ -206,6 +216,20 @@ export class Game implements Sink {
     this.push()
   }
 
+  /** Sizes the canvas backing store to the screen, before anything reads it this frame. */
+  private resize(): void {
+    const { canvas } = this
+    this.dpr = window.devicePixelRatio || 1
+    canvas.width = canvas.clientWidth * this.dpr
+    canvas.height = canvas.clientHeight * this.dpr
+  }
+
+  /** Keeps the HUD band clear on the side the HUD sits (the stage is turned for seat 2) and takes the height the canvas shows. */
+  private fitCamera(): void {
+    this.camera.reserve = hudReserve(this.transition.shown, visual.camera.hudReservePx * this.dpr)
+    this.camera.fit(this.canvas)
+  }
+
   private toggleMap(open = !this.mapOpen): void {
     this.mapOpen = open
   }
@@ -220,6 +244,7 @@ export class Game implements Sink {
     // The sim never waits on animations; the driver just stops stepping behind a flip, goal hold or turn card.
     const dt = Math.min((now - this.last) / 1000, visual.frame.maxDtS)
     this.last = this.now = now
+    this.resize()
     // Clocks advance before the sim ticks, so an effect the tick starts is drawn at age 0.
     this.camera.update(dt)
     this.driver.update(dt)
@@ -228,11 +253,13 @@ export class Game implements Sink {
     // A ball-in-hand placement or half-made gesture does not survive a blocking hold into the next player's turn.
     if (this.blocked()) this.input.cancelGestures()
     const { state, transition, camera } = this
+    this.fitCamera()
     const flipping = !!transition.flip && now - transition.flip.at >= transition.flip.ms / 2
-    if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = state.ball.pos.y), camera.recenter()
+    const target = anchorY(state.ball.pos.y, transition.shown, camera.visibleHeight)
+    if (!state.match.builder && (flipping || (transition.overlay?.kind === 'turn' && !transition.flip))) (camera.y = target), camera.recenter()
     this.input.edgeScroll(dt)
     this.input.tickAim()
-    if (!camera.held) camera.follow(state.ball.pos.y, dt)
+    if (!camera.held) camera.follow(target, dt)
     this.present()
     this.draw()
     this.push()
@@ -269,9 +296,6 @@ export class Game implements Sink {
 
   private draw(): void {
     const { canvas, ctx, camera, mapCam } = this
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = canvas.clientWidth * dpr
-    canvas.height = canvas.clientHeight * dpr
     if (this.viewCam() === mapCam) mapCam.draw(ctx, camera.children, camera.shakeNow)
     else camera.draw(ctx)
     this.fog.draw(ctx)
@@ -279,7 +303,7 @@ export class Game implements Sink {
     if (this.mapOpen) {
       const o = viewOutline(canvas, mapCam, camera)
       ctx.strokeStyle = visual.camera.mapOutline
-      ctx.lineWidth = visual.camera.mapOutlinePx * dpr
+      ctx.lineWidth = visual.camera.mapOutlinePx * this.dpr
       ctx.strokeRect(o.x, o.y, o.w, o.h)
     }
   }

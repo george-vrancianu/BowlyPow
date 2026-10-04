@@ -33,7 +33,7 @@ describe('pick', () => {
 
 describe('selection', () => {
   it('moving is free; a new piece must be affordable', () => {
-    const s = { ...placed(), points: { 1: 0, 2: 0 } }
+    const s = { ...placed(), credits: { 1: 0, 2: 0 } }
     const spec = { ...wall, at: { gx: 4, gy: 40 } }
     expect(legal(s, { spec, id: 1, movable: true })).toBe(true)
     expect(legal(s, { spec, movable: true })).toBe(false)
@@ -98,7 +98,7 @@ describe('landing', () => {
 describe('rearrange turn', () => {
   const siege = { ...c, mode: 'siege' as const }
   const base = initialState(1, siege)
-  const s: SimState = { ...base, match: { ...base.match, builder: 1, opening: false } as SimState['match'], objects: [{ ...wall, id: 1, hp: 2 }], built: [1], points: { 1: 0, 2: 0 } }
+  const s: SimState = { ...base, match: { ...base.match, builder: 1, opening: false } as SimState['match'], objects: [{ ...wall, id: 1, hp: 2 }], built: [1], credits: { 1: 0, 2: 0 } }
   it('has no palette when nothing is selected, and no demolish once a piece is', () => {
     expect(buildMenu(s, 1, { open: true }, actions)).toBeUndefined()
     const sel = pick(s, 1, { x: 21, y: 80.5 }, 1)!

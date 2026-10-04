@@ -11,14 +11,14 @@ const base = {
   towerHp: 3,
   /** A Steal tower is fragile. */
   stealHp: 1,
-  /** Wall points a tower costs; it spends inventory instead. */
+  /** Credits a tower costs; it spends inventory instead. */
   towerCost: 0,
   wallCost: { straight: 2, L: 3 },
   /** Half the drawn wall thickness; the ball cannot be placed on it. */
   wallHalf: 0.35,
   /** Each arm is a run of cells from the pivot, before rotation. */
   arms: { straight: [[4, 0]], L: [[3, 0], [0, 3]] } as Record<'straight' | 'L', [number, number][]>,
-  /** Wall points it costs to demolish a piece placed in an earlier turn. */
+  /** Credits it costs to demolish a piece placed in an earlier turn. */
   demolishCost: 1,
   startInventory: 3,
   /** Where a timed-out blind opening build drops its piece for P1, in grid vertices; P2's mirrors across the halfway line. */
